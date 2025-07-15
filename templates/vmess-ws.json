@@ -1,0 +1,21 @@
+{
+  "type": "vmess",
+  "tag": "vmess-in",
+  "listen": "::",
+  "listen_port": {{PORT}},
+  "users": [
+    {
+      "uuid": "{{UUID}}",
+      "alterId": 0
+    }
+  ],
+  "transport": {
+    "type": "ws",
+    "path": "{{WS_PATH}}",
+    "headers": {
+      "Host": "{{HOST}}"
+    },
+    "max_early_data": 2048,
+    "early_data_header_name": "Sec-WebSocket-Protocol"
+  }
+}

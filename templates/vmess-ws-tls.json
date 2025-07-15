@@ -1,0 +1,31 @@
+{
+  "type": "vmess",
+  "tag": "vmess-tls-in",
+  "listen": "::",
+  "listen_port": {{PORT}},
+  "users": [
+    {
+      "uuid": "{{UUID}}",
+      "alterId": 0
+    }
+  ],
+  "tls": {
+    "enabled": true,
+    "server_name": "{{SERVER_NAME}}",
+    "certificate_path": "{{CERT_PATH}}",
+    "key_path": "{{KEY_PATH}}",
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ]
+  },
+  "transport": {
+    "type": "ws",
+    "path": "{{WS_PATH}}",
+    "headers": {
+      "Host": "{{HOST}}"
+    },
+    "max_early_data": 2048,
+    "early_data_header_name": "Sec-WebSocket-Protocol"
+  }
+}
