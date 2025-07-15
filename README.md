@@ -2,9 +2,11 @@
 
 一个功能完整的 Sing-box 服务器端一键搭建脚本，支持多种主流代理协议的快速部署和管理。
 
+> **⚠️ 重要说明**: 本项目中的 GitHub URL（如 `your-repo/singbox-install`）为占位符，请根据实际情况替换为您的仓库地址。脚本已优化为本地使用模式，无需网络下载。
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/your-repo/singbox-install/releases)
-[![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](https://github.com/your-repo/singbox-install)
+[![Version](https://img.shields.io/badge/version-v1.1.0-blue.svg)](#)
+[![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](#)
 
 ## ✨ 特性
 
@@ -46,22 +48,50 @@
 
 ## 🚀 快速安装
 
-### 方法一：一键安装（推荐）
+### 方法一：在线一键安装（推荐）⭐
+
+**真正的一键安装，无需下载任何文件！**
 
 ```bash
-# 使用 curl
-curl -fsSL https://raw.githubusercontent.com/your-repo/singbox-install/main/quick-install.sh | sudo bash
+# 使用 curl（推荐）
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash
 
 # 或使用 wget
-wget -qO- https://raw.githubusercontent.com/your-repo/singbox-install/main/quick-install.sh | sudo bash
+wget -qO- https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash
 ```
 
-### 方法二：手动安装
+**直接安装特定协议：**
+
+```bash
+# 直接安装 VLESS Reality Vision
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vless
+
+# 直接安装 VMess WebSocket
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vmess
+
+# 直接安装 Hysteria2
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --hysteria2
+```
+
+> 📖 详细说明请查看：[在线安装文档](ONLINE_INSTALL.md)
+
+### 方法二：快速安装
+
+```bash
+# 1. 下载完整项目
+git clone https://github.com/Yan-nian/singbox-install-script.git
+cd singbox-install-script
+
+# 2. 运行快速安装脚本
+sudo bash quick-install.sh
+```
+
+### 方法三：手动安装
 
 ```bash
 # 1. 下载脚本
-git clone https://github.com/your-repo/singbox-install.git
-cd singbox-install
+git clone https://github.com/Yan-nian/singbox-install-script.git
+cd singbox-install-script
 
 # 2. 添加执行权限
 chmod +x install.sh
@@ -70,11 +100,12 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-### 方法三：直接下载
+### 方法四：仅下载主脚本
 
 ```bash
-# 下载主脚本
-wget https://raw.githubusercontent.com/your-repo/singbox-install/main/install.sh
+# 下载项目并使用主脚本
+git clone https://github.com/Yan-nian/singbox-install-script.git
+cd singbox-install-script
 chmod +x install.sh
 sudo ./install.sh
 ```
@@ -193,6 +224,7 @@ sudo journalctl -u sing-box --since "1 hour ago"
 sing-box/
 ├── install.sh              # 主安装脚本
 ├── quick-install.sh        # 快速安装脚本
+├── one-click-install.sh    # 在线一键安装脚本 ⭐
 ├── scripts/                # 功能模块
 │   ├── common.sh          # 公共函数库
 │   ├── system.sh          # 系统检测模块
@@ -215,6 +247,7 @@ sing-box/
 │   ├── usage.md           # 使用说明
 │   └── protocols.md       # 协议说明
 ├── README.md              # 项目说明
+├── ONLINE_INSTALL.md      # 在线安装说明 ⭐
 ├── LICENSE                # 许可证
 ├── VERSION                # 版本信息
 ├── CHANGELOG.md           # 更新日志
@@ -252,6 +285,16 @@ sing-box/
 - 🛠️ **故障诊断**: 自动诊断常见问题
 
 ## 🔍 版本历史
+
+### v1.1.0 (2024-01-01)
+- 🚀 **新增在线一键安装功能**
+- ✨ 添加 `one-click-install.sh` 自包含安装脚本
+- 🌐 支持通过 curl/wget 直接安装，无需 git clone
+- 📖 新增 `ONLINE_INSTALL.md` 在线安装文档
+- 🎯 支持命令行参数直接安装特定协议
+- 🔧 优化安装流程，提升用户体验
+- 📦 自动检测和安装系统依赖
+- 🛡️ 增强安全性和错误处理
 
 ### v1.0.0 (2024-01-01)
 - 🎉 初始版本发布

@@ -1,5 +1,53 @@
 # 更新日志
 
+## [v1.1.0] - 2024-01-01
+
+### 🚀 重大更新
+- ✨ **新增在线一键安装功能** - 真正的一键安装体验
+- 🌐 支持通过 curl/wget 直接安装，无需 git clone
+- 📦 创建自包含安装脚本 `one-click-install.sh`
+
+### 新增功能
+- ✨ 在线一键安装脚本，集成所有必要模块
+- ✨ 支持命令行参数直接安装特定协议
+- ✨ 自动检测和安装系统依赖
+- ✨ 增强的错误处理和用户提示
+- ✨ 支持多种安装方式选择
+
+### 安装方式
+```bash
+# 在线一键安装（推荐）
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash
+
+# 直接安装特定协议
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vless
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vmess
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --hysteria2
+```
+
+### 文档更新
+- 📖 新增 `ONLINE_INSTALL.md` 在线安装详细文档
+- 📖 更新 `README.md` 添加在线安装说明
+- 📖 完善部署和使用指南
+
+### 技术改进
+- 🔧 优化安装流程，减少用户操作步骤
+- 🔧 增强脚本的健壮性和容错能力
+- 🔧 改进日志记录和错误提示
+- 🔧 优化网络连接检测
+
+### 项目结构更新
+```
+sing-box/
+├── install.sh              # 主安装脚本
+├── quick-install.sh        # 快速安装脚本
+├── one-click-install.sh    # 在线一键安装脚本 ⭐ NEW
+├── ONLINE_INSTALL.md       # 在线安装说明 ⭐ NEW
+└── ...
+```
+
+---
+
 ## [v1.0.0] - 2024-01-01
 
 ### 新增功能
