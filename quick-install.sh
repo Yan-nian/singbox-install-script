@@ -111,18 +111,7 @@ download_script() {
     mkdir -p "$TEMP_DIR"
     cd "$TEMP_DIR"
     
-    # 下载方式1: 使用 git clone
-    if command -v git >/dev/null 2>&1; then
-        log_info "使用 git 下载..."
-        if git clone "$REPO_URL" singbox-install; then
-            cd singbox-install
-            return 0
-        else
-            log_warn "git 下载失败，尝试其他方式..."
-        fi
-    fi
-    
-    # 下载方式2: 下载 ZIP 文件
+    # 下载 ZIP 文件
     log_info "下载 ZIP 文件..."
     if curl -L "$REPO_URL/archive/main.zip" -o singbox-install.zip; then
         unzip -q singbox-install.zip
