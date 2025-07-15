@@ -105,26 +105,23 @@ show_banner() {
 
 # 下载安装脚本
 download_script() {
-    log_info "下载安装脚本..."
+    log_info "检测脚本位置..."
     
-    # 创建临时目录
-    mkdir -p "$TEMP_DIR"
-    cd "$TEMP_DIR"
+    # 获取当前脚本所在目录
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
-    # 下载 ZIP 文件
-    log_info "下载 ZIP 文件..."
-    if curl -L "$REPO_URL/archive/main.zip" -o singbox-install.zip; then
-        unzip -q singbox-install.zip
-        cd singbox-install-main
+    # 检查是否在项目目录中
+    if [[ -f "$script_dir/install.sh" ]]; then
+        log_info "发现本地安装脚本，直接使用"
+        cd "$script_dir"
         return 0
-    elif wget "$REPO_URL/archive/main.zip" -O singbox-install.zip; then
-        unzip -q singbox-install.zip
-        cd singbox-install-main
-        return 0
-    else
-        log_error "下载失败，请检查网络连接"
-        exit 1
     fi
+    
+    # 如果没有本地脚本，提示用户
+    log_error "未找到 install.sh 文件"
+    log_error "请确保 quick-install.sh 和 install.sh 在同一目录中"
+    log_info "或者从项目仓库下载完整的脚本包"
+    exit 1
 }
 
 # 运行安装脚本
@@ -170,9 +167,9 @@ show_help() {
     echo -e "  $0 --vless            # 直接安装 VLESS Reality Vision"
     echo -e "  $0 --multi            # 安装多协议配置"
     echo ""
-    echo -e "${YELLOW}一键安装命令:${NC}"
-    echo -e "  ${GREEN}curl -fsSL $RAW_URL/quick-install.sh | sudo bash${NC}"
-    echo -e "  ${GREEN}wget -qO- $RAW_URL/quick-install.sh | sudo bash${NC}"
+    echo -e "${YELLOW}使用说明:${NC}"
+    echo -e "  ${GREEN}请确保 quick-install.sh 和 install.sh 在同一目录中${NC}"
+    echo -e "  ${GREEN}然后运行: sudo bash quick-install.sh${NC}"
     echo ""
 }
 
