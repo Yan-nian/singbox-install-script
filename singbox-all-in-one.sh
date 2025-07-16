@@ -151,12 +151,16 @@ generate_simple_qr() {
     echo "$(printf '%.0s' $(seq 1 $((size*2))))"
     # 生成伪随机模式（基于文本内容）
     
+    # 生成文本的简单哈希
+    local hash=$(echo -n "$text" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "$text" | od -An -tx1 | tr -d ' \n')
+    
     for i in $(seq 1 $size); do
-        echo -n "�?
-        echo -n ""
-            # 基于位置和哈希生成模�?            local pos=$((i * size + j))
+        echo -n "█"
+        for j in $(seq 1 $size); do
             # 基于位置和哈希生成模式
-            local char_val=$(printf "%d" "'${hash:$char_pos:1}")
+            local pos=$((i * size + j))
+            local char_pos=$((pos % ${#hash}))
+            local char_val=$(printf "%d" "'${hash:$char_pos:1}" 2>/dev/null || echo "65")
             
             if [ $((char_val % 3)) -eq 0 ]; then
                 echo -n "██"
@@ -164,7 +168,7 @@ generate_simple_qr() {
                 echo -n "  "
             fi
         done
-        echo ""
+        echo "█"
     done
     
     echo "$(printf '%.0s' $(seq 1 $((size*2))))"
