@@ -1268,16 +1268,59 @@ generate_hysteria2_cert() {
         return 1
     fi
     
-    # 生成私钥
-    if ! openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8 2>/dev/null; then
-        log_error "生成私钥失败"
+    # 检查 openssl 版本和配置
+    log_message "DEBUG" "OpenSSL 版本: $(openssl version 2>/dev/null || echo 'unknown')"
+    
+    # 生成私钥 - 使用更兼容的方法
+    log_message "DEBUG" "正在生成 RSA 私钥"
+    if ! openssl genrsa -out /etc/ssl/private/hysteria.key 2048 2>/dev/null; then
+        log_error "生成私钥失败，尝试备用方法"
+        # 备用方法：使用 genpkey
+        if ! openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8 2>&1 | tee /tmp/openssl_error.log; then
+            log_error "备用方法也失败，OpenSSL 错误信息："
+            if [[ -f /tmp/openssl_error.log ]]; then
+                cat /tmp/openssl_error.log
+                rm -f /tmp/openssl_error.log
+            fi
+            return 1
+        fi
+    fi
+    
+    # 验证私钥文件
+    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -s "/etc/ssl/private/hysteria.key" ]]; then
+        log_error "私钥文件生成失败或为空"
         return 1
     fi
     
+    log_message "DEBUG" "正在生成自签名证书"
     # 生成证书
     if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
-        log_error "生成证书失败"
-        return 1
+        log_error "生成证书失败，尝试一体化生成方法"
+        # 备用方法：一条命令同时生成私钥和证书
+        rm -f /etc/ssl/private/hysteria.key /etc/ssl/private/hysteria.crt
+        if ! openssl req -x509 -newkey rsa:2048 -keyout /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -nodes -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
+            log_error "一体化生成也失败，尝试最简单的方法"
+             # 最后备用方法：使用最基本的openssl命令
+             if ! openssl genrsa 2048 > /etc/ssl/private/hysteria.key 2>/dev/null; then
+                 log_error "所有私钥生成方法都失败，显示详细错误信息"
+                 openssl req -x509 -newkey rsa:2048 -keyout /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -nodes -subj "/CN=$HY2_DOMAIN" 2>&1 | tee /tmp/cert_error.log
+                 if [[ -f /tmp/cert_error.log ]]; then
+                     log_error "OpenSSL 错误信息："
+                     cat /tmp/cert_error.log
+                     rm -f /tmp/cert_error.log
+                 fi
+                 log_warn "证书生成失败，但继续配置（可能影响连接）"
+                 return 1
+             fi
+             
+             # 生成对应的证书
+             if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
+                 log_warn "证书生成失败，但私钥已生成"
+                 return 1
+             fi
+             log_success "使用基础方法成功生成证书"
+        fi
+        log_success "使用一体化方法成功生成证书"
     fi
     
     # 设置权限
