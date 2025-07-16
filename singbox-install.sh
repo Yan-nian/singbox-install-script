@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.2.0
+# 版本: v2.4.3
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.2"
+SCRIPT_VERSION="v2.4.3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -32,11 +32,13 @@ OS=""
 ARCH=""
 PUBLIC_IP=""
 
-# 加载模块
+# 加载模块 - 增强版
 load_modules() {
     local lib_dir="$(dirname "$0")/lib"
     local base_url="https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/lib"
     local temp_dir="/tmp/singbox-modules"
+    
+    echo -e "${CYAN}正在加载模块...${NC}"
     
     # 检查是否为在线执行（curl管道）
     if [[ "$0" == "bash" ]] || [[ "$0" == "-bash" ]] || [[ "$(dirname "$0")" == "/dev/fd" ]] || [[ ! -d "$lib_dir" ]]; then
@@ -45,8 +47,8 @@ load_modules() {
         # 创建临时目录
         mkdir -p "$temp_dir"
         
-        # 下载模块文件
-        local modules=("common.sh" "protocols.sh" "menu.sh" "subscription.sh" "config_manager.sh")
+        # 下载模块文件（按依赖顺序）
+        local modules=("error_handler.sh" "logger.sh" "validator.sh" "common.sh" "protocols.sh" "menu.sh" "subscription.sh" "config_manager.sh")
         for module in "${modules[@]}"; do
             if curl -fsSL "$base_url/$module" -o "$temp_dir/$module"; then
                 echo -e "${GREEN}已下载: $module${NC}"
@@ -59,7 +61,35 @@ load_modules() {
         lib_dir="$temp_dir"
     fi
     
-    # 加载通用函数库
+    # 按依赖顺序加载模块
+    
+    # 1. 首先加载错误处理模块
+    if [[ -f "$lib_dir/error_handler.sh" ]]; then
+        source "$lib_dir/error_handler.sh"
+        echo -e "${GREEN}已加载错误处理模块${NC}"
+    else
+        echo -e "${YELLOW}警告: 错误处理模块不存在，使用基础错误处理${NC}"
+    fi
+    
+    # 2. 加载日志模块
+    if [[ -f "$lib_dir/logger.sh" ]]; then
+        source "$lib_dir/logger.sh"
+        echo -e "${GREEN}已加载日志模块${NC}"
+        # 初始化日志系统
+        init_logger
+    else
+        echo -e "${YELLOW}警告: 日志模块不存在，使用基础日志${NC}"
+    fi
+    
+    # 3. 加载验证模块
+    if [[ -f "$lib_dir/validator.sh" ]]; then
+        source "$lib_dir/validator.sh"
+        echo -e "${GREEN}已加载验证模块${NC}"
+    else
+        echo -e "${YELLOW}警告: 验证模块不存在，跳过参数验证${NC}"
+    fi
+    
+    # 4. 加载通用函数库
     if [[ -f "$lib_dir/common.sh" ]]; then
         source "$lib_dir/common.sh"
         echo -e "${GREEN}已加载通用函数库${NC}"
@@ -68,7 +98,16 @@ load_modules() {
         exit 1
     fi
     
-    # 加载协议模块
+    # 5. 加载配置管理模块（在协议模块之前）
+    if [[ -f "$lib_dir/config_manager.sh" ]]; then
+        source "$lib_dir/config_manager.sh"
+        echo -e "${GREEN}已加载配置管理模块${NC}"
+    else
+        echo -e "${RED}错误: 配置管理模块不存在${NC}"
+        exit 1
+    fi
+    
+    # 6. 加载协议模块
     if [[ -f "$lib_dir/protocols.sh" ]]; then
         source "$lib_dir/protocols.sh"
         echo -e "${GREEN}已加载协议模块${NC}"
@@ -77,7 +116,7 @@ load_modules() {
         exit 1
     fi
     
-    # 加载菜单模块
+    # 7. 加载菜单模块
     if [[ -f "$lib_dir/menu.sh" ]]; then
         source "$lib_dir/menu.sh"
         echo -e "${GREEN}已加载菜单模块${NC}"
@@ -86,7 +125,7 @@ load_modules() {
         exit 1
     fi
     
-    # 加载订阅模块
+    # 8. 加载订阅模块
     if [[ -f "$lib_dir/subscription.sh" ]]; then
         source "$lib_dir/subscription.sh"
         echo -e "${GREEN}已加载订阅模块${NC}"
@@ -95,14 +134,7 @@ load_modules() {
         exit 1
     fi
     
-    # 加载配置管理模块
-    if [[ -f "$lib_dir/config_manager.sh" ]]; then
-        source "$lib_dir/config_manager.sh"
-        echo -e "${GREEN}已加载配置管理模块${NC}"
-    else
-        echo -e "${RED}错误: 配置管理模块不存在${NC}"
-        exit 1
-    fi
+    echo -e "${GREEN}所有模块加载完成${NC}"
 }
 
 # 检查 root 权限
@@ -383,37 +415,74 @@ show_banner() {
     echo ""
 }
 
-# 主函数
+# 主函数 - 增强版
 main() {
-    # 检查权限
+    # 基础系统检查
     check_root
-    
-    # 显示横幅
     show_banner
-    
-    # 检测系统
     detect_system
-    
-    # 创建目录
     create_directories
     
-    # 加载模块
+    # 加载所有模块（包括错误处理、日志、验证等）
     load_modules
+    
+    # 记录启动信息
+     if command -v log_info >/dev/null 2>&1; then
+         log_info "Singbox安装脚本启动" "版本: v2.4.3, 系统: $OS_TYPE"
+     fi
+    
+    # 初始化配置变量
+    init_config_vars
     
     # 检查是否已安装
     if [[ -f "$SINGBOX_BINARY" ]]; then
         echo -e "${GREEN}检测到 Sing-box 已安装${NC}"
-        # 从现有配置文件提取信息
+        
+        # 自动加载现有配置
         if [[ -f "$CONFIG_FILE" ]]; then
             echo -e "${CYAN}正在加载现有配置...${NC}"
+            if command -v auto_load_config >/dev/null 2>&1; then
+                auto_load_config
+            else
+                # 兼容旧版本
+                load_config || echo -e "${YELLOW}配置加载失败，将使用默认设置${NC}"
+            fi
+            
+            # 显示配置状态
+            if command -v get_config_status >/dev/null 2>&1; then
+                local status=$(get_config_status)
+                if [[ -n "$status" ]]; then
+                    echo -e "${GREEN}配置状态: $status${NC}"
+                fi
+            fi
+            
+            # 记录配置加载信息
+            if command -v log_info >/dev/null 2>&1; then
+                log_info "配置加载完成" "VLESS端口: ${VLESS_PORT:-未配置}, VMess端口: ${VMESS_PORT:-未配置}, Hysteria2端口: ${HY2_PORT:-未配置}"
+            fi
+        else
+            echo -e "${YELLOW}未找到配置文件，将创建新配置${NC}"
         fi
+        
         show_main_menu
     else
         echo -e "${YELLOW}Sing-box 未安装，开始安装...${NC}"
+        
+        # 记录安装开始
+         if command -v log_info >/dev/null 2>&1; then
+             log_info "开始安装Sing-box" "系统: $OS_TYPE"
+         fi
+        
         install_dependencies
         install_singbox
         create_service
         ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+        
+        # 记录安装完成
+        if command -v log_info >/dev/null 2>&1; then
+            log_info "Sing-box安装完成" "服务已创建"
+        fi
+        
         echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
         show_main_menu
     fi

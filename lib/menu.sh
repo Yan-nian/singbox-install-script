@@ -29,6 +29,19 @@ show_main_menu() {
                 echo -e "${GREEN}服务状态:${NC} ${RED}未启用${NC}"
                 ;;
         esac
+        
+        # 显示配置状态
+        echo -e "${GREEN}配置状态:${NC}"
+        local status_line=""
+        [[ -n "$VLESS_PORT" ]] && status_line+="VLESS(${VLESS_PORT}) "
+        [[ -n "$VMESS_PORT" ]] && status_line+="VMess(${VMESS_PORT}) "
+        [[ -n "$HY2_PORT" ]] && status_line+="Hysteria2(${HY2_PORT}) "
+        
+        if [[ -n "$status_line" ]]; then
+            echo -e "${GREEN}已配置:${NC} $status_line"
+        else
+            echo -e "${YELLOW}未配置任何协议${NC}"
+        fi
         echo ""
         
         # 菜单选项
