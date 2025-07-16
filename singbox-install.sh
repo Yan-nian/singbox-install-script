@@ -275,28 +275,39 @@ show_installation_menu() {
     
     case "$status" in
         "installed")
-            echo "1. 重新安装"
-            echo "2. 更新版本"
-            echo "3. 验证安装"
-            echo "4. 卸载"
+            echo "1. 进入管理面板"
+            echo "2. 重新安装"
+            echo "3. 更新版本"
+            echo "4. 验证安装"
+            echo "5. 卸载"
             echo "0. 退出"
             echo
             
-            read -p "请选择 [0-4]: " choice
+            read -p "请选择 [0-5]: " choice
             
             case "$choice" in
                 1)
-                    perform_installation
+                    # 进入主管理面板
+                    if command -v show_main_menu >/dev/null 2>&1; then
+                        show_main_menu
+                    else
+                        echo -e "${RED}管理面板功能不可用，请确保模块已正确加载${NC}"
+                        read -p "按回车键返回菜单..." 
+                        show_installation_menu "$install_info"
+                    fi
                     ;;
                 2)
-                    update_singbox
+                    perform_installation
                     ;;
                 3)
+                    update_singbox
+                    ;;
+                4)
                     verify_installation
                     read -p "按回车键返回菜单..." 
                     show_installation_menu "$install_info"
                     ;;
-                4)
+                5)
                     uninstall_singbox
                     ;;
                 0)
