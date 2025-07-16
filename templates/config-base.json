@@ -1,64 +1,98 @@
 {
   "log": {
     "disabled": false,
-    "level": "info",
-    "output": "/var/log/sing-box/sing-box.log",
+    "level": "error",
     "timestamp": true
   },
   "dns": {
-    "servers": [
-      {
-        "tag": "google",
-        "address": "tls://8.8.8.8",
-        "strategy": "prefer_ipv4",
-        "detour": "direct"
-      },
-      {
-        "tag": "cloudflare",
-        "address": "https://1.1.1.1/dns-query",
-        "strategy": "prefer_ipv4",
-        "detour": "direct"
-      },
-      {
-        "tag": "local",
-        "address": "223.5.5.5",
-        "strategy": "prefer_ipv4",
-        "detour": "direct"
-      },
-      {
-        "tag": "block",
-        "address": "rcode://success"
-      }
-    ],
     "rules": [
       {
-        "domain_suffix": [
-          ".arpa.",
-          ".arpa"
-        ],
+        "outbound": ["any"],
         "server": "local"
       },
       {
-        "geosite": "category-ads-all",
-        "server": "block",
-        "disable_cache": true
+        "clash_mode": "Proxy",
+        "server": "remote"
       },
       {
-        "outbound": "any",
+        "clash_mode": "Direct",
         "server": "local"
       },
       {
-        "geosite": "cn",
+        "rule_set": ["geosite-cn"],
         "server": "local"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "server": "block"
       }
     ],
-    "final": "google",
-    "strategy": "prefer_ipv4",
-    "disable_cache": false,
-    "disable_expire": false
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "Available",
+        "tag": "remote"
+      },
+      {
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "direct",
+        "tag": "local"
+      },
+      {
+        "address": "rcode://success",
+        "tag": "block"
+      }
+    ],
+    "strategy": "prefer_ipv4"
   },
-  "inbounds": [],
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "secret": "",
+      "default_mode": "rule"
+    }
+  },
+  "inbounds": [
+    {
+      "address": ["172.18.0.1/30", "fdfe:dcba:9876::1/126"],
+      "route_address": ["0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1"],
+      "route_exclude_address": [
+        "192.168.0.0/16",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "fc00::/7"
+      ],
+      "auto_route": true,
+      "strict_route": true,
+      "type": "tun",
+      "tag": "tun-in"
+    },
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2333,
+      "tag": "mixed-in",
+      "type": "mixed",
+      "users": []
+    }
+  ],
   "outbounds": [
+    {
+      "type": "selector",
+      "tag": "Available",
+      "default": "auto",
+      "outbounds": ["auto"]
+    },
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": [],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "10m",
+      "tolerance": 50
+    },
     {
       "type": "direct",
       "tag": "direct"
@@ -73,44 +107,51 @@
     }
   ],
   "route": {
-    "geoip": {
-      "path": "geoip.db",
-      "download_url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-      "download_detour": "direct"
-    },
-    "geosite": {
-      "path": "geosite.db",
-      "download_url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-      "download_detour": "direct"
-    },
+    "auto_detect_interface": true,
     "rules": [
       {
+        "action": "sniff"
+      },
+      {
         "protocol": "dns",
-        "outbound": "dns-out"
+        "action": "hijack-dns"
       },
       {
-        "geosite": "category-ads-all",
-        "outbound": "block"
-      },
-      {
-        "geosite": "cn",
-        "geoip": "cn",
+        "clash_mode": "Direct",
         "outbound": "direct"
       },
       {
-        "geoip": "private",
+        "clash_mode": "Proxy",
+        "outbound": "Available"
+      },
+      {
+        "rule_set": ["geosite-cn"],
         "outbound": "direct"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "action": "reject"
       }
     ],
-    "final": "direct",
-    "auto_detect_interface": true
-  },
-  "experimental": {
-    "cache_file": {
-      "enabled": true,
-      "path": "cache.db",
-      "cache_id": "sing-box",
-      "store_fakeip": false
-    }
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "direct"
+      }
+    ]
   }
 }
