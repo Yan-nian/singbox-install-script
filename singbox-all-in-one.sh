@@ -61,6 +61,285 @@ HY2_KEY_FILE=""
 
 # ==================== 通用函数库 ====================
 
+# ==================== 二维码生成功能 ====================
+
+# 安装 qrencode（如果不存在）
+install_qrencode() {
+    if ! command -v qrencode >/dev/null 2>&1; then
+        log_message "INFO" "正在安装 qrencode"
+        
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1
+            apt-get install -y qrencode >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y qrencode >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y qrencode >/dev/null 2>&1
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -S --noconfirm qrencode >/dev/null 2>&1
+        else
+            log_message "WARN" "无法自动安装 qrencode，请手动安装"
+            return 1
+        fi
+        
+        if command -v qrencode >/dev/null 2>&1; then
+            log_message "INFO" "qrencode 安装成功"
+            return 0
+        else
+            log_message "ERROR" "qrencode 安装失败"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# 纯bash实现的简单二维码生成（备用方案）
+generate_simple_qr() {
+    local text="$1"
+    local size=25
+    
+    echo -e "${CYAN}=== 分享链接二维码 ===${NC}"
+    echo ""
+    
+    # 创建简单的ASCII二维码框架
+    echo "┌$(printf '─%.0s' $(seq 1 $((size*2))))┐"
+    
+    # 生成伪随机模式（基于文本内容）
+    local hash=$(echo -n "$text" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "fallback")
+    
+    for i in $(seq 1 $size); do
+        echo -n "│"
+        for j in $(seq 1 $size); do
+            # 基于位置和哈希生成模式
+            local pos=$((i * size + j))
+            local char_pos=$((pos % ${#hash}))
+            local char_val=$(printf "%d" "'${hash:$char_pos:1}")
+            
+            if [ $((char_val % 3)) -eq 0 ]; then
+                echo -n "██"
+            else
+                echo -n "  "
+            fi
+        done
+        echo "│"
+    done
+    
+    echo "└$(printf '─%.0s' $(seq 1 $((size*2))))┘"
+    echo ""
+    echo -e "${YELLOW}注意: 这是装饰性二维码，请使用下方的文本链接${NC}"
+    echo ""
+}
+
+# 生成真实的二维码
+generate_qr_code() {
+    local text="$1"
+    local title="$2"
+    
+    echo -e "${CYAN}=== $title 二维码 ===${NC}"
+    echo ""
+    
+    # 尝试使用 qrencode
+    if command -v qrencode >/dev/null 2>&1; then
+        log_message "DEBUG" "使用 qrencode 生成二维码"
+        
+        # 生成UTF-8字符二维码
+        if qrencode -t UTF8 -s 1 -m 1 "$text" 2>/dev/null; then
+            echo ""
+            return 0
+        fi
+        
+        # 如果UTF-8失败，尝试ANSI
+        if qrencode -t ANSI -s 1 -m 1 "$text" 2>/dev/null; then
+            echo ""
+            return 0
+        fi
+        
+        # 如果都失败，使用ASCII
+        if qrencode -t ASCII -s 1 -m 1 "$text" 2>/dev/null; then
+            echo ""
+            return 0
+        fi
+    fi
+    
+    # 如果 qrencode 不可用或失败，使用备用方案
+    log_message "DEBUG" "使用备用二维码生成方案"
+    generate_simple_qr "$text"
+    return 0
+}
+
+# 显示协议二维码
+show_protocol_qr() {
+    local protocol="$1"
+    
+    case "$protocol" in
+        "vless")
+            if [[ -n "$VLESS_UUID" ]]; then
+                local share_link=$(generate_vless_share_link)
+                generate_qr_code "$share_link" "VLESS Reality"
+                echo -e "${GREEN}分享链接:${NC}"
+                echo "$share_link"
+            else
+                echo -e "${RED}VLESS 协议未配置${NC}"
+            fi
+            ;;
+        "vmess")
+            if [[ -n "$VMESS_UUID" ]]; then
+                local share_link=$(generate_vmess_share_link)
+                generate_qr_code "$share_link" "VMess WebSocket"
+                echo -e "${GREEN}分享链接:${NC}"
+                echo "$share_link"
+            else
+                echo -e "${RED}VMess 协议未配置${NC}"
+            fi
+            ;;
+        "hysteria2")
+            if [[ -n "$HY2_PASSWORD" ]]; then
+                local share_link=$(generate_hysteria2_share_link)
+                generate_qr_code "$share_link" "Hysteria2"
+                echo -e "${GREEN}分享链接:${NC}"
+                echo "$share_link"
+            else
+                echo -e "${RED}Hysteria2 协议未配置${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}未知协议: $protocol${NC}"
+            return 1
+            ;;
+    esac
+    
+    echo ""
+}
+
+# 显示所有协议的二维码
+show_all_qr_codes() {
+    clear
+    echo -e "${CYAN}=== 所有协议二维码 ===${NC}"
+    echo ""
+    
+    # 检查并安装 qrencode
+    install_qrencode
+    
+    local has_config=false
+    
+    # VLESS Reality
+    if [[ -n "$VLESS_UUID" ]]; then
+        show_protocol_qr "vless"
+        has_config=true
+        echo -e "${YELLOW}$(printf '=%.0s' {1..60})${NC}"
+        echo ""
+    fi
+    
+    # VMess WebSocket
+    if [[ -n "$VMESS_UUID" ]]; then
+        show_protocol_qr "vmess"
+        has_config=true
+        echo -e "${YELLOW}$(printf '=%.0s' {1..60})${NC}"
+        echo ""
+    fi
+    
+    # Hysteria2
+    if [[ -n "$HY2_PASSWORD" ]]; then
+        show_protocol_qr "hysteria2"
+        has_config=true
+    fi
+    
+    if [[ "$has_config" == "false" ]]; then
+        echo -e "${YELLOW}暂无已配置的协议${NC}"
+        echo -e "${YELLOW}请先配置协议后再生成二维码${NC}"
+    fi
+    
+    echo ""
+    wait_for_input
+}
+
+# 二维码菜单
+show_qr_menu() {
+    while true; do
+        clear
+        echo -e "${CYAN}=== 二维码生成菜单 ===${NC}"
+        echo ""
+        echo -e "${YELLOW}请选择要生成二维码的协议:${NC}"
+        echo ""
+        
+        local option=1
+        
+        # 显示可用的协议选项
+        if [[ -n "$VLESS_UUID" ]]; then
+            echo -e "  ${GREEN}$option.${NC} VLESS Reality (端口: $VLESS_PORT)"
+            ((option++))
+        fi
+        
+        if [[ -n "$VMESS_UUID" ]]; then
+            echo -e "  ${GREEN}$option.${NC} VMess WebSocket (端口: $VMESS_PORT)"
+            ((option++))
+        fi
+        
+        if [[ -n "$HY2_PASSWORD" ]]; then
+            echo -e "  ${GREEN}$option.${NC} Hysteria2 (端口: $HY2_PORT)"
+            ((option++))
+        fi
+        
+        echo -e "  ${GREEN}$option.${NC} 显示所有协议二维码"
+        ((option++))
+        echo -e "  ${GREEN}0.${NC} 返回主菜单"
+        echo ""
+        
+        if [[ $option -eq 1 ]]; then
+            echo -e "${YELLOW}暂无已配置的协议，请先配置协议${NC}"
+            echo ""
+            wait_for_input
+            return
+        fi
+        
+        local choice
+        echo -n -e "${YELLOW}请输入选择 [0-$((option-1))]: ${NC}"
+        read -r choice
+        
+        case "$choice" in
+            0) return ;;
+            *)
+                local current_option=1
+                
+                if [[ -n "$VLESS_UUID" ]]; then
+                    if [[ "$choice" == "$current_option" ]]; then
+                        show_protocol_qr "vless"
+                        wait_for_input
+                        continue
+                    fi
+                    ((current_option++))
+                fi
+                
+                if [[ -n "$VMESS_UUID" ]]; then
+                    if [[ "$choice" == "$current_option" ]]; then
+                        show_protocol_qr "vmess"
+                        wait_for_input
+                        continue
+                    fi
+                    ((current_option++))
+                fi
+                
+                if [[ -n "$HY2_PASSWORD" ]]; then
+                    if [[ "$choice" == "$current_option" ]]; then
+                        show_protocol_qr "hysteria2"
+                        wait_for_input
+                        continue
+                    fi
+                    ((current_option++))
+                fi
+                
+                if [[ "$choice" == "$current_option" ]]; then
+                    show_all_qr_codes
+                    continue
+                fi
+                
+                echo -e "${RED}无效选择，请重新输入${NC}"
+                wait_for_input
+                ;;
+        esac
+    done
+}
+
 # ==================== 日志记录功能 ====================
 
 # 记录日志

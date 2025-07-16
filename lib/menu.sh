@@ -52,14 +52,15 @@ show_main_menu() {
         echo -e "  ${GREEN}3.${NC} 管理服务"
         echo -e "  ${GREEN}4.${NC} 查看配置"
         echo -e "  ${GREEN}5.${NC} 生成分享"
-        echo -e "  ${GREEN}6.${NC} 端口管理"
-        echo -e "  ${GREEN}7.${NC} 系统工具"
+        echo -e "  ${GREEN}6.${NC} 生成二维码"
+        echo -e "  ${GREEN}7.${NC} 端口管理"
+        echo -e "  ${GREEN}8.${NC} 系统工具"
         echo -e "  ${GREEN}0.${NC} 退出"
         echo ""
         echo -e "${CYAN}================================================================${NC}"
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-7]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-8]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -68,8 +69,9 @@ show_main_menu() {
             3) show_service_menu ;;
             4) show_config_menu ;;
             5) show_share_menu ;;
-            6) show_port_menu ;;
-            7) show_system_menu ;;
+            6) show_qr_menu ;;
+            7) show_port_menu ;;
+            8) show_system_menu ;;
             0) 
                 echo -e "${GREEN}感谢使用！${NC}"
                 exit 0
