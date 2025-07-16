@@ -22,7 +22,7 @@
 
 ```bash
 # 在服务器上下载修复后的脚本
-wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh
+
 
 # 或者直接复制本地文件内容到服务器
 sudo nano install.sh

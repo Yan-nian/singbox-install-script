@@ -1,26 +1,56 @@
 #!/bin/bash
 
-# 简单的语法检查脚本
-echo "检查 install.sh 语法..."
+# 语法检查脚本
+# 用于验证 install.sh 和 sing-box.sh 的语法正确性
 
-# 使用 bash -n 检查语法
-if bash -n install.sh 2>/dev/null; then
-    echo "✅ install.sh 语法检查通过"
+echo "=== Sing-box 脚本语法检查 ==="
+echo ""
+
+# 检查 install.sh
+echo "[INFO] 检查 install.sh 语法..."
+if bash -n install.sh; then
+    echo "[SUCCESS] install.sh 语法检查通过"
 else
-    echo "❌ install.sh 语法检查失败"
-    bash -n install.sh
+    echo "[ERROR] install.sh 语法检查失败"
+    exit 1
 fi
 
 echo ""
-echo "检查 sing-box.sh 语法..."
 
-# 检查主脚本语法
-if bash -n sing-box.sh 2>/dev/null; then
-    echo "✅ sing-box.sh 语法检查通过"
+# 检查 sing-box.sh
+echo "[INFO] 检查 sing-box.sh 语法..."
+if bash -n sing-box.sh; then
+    echo "[SUCCESS] sing-box.sh 语法检查通过"
 else
-    echo "❌ sing-box.sh 语法检查失败"
-    bash -n sing-box.sh
+    echo "[ERROR] sing-box.sh 语法检查失败"
+    exit 1
 fi
 
 echo ""
-echo "语法检查完成！"
+echo "[SUCCESS] 所有脚本语法检查通过！"
+
+# 检查关键变量定义
+echo ""
+echo "=== 变量定义检查 ==="
+echo ""
+
+echo "[INFO] 检查 CONFIG_FILE 变量定义..."
+if grep -q "CONFIG_FILE=" install.sh; then
+    echo "[SUCCESS] 找到 CONFIG_FILE 定义:"
+    grep -n "CONFIG_FILE=" install.sh
+else
+    echo "[ERROR] 未找到 CONFIG_FILE 定义"
+    exit 1
+fi
+
+echo ""
+echo "[INFO] 检查 CONFIG_FILE 使用情况..."
+echo "install.sh 中的使用:"
+grep -n "\$CONFIG_FILE" install.sh || echo "未找到使用"
+
+echo ""
+echo "sing-box.sh 中的使用:"
+grep -n "\$CONFIG_FILE" sing-box.sh || echo "未找到使用"
+
+echo ""
+echo "=== 检查完成 ==="

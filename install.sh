@@ -174,7 +174,6 @@ NC='\033[0m'
 CONFIG_DIR="/etc/sing-box"
 DATA_DIR="/usr/local/etc/sing-box"
 LOG_DIR="/var/log/sing-box"
-CONFIG_FILE="$CONFIG_DIR/config.json"
 DB_FILE="$DATA_DIR/sing-box.db"
 
 # 输出函数
