@@ -59,7 +59,7 @@
 
 2. **下载新版本**：
    ```bash
-   wget https://raw.githubusercontent.com/yourusername/singbox/main/singbox-install.sh
+   wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh
    chmod +x singbox-install.sh
    ```
 

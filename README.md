@@ -36,14 +36,14 @@
 ### 在线安装
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yourusername/singbox/main/singbox-install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh)
 ```
 
 ### 离线安装
 
 ```bash
 # 下载脚本
-wget https://raw.githubusercontent.com/yourusername/singbox/main/singbox-install.sh
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh
 
 # 添加执行权限
 chmod +x singbox-install.sh
@@ -264,7 +264,7 @@ sysctl -p
 ### 开发流程
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/singbox.git
+git clone https://github.com/Yan-nian/singbox-install-script.git
 cd singbox
 
 # 创建功能分支
@@ -289,8 +289,8 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 📞 联系方式
 
-- **GitHub Issues**: [提交问题](https://github.com/yourusername/singbox/issues)
-- **讨论区**: [GitHub Discussions](https://github.com/yourusername/singbox/discussions)
+- **GitHub Issues**: [提交问题](https://github.com/Yan-nian/singbox-install-script/issues)
+- **讨论区**: [GitHub Discussions](https://github.com/Yan-nian/singbox-install-script/discussions)
 
 ## ⚠️ 免责声明
 
