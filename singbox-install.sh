@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.0.0
+# 版本: v2.0.1
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.0.0"
+SCRIPT_VERSION="v2.0.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -35,11 +35,28 @@ PUBLIC_IP=""
 # 加载模块
 load_modules() {
     local lib_dir="$(dirname "$0")/lib"
+    local base_url="https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/lib"
+    local temp_dir="/tmp/singbox-modules"
     
-    # 检查模块目录
-    if [[ ! -d "$lib_dir" ]]; then
-        echo -e "${RED}错误: 模块目录不存在: $lib_dir${NC}"
-        exit 1
+    # 检查是否为在线执行（curl管道）
+    if [[ "$(dirname "$0")" == "/dev/fd" ]] || [[ ! -d "$lib_dir" ]]; then
+        echo -e "${CYAN}检测到在线执行，正在下载模块...${NC}"
+        
+        # 创建临时目录
+        mkdir -p "$temp_dir"
+        
+        # 下载模块文件
+        local modules=("common.sh" "protocols.sh" "menu.sh" "subscription.sh")
+        for module in "${modules[@]}"; do
+            if curl -fsSL "$base_url/$module" -o "$temp_dir/$module"; then
+                echo -e "${GREEN}已下载: $module${NC}"
+            else
+                echo -e "${RED}错误: 无法下载模块 $module${NC}"
+                exit 1
+            fi
+        done
+        
+        lib_dir="$temp_dir"
     fi
     
     # 加载通用函数库
@@ -242,6 +259,18 @@ create_directories() {
     
     echo -e "${GREEN}工作目录创建完成${NC}"
 }
+
+# 清理临时文件
+cleanup_temp_files() {
+    local temp_dir="/tmp/singbox-modules"
+    if [[ -d "$temp_dir" ]]; then
+        rm -rf "$temp_dir"
+        echo -e "${GREEN}已清理临时模块文件${NC}"
+    fi
+}
+
+# 设置退出时清理
+trap cleanup_temp_files EXIT
 
 # 显示横幅
 show_banner() {
