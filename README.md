@@ -36,15 +36,31 @@
 
 ### 一键安装
 
+**方法一：从本仓库安装（推荐）**
+
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
+# 克隆仓库
+git clone https://github.com/your-username/singbox.git
+cd singbox
+
+# 执行安装脚本
+sudo bash install.sh
+```
+
+**方法二：直接下载安装**
+
+```bash
+# 下载并执行（请确保仓库地址正确）
+bash <(curl -fsSL https://raw.githubusercontent.com/your-username/singbox/main/install.sh)
 ```
 
 或者使用 wget：
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/your-username/singbox/main/install.sh)
 ```
+
+> ⚠️ **注意**：请将 `your-username` 替换为你的实际 GitHub 用户名
 
 ### 安装完成后
 
