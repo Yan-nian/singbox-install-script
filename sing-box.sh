@@ -16,7 +16,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # 全局变量
-SCRIPT_VERSION="v1.0.0"
+SCRIPT_VERSION="v1.0.6"
 CONFIG_DIR="/etc/sing-box"
 DATA_DIR="/usr/local/etc/sing-box"
 LOG_DIR="/var/log/sing-box"
@@ -45,6 +45,26 @@ error() {
 
 highlight() {
     echo -e "${PURPLE}$1${NC}"
+}
+
+# 初始化函数
+init_directories() {
+    # 确保所有必要目录存在
+    mkdir -p "$CONFIG_DIR"
+    mkdir -p "$CONFIG_DIR/configs"
+    mkdir -p "$DATA_DIR"
+    mkdir -p "$LOG_DIR"
+    
+    # 确保数据库文件存在
+    touch "$DB_FILE"
+    
+    # 确保缓存目录存在
+    mkdir -p "$DATA_DIR"
+    
+    # 如果主配置文件不存在，创建一个基本的
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        update_main_config
+    fi
 }
 
 # 交互界面函数
@@ -396,7 +416,10 @@ generate_vless_reality_config() {
       "private_key": "$private_key",
       "short_id": ["$short_id"]
     }
-  }
+  },
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
 }
 EOF
 }
@@ -423,14 +446,20 @@ generate_vmess_config() {
   ],
   "transport": {
     "type": "ws",
-    "path": "$path"
+    "path": "$path",
+    "headers": {
+      "Host": "$domain"
+    }
   },
   "tls": {
     "enabled": true,
     "server_name": "$domain",
     "certificate_path": "$CERT_FILE",
     "key_path": "$KEY_FILE"
-  }
+  },
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
 }
 EOF
 }
@@ -458,7 +487,10 @@ generate_hy2_config() {
     "server_name": "$domain",
     "certificate_path": "$CERT_FILE",
     "key_path": "$KEY_FILE"
-  }
+  },
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
 }
 EOF
 }
@@ -477,7 +509,10 @@ generate_shadowsocks_config() {
   "listen": "::",
   "listen_port": $port,
   "method": "$method",
-  "password": "$password"
+  "password": "$password",
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
 }
 EOF
 }
@@ -507,19 +542,225 @@ update_main_config() {
     cat > "$CONFIG_FILE" << EOF
 {
   "log": {
-    "level": "info",
+    "disabled": false,
+    "level": "error",
     "timestamp": true,
     "output": "$LOG_DIR/sing-box.log"
   },
-  "inbounds": $configs_json,
+  "dns": {
+    "rules": [
+      {
+        "outbound": ["any"],
+        "server": "local"
+      },
+      {
+        "clash_mode": "Proxy",
+        "server": "remote"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "local"
+      },
+      {
+        "rule_set": ["geosite-cn"],
+        "server": "local"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "server": "block"
+      }
+    ],
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct",
+        "tag": "remote"
+      },
+      {
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "direct",
+        "tag": "local"
+      },
+      {
+        "address": "rcode://success",
+        "tag": "block"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "$DATA_DIR/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "Rule"
+    }
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "inet4_address": "172.18.0.1/30",
+      "inet6_address": "fdfe:dcba:9876::1/126",
+      "mtu": 9000,
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system",
+      "sniff": true,
+      "sniff_override_destination": false
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 2333,
+      "sniff": true,
+      "sniff_override_destination": false
+    }
+  ],
   "outbounds": [
     {
+      "type": "selector",
+      "tag": "🚀 节点选择",
+      "outbounds": ["♻️ 自动选择", "🎯 故障转移", "⚡ 直连"],
+      "default": "♻️ 自动选择"
+    },
+    {
+      "type": "urltest",
+      "tag": "♻️ 自动选择",
+      "outbounds": [],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "10m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🎯 故障转移",
+      "outbounds": [],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "10m",
+      "tolerance": 50
+    },
+    {
       "type": "direct",
-      "tag": "direct"
+      "tag": "⚡ 直连"
+    },
+    {
+      "type": "block",
+      "tag": "🚫 拦截"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
     }
-  ]
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "⚡ 直连"
+      },
+      {
+        "clash_mode": "Proxy",
+        "outbound": "🚀 节点选择"
+      },
+      {
+        "rule_set": ["geosite-cn"],
+        "outbound": "⚡ 直连"
+      },
+      {
+        "rule_set": ["geoip-cn"],
+        "outbound": "⚡ 直连"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "⚡ 直连"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "outbound": "🚫 拦截"
+      },
+      {
+        "outbound": "🚀 节点选择"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "⚡ 直连"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs",
+        "download_detour": "⚡ 直连"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "⚡ 直连"
+      }
+    ]
+  }
 }
 EOF
+
+    # 更新自动选择和故障转移的出站列表
+    update_selector_outbounds
+}
+
+# 更新选择器出站列表
+update_selector_outbounds() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return
+    fi
+    
+    # 获取所有配置的标签
+    local outbound_tags=()
+    if [[ -f "$DB_FILE" ]]; then
+        while IFS='|' read -r name type port _; do
+            if [[ -n "$name" ]]; then
+                outbound_tags+=("\"$name\"")
+            fi
+        done < "$DB_FILE"
+    fi
+    
+    # 如果没有配置，添加直连
+    if [[ ${#outbound_tags[@]} -eq 0 ]]; then
+        outbound_tags=("\"⚡ 直连\"")
+    fi
+    
+    local outbound_list=$(printf '%s,' "${outbound_tags[@]}")
+    outbound_list="[${outbound_list%,}]"
+    
+    # 使用 jq 更新配置（如果可用）
+    if command -v jq >/dev/null 2>&1; then
+        jq --argjson outbounds "$outbound_list" '
+            .outbounds[1].outbounds = $outbounds |
+            .outbounds[2].outbounds = $outbounds
+        ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    else
+        # 如果没有 jq，使用 sed 进行基本替换
+        sed -i.bak "s/\"outbounds\": \[\]/\"outbounds\": $outbound_list/g" "$CONFIG_FILE"
+        rm -f "$CONFIG_FILE.bak"
+    fi
 }
 
 # 交互式配置添加函数
@@ -2625,6 +2866,9 @@ show_help() {
 
 # 交互式主菜单处理
 interactive_main() {
+    # 初始化目录结构
+    init_directories
+    
     while true; do
         show_main_menu
         local choice
