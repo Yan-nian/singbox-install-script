@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.0.2
+# 版本: v2.1.0
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.0.2"
+SCRIPT_VERSION="v2.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -317,7 +317,8 @@ main() {
         install_dependencies
         install_singbox
         create_service
-        echo -e "${GREEN}安装完成！${NC}"
+        ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+        echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
         show_main_menu
     fi
 }
@@ -340,6 +341,7 @@ case "${1:-}" in
         rm -f "/etc/systemd/system/$SERVICE_NAME.service"
         rm -f "$SINGBOX_BINARY"
         rm -rf "$WORK_DIR"
+        rm -f /usr/local/bin/sb
         systemctl daemon-reload
         echo -e "${GREEN}Sing-box 卸载完成！${NC}"
         ;;
