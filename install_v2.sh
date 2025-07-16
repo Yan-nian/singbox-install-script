@@ -14,11 +14,80 @@ SCRIPT_VERSION="v2.4.14"
 SCRIPT_NAME="Sing-box 精简安装脚本"
 SCRIPT_DESCRIPTION="支持多协议的 Sing-box 一键安装和管理脚本"
 SCRIPT_AUTHOR="Sing-box 安装脚本项目组"
-SCRIPT_URL="https://github.com/your-repo/singbox"
+SCRIPT_URL="https://github.com/Yan-nian/singbox-install-script"
+
+# 检测在线安装模式
+detect_online_install() {
+    # 检查是否通过管道执行（在线安装）
+    if [[ "${BASH_SOURCE[0]}" == "/dev/fd/"* ]] || [[ "${BASH_SOURCE[0]}" == "/proc/self/fd/"* ]]; then
+        return 0  # 在线安装
+    else
+        return 1  # 本地安装
+    fi
+}
+
+# 在线安装处理函数
+handle_online_install() {
+    echo "[信息] 检测到在线安装模式"
+    echo "[信息] 正在下载完整项目文件..."
+    
+    # 创建临时目录
+    TEMP_DIR="$(mktemp -d)"
+    cd "$TEMP_DIR"
+    
+    # 下载项目文件
+    if command -v git >/dev/null 2>&1; then
+        echo "[信息] 使用 Git 克隆项目..."
+        git clone https://github.com/Yan-nian/singbox-install-script.git singbox-install || {
+            echo "[错误] Git 克隆失败，尝试使用 wget 下载"
+            download_with_wget
+        }
+    else
+        echo "[信息] Git 未安装，使用 wget 下载..."
+        download_with_wget
+    fi
+    
+    # 设置项目目录
+    if [[ -d "singbox-install" ]]; then
+        cd singbox-install
+        BASE_DIR="$(pwd)"
+        echo "[信息] 项目下载完成，位置: $BASE_DIR"
+    else
+        echo "[错误] 项目下载失败"
+        exit 1
+    fi
+}
+
+# 使用 wget 下载项目
+download_with_wget() {
+    if command -v wget >/dev/null 2>&1; then
+        wget -O singbox-install.tar.gz https://github.com/Yan-nian/singbox-install-script/archive/refs/heads/master.tar.gz || {
+            echo "[错误] wget 下载失败"
+            exit 1
+        }
+        tar -xzf singbox-install.tar.gz
+        mv singbox-install-script-master singbox-install
+    elif command -v curl >/dev/null 2>&1; then
+        curl -L -o singbox-install.tar.gz https://github.com/Yan-nian/singbox-install-script/archive/refs/heads/master.tar.gz || {
+            echo "[错误] curl 下载失败"
+            exit 1
+        }
+        tar -xzf singbox-install.tar.gz
+        mv singbox-install-script-master singbox-install
+    else
+        echo "[错误] 系统中未找到 git、wget 或 curl，无法下载项目文件"
+        echo "[建议] 请手动下载项目后本地执行安装脚本"
+        exit 1
+    fi
+}
 
 # 获取脚本目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$SCRIPT_DIR"
+if detect_online_install; then
+    handle_online_install
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    BASE_DIR="$SCRIPT_DIR"
+fi
 
 # 核心模块路径
 CORE_DIR="${BASE_DIR}/core"
@@ -672,8 +741,19 @@ show_interactive_menu() {
     fi
 }
 
+# 清理临时文件
+cleanup_temp_files() {
+    if [[ -n "$TEMP_DIR" ]] && [[ -d "$TEMP_DIR" ]]; then
+        log_info "清理临时文件: $TEMP_DIR"
+        rm -rf "$TEMP_DIR"
+    fi
+}
+
 # 主函数
 main() {
+    # 设置退出时清理临时文件
+    trap cleanup_temp_files EXIT
+    
     # 初始化日志系统
     init_logger
     
