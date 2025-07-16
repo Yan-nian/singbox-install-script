@@ -520,23 +520,6 @@ EOF
 generate_hysteria2_config() {
     generate_hy2_config "$1" "$2" "$3" "$4"
 }
-  "users": [
-    {
-      "password": "$password"
-    }
-  ],
-  "tls": {
-    "enabled": true,
-    "server_name": "$domain",
-    "certificate_path": "$CERT_FILE",
-    "key_path": "$KEY_FILE"
-  },
-  "sniff": true,
-  "sniff_override_destination": false,
-  "domain_strategy": "prefer_ipv4"
-}
-EOF
-}
 
 # Shadowsocks 配置模板
 generate_shadowsocks_config() {
