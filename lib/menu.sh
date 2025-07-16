@@ -388,10 +388,13 @@ configure_multi_protocol() {
             # 询问是否启动服务
             echo ""
             if confirm_action "是否立即启动服务?"; then
-            restart_service "$SERVICE_NAME"
+                restart_service "$SERVICE_NAME"
+            fi
+        else
+            echo -e "${RED}多协议配置生成失败！${NC}"
         fi
     else
-        echo -e "${RED}多协议配置生成失败！${NC}"
+        echo -e "${YELLOW}已取消多协议配置${NC}"
     fi
     
     wait_for_input
