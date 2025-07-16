@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.4.9
+# 版本: v2.4.12
 # 更新时间: 2025-01-16
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.9"
+SCRIPT_VERSION="v2.4.13"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义

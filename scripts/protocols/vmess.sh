@@ -406,6 +406,14 @@ generate_vmess_qr_code() {
     local share_link
     share_link=$(generate_vmess_share_link "$server_ip" "$use_tls" "$remark")
     
+    # 终端显示二维码
+    if command -v qrcode-terminal >/dev/null 2>&1; then
+        echo -e "${CYAN}VMess WebSocket 二维码 (终端显示):${NC}"
+        qrcode-terminal "$share_link" --small
+        echo ""
+    fi
+    
+    # 生成文件二维码
     if command_exists qrencode; then
         qrencode -t PNG -o "$output_file" "$share_link"
         log_success "QR 码已生成: $output_file"

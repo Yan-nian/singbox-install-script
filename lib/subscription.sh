@@ -16,7 +16,7 @@ generate_vless_share_link() {
     # 构建 VLESS 链接
     local vless_link="vless://${VLESS_UUID}@${server_ip}:${VLESS_PORT}"
     vless_link+="?encryption=none"
-    vless_link+="&flow=${VLESS_FLOW}"
+    # vless_link+="&flow=${VLESS_FLOW}"  # Reality模式不使用flow字段
     vless_link+="&security=reality"
     vless_link+="&sni=${VLESS_SERVER_NAME}"
     vless_link+="&fp=chrome"
@@ -392,7 +392,6 @@ generate_vless_client_config() {
       "server": "$PUBLIC_IP",
       "server_port": $VLESS_PORT,
       "uuid": "$VLESS_UUID",
-      "flow": "$VLESS_FLOW",
       "tls": {
         "enabled": true,
         "server_name": "$VLESS_SERVER_NAME",
@@ -789,7 +788,7 @@ extract_config_info() {
     if [[ -n "$vless_inbound" ]] && [[ "$vless_inbound" != "null" ]]; then
         VLESS_UUID=$(echo "$vless_inbound" | jq -r '.users[0].uuid' 2>/dev/null)
         VLESS_PORT=$(echo "$vless_inbound" | jq -r '.listen_port' 2>/dev/null)
-        VLESS_FLOW=$(echo "$vless_inbound" | jq -r '.users[0].flow' 2>/dev/null)
+        # VLESS_FLOW=$(echo "$vless_inbound" | jq -r '.users[0].flow' 2>/dev/null)  # Reality模式不使用flow字段
         VLESS_SERVER_NAME=$(echo "$vless_inbound" | jq -r '.tls.server_name' 2>/dev/null)
         VLESS_PUBLIC_KEY=$(echo "$vless_inbound" | jq -r '.tls.reality.public_key' 2>/dev/null)
         VLESS_SHORT_ID=$(echo "$vless_inbound" | jq -r '.tls.reality.short_id[0]' 2>/dev/null)

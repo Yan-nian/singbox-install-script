@@ -6,7 +6,7 @@
 # 协议变量
 VLESS_UUID=""
 VLESS_PORT="443"
-VLESS_FLOW="xtls-rprx-vision"
+# VLESS_FLOW="xtls-rprx-vision"  # Reality模式不支持flow字段
 VLESS_PRIVATE_KEY=""
 VLESS_PUBLIC_KEY=""
 VLESS_SHORT_ID=""
@@ -154,8 +154,7 @@ generate_vless_reality_inbound() {
       "listen_port": $VLESS_PORT,
       "users": [
         {
-          "uuid": "$VLESS_UUID",
-          "flow": "$VLESS_FLOW"
+          "uuid": "$VLESS_UUID"
         }
       ],
       "tls": {
@@ -493,7 +492,7 @@ show_protocol_info() {
             echo -e "服务器: ${GREEN}$PUBLIC_IP${NC}"
             echo -e "端口: ${GREEN}$VLESS_PORT${NC}"
             echo -e "UUID: ${GREEN}$VLESS_UUID${NC}"
-            echo -e "Flow: ${GREEN}$VLESS_FLOW${NC}"
+            # echo -e "Flow: ${GREEN}$VLESS_FLOW${NC}"  # Reality模式不使用flow字段
             echo -e "Public Key: ${GREEN}$VLESS_PUBLIC_KEY${NC}"
             echo -e "Short ID: ${GREEN}$VLESS_SHORT_ID${NC}"
             echo -e "SNI: ${GREEN}$VLESS_SERVER_NAME${NC}"

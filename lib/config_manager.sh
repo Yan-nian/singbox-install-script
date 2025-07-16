@@ -186,12 +186,12 @@ extract_vless_config() {
         fi
     fi
     
-    # 提取Flow
-    vless_flow=$(jq -r '.inbounds[] | select(.type == "vless") | .users[0].flow' "$CONFIG_FILE" 2>/dev/null)
-    if [[ "$vless_flow" != "null" && -n "$vless_flow" ]]; then
-        VLESS_FLOW="$vless_flow"
-        log_debug "VLESS Flow: $VLESS_FLOW"
-    fi
+    # 提取Flow - Reality模式不使用flow字段
+    # vless_flow=$(jq -r '.inbounds[] | select(.type == "vless") | .users[0].flow' "$CONFIG_FILE" 2>/dev/null)
+    # if [[ "$vless_flow" != "null" && -n "$vless_flow" ]]; then
+    #     VLESS_FLOW="$vless_flow"
+    #     log_debug "VLESS Flow: $VLESS_FLOW"
+    # fi
     
     return 0
 }
@@ -282,7 +282,7 @@ load_config_from_cache() {
         case "$key" in
             "VLESS_PORT") VLESS_PORT="$value" ;;
             "VLESS_UUID") VLESS_UUID="$value" ;;
-            "VLESS_FLOW") VLESS_FLOW="$value" ;;
+            # "VLESS_FLOW") VLESS_FLOW="$value" ;;  # Reality模式不使用flow字段
             "VMESS_PORT") VMESS_PORT="$value" ;;
             "VMESS_UUID") VMESS_UUID="$value" ;;
             "VMESS_PATH") VMESS_PATH="$value" ;;
@@ -313,7 +313,7 @@ save_config_to_cache() {
     {
         [[ -n "$VLESS_PORT" ]] && echo "VLESS_PORT=$VLESS_PORT"
         [[ -n "$VLESS_UUID" ]] && echo "VLESS_UUID=$VLESS_UUID"
-        [[ -n "$VLESS_FLOW" ]] && echo "VLESS_FLOW=$VLESS_FLOW"
+        # [[ -n "$VLESS_FLOW" ]] && echo "VLESS_FLOW=$VLESS_FLOW"  # Reality模式不使用flow字段
         [[ -n "$VMESS_PORT" ]] && echo "VMESS_PORT=$VMESS_PORT"
         [[ -n "$VMESS_UUID" ]] && echo "VMESS_UUID=$VMESS_UUID"
         [[ -n "$VMESS_PATH" ]] && echo "VMESS_PATH=$VMESS_PATH"
@@ -365,7 +365,7 @@ save_config() {
     local errors=()
     
     # 更新 VLESS 配置
-    if [[ -n "$VLESS_PORT" ]] || [[ -n "$VLESS_UUID" ]] || [[ -n "$VLESS_FLOW" ]]; then
+    if [[ -n "$VLESS_PORT" ]] || [[ -n "$VLESS_UUID" ]]; then
         if update_vless_config; then
             ((update_count++))
             log_debug "VLESS配置更新成功"
@@ -531,16 +531,16 @@ update_vless_config() {
         log_debug "VLESS UUID已更新"
     fi
     
-    # 更新Flow
-    if [[ -n "$VLESS_FLOW" ]]; then
-        temp_file=$(mktemp)
-        if ! jq --arg flow "$VLESS_FLOW" '(.inbounds[] | select(.type == "vless") | .users[0].flow) = $flow' "$CONFIG_FILE" > "$temp_file"; then
-            rm -f "$temp_file"
-            return 1
-        fi
-        mv "$temp_file" "$CONFIG_FILE"
-        log_debug "VLESS Flow已更新: $VLESS_FLOW"
-    fi
+    # 更新Flow - Reality模式不使用flow字段
+    # if [[ -n "$VLESS_FLOW" ]]; then
+    #     temp_file=$(mktemp)
+    #     if ! jq --arg flow "$VLESS_FLOW" '(.inbounds[] | select(.type == "vless") | .users[0].flow) = $flow' "$CONFIG_FILE" > "$temp_file"; then
+    #         rm -f "$temp_file"
+    #         return 1
+    #     fi
+    #     mv "$temp_file" "$CONFIG_FILE"
+    #     log_debug "VLESS Flow已更新: $VLESS_FLOW"
+    # fi
     
     return 0
 }
@@ -689,7 +689,7 @@ show_current_config() {
         echo -e "${GREEN}■ VLESS 协议:${NC}"
         echo -e "  ${CYAN}端口:${NC} $VLESS_PORT"
         [[ -n "$VLESS_UUID" ]] && echo -e "  ${CYAN}UUID:${NC} ${VLESS_UUID:0:8}...${VLESS_UUID: -4}"
-        [[ -n "$VLESS_FLOW" ]] && echo -e "  ${CYAN}Flow:${NC} $VLESS_FLOW"
+        # [[ -n "$VLESS_FLOW" ]] && echo -e "  ${CYAN}Flow:${NC} $VLESS_FLOW"  # Reality模式不使用flow字段
         
         # 检查端口状态
         if command -v netstat >/dev/null 2>&1; then
@@ -773,7 +773,7 @@ init_config_vars() {
     # VLESS 配置
     VLESS_PORT=""
     VLESS_UUID=""
-    VLESS_FLOW=""
+    # VLESS_FLOW=""  # Reality模式不使用flow字段
     
     # VMess 配置
     VMESS_PORT=""
