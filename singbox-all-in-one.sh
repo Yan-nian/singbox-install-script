@@ -3003,30 +3003,7 @@ uninstall_singbox() {
     wait_for_input
 }
 
-# 检查安装状态
-check_installation_status() {
-    local status="not_installed"
-    local install_method="unknown"
-    local details=""
-    
-    # 检查二进制文件
-    if [[ -f "$SINGBOX_BINARY" ]]; then
-        status="installed"
-        install_method="binary"
-        details="已安装"
-    fi
-    
-    # 检查系统服务
-    if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="service"
-            details="已安装"
-        fi
-    fi
-    
-    echo "$status:$install_method:$details"
-}
+
 
 # 显示安装菜单
 show_installation_menu() {
