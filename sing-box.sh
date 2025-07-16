@@ -159,7 +159,10 @@ read_input() {
     fi
     
     read -r input
-    echo "${input:-$default}"
+    # 去除前后空白字符并返回
+    input="${input:-$default}"
+    input="${input// /}"  # 移除所有空格
+    printf "%s" "$input"
 }
 
 read_port() {
@@ -687,11 +690,11 @@ interactive_add_shadowsocks() {
     local method_choice
     while true; do
         method_choice=$(read_input "请选择加密方式" "1")
-        case $method_choice in
-            1) method="chacha20-ietf-poly1305"; break ;;
-            2) method="aes-256-gcm"; break ;;
-            3) method="aes-128-gcm"; break ;;
-            4) method="chacha20-poly1305"; break ;;
+        case "$method_choice" in
+            "1") method="chacha20-ietf-poly1305"; break ;;
+            "2") method="aes-256-gcm"; break ;;
+            "3") method="aes-128-gcm"; break ;;
+            "4") method="chacha20-poly1305"; break ;;
             *) warn "请输入有效的选项 (1-4)" ;;
         esac
     done
@@ -1442,8 +1445,8 @@ interactive_show_logs() {
     local choice
     while true; do
         choice=$(read_input "请选择" "1")
-        case $choice in
-            1)
+        case "$choice" in
+            "1")
                 clear
                 print_banner
                 echo -e "${GREEN}最近日志${NC}"
@@ -1452,7 +1455,7 @@ interactive_show_logs() {
                 wait_for_input
                 break
                 ;;
-            2)
+            "2")
                 clear
                 print_banner
                 echo -e "${GREEN}实时日志 (按 Ctrl+C 退出)${NC}"
@@ -1460,7 +1463,7 @@ interactive_show_logs() {
                 journalctl -u sing-box -f
                 break
                 ;;
-            3)
+            "3")
                 clear
                 print_banner
                 echo -e "${GREEN}错误日志${NC}"
@@ -1469,7 +1472,7 @@ interactive_show_logs() {
                 wait_for_input
                 break
                 ;;
-            0)
+            "0")
                 return
                 ;;
             *)
@@ -1496,26 +1499,26 @@ interactive_system_optimize() {
     local choice
     while true; do
         choice=$(read_input "请选择" "0")
-        case $choice in
-            1)
+        case "$choice" in
+            "1")
                 info "正在启用 BBR..."
                 enable_bbr
                 success "BBR 优化完成"
                 break
                 ;;
-            2)
+            "2")
                 info "正在优化系统参数..."
                 optimize_system
                 success "系统参数优化完成"
                 break
                 ;;
-            3)
+            "3")
                 info "正在配置防火墙..."
                 configure_firewall
                 success "防火墙配置完成"
                 break
                 ;;
-            4)
+            "4")
                 info "正在执行全部优化..."
                 enable_bbr
                 optimize_system
@@ -1523,7 +1526,7 @@ interactive_system_optimize() {
                 success "系统优化完成"
                 break
                 ;;
-            0)
+            "0")
                 return
                 ;;
             *)
@@ -2251,84 +2254,87 @@ interactive_main() {
         local choice
         choice=$(read_input "请选择操作" "0")
         
-        case $choice in
-            1)
+        # 调试信息（可选）
+        # echo "DEBUG: choice='$choice', length=${#choice}"
+        
+        case "$choice" in
+            "1")
                 # 添加配置
                 while true; do
                     show_add_menu
                     local add_choice
                     add_choice=$(read_input "请选择协议" "0")
                     
-                    case $add_choice in
-                        1) interactive_add_vless_reality ;;
-                        2) interactive_add_vmess ;;
-                        3) interactive_add_hysteria2 ;;
-                        4) interactive_add_shadowsocks ;;
-                        0) break ;;
+                    case "$add_choice" in
+                        "1") interactive_add_vless_reality ;;
+                        "2") interactive_add_vmess ;;
+                        "3") interactive_add_hysteria2 ;;
+                        "4") interactive_add_shadowsocks ;;
+                        "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
                 done
                 ;;
-            2)
+            "2")
                 # 管理配置
                 while true; do
                     show_manage_menu
                     local manage_choice
                     manage_choice=$(read_input "请选择操作" "0")
                     
-                    case $manage_choice in
-                        1) interactive_list_configs ;;
-                        2) interactive_show_config_info ;;
-                        3) interactive_delete_config ;;
-                        4) interactive_change_port ;;
-                        5) interactive_regenerate_uuid ;;
-                        0) break ;;
+                    case "$manage_choice" in
+                        "1") interactive_list_configs ;;
+                        "2") interactive_show_config_info ;;
+                        "3") interactive_delete_config ;;
+                        "4") interactive_change_port ;;
+                        "5") interactive_regenerate_uuid ;;
+                        "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
                 done
                 ;;
-            3)
+            "3")
                 # 系统管理
                 while true; do
                     show_system_menu
                     local system_choice
                     system_choice=$(read_input "请选择操作" "0")
                     
-                    case $system_choice in
-                        1) interactive_start_service ;;
-                        2) interactive_stop_service ;;
-                        3) interactive_restart_service ;;
-                        4) interactive_show_status ;;
-                        5) interactive_show_logs ;;
-                        6) interactive_system_optimize ;;
-                        7) interactive_uninstall ;;
-                        0) break ;;
+                    case "$system_choice" in
+                        "1") interactive_start_service ;;
+                        "2") interactive_stop_service ;;
+                        "3") interactive_restart_service ;;
+                        "4") interactive_show_status ;;
+                        "5") interactive_show_logs ;;
+                        "6") interactive_system_optimize ;;
+                        "7") interactive_uninstall ;;
+                        "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
                 done
                 ;;
-            4)
+            "4")
                 # 分享链接
                 while true; do
                     show_share_menu
                     local share_choice
                     share_choice=$(read_input "请选择操作" "0")
                     
-                    case $share_choice in
-                        1) interactive_show_all_urls ;;
-                        2) interactive_show_single_url ;;
-                        3) interactive_generate_qr ;;
-                        4) interactive_export_config ;;
-                        0) break ;;
+                    case "$share_choice" in
+                        "1") interactive_show_all_urls ;;
+                        "2") interactive_show_single_url ;;
+                        "3") interactive_generate_qr ;;
+                        "4") interactive_export_config ;;
+                        "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
                 done
                 ;;
-            5)
+            "5")
                 # 系统信息
                 interactive_show_system_info
                 ;;
-            6)
+            "6")
                 # 更新脚本
                 clear
                 print_banner
@@ -2339,7 +2345,7 @@ interactive_main() {
                 warn "更新功能尚未实现"
                 wait_for_input
                 ;;
-            0)
+            "0")
                 # 退出
                 clear
                 print_banner
@@ -2347,7 +2353,7 @@ interactive_main() {
                 exit 0
                 ;;
             *)
-                warn "请输入有效的选项"
+                warn "请输入有效的选项 (0-6)"
                 sleep 1
                 ;;
         esac
