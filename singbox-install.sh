@@ -1000,8 +1000,15 @@ EOF
     else
         # Linux/Unix 环境
         if [[ -d "/usr/local/bin" ]]; then
-            ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
-            echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+            # 确保使用绝对路径
+            local script_path="$(realpath "$0")"
+            if ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
+                chmod +x /usr/local/bin/sb
+                echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+            else
+                echo -e "${YELLOW}警告: 无法创建快捷命令，可能需要管理员权限${NC}"
+                echo -e "${YELLOW}手动创建命令: sudo ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
+            fi
         else
             echo -e "${YELLOW}警告: /usr/local/bin 目录不存在，跳过快捷命令创建${NC}"
         fi

@@ -216,7 +216,7 @@ generate_qr_codes() {
         # 终端显示二维码
         if command -v qrcode-terminal >/dev/null 2>&1; then
             echo -e "${CYAN}VLESS Reality 二维码 (终端显示):${NC}"
-            qrcode-terminal "$vless_link"
+            qrcode-terminal "$vless_link" --small
             echo ""
         fi
         
@@ -242,7 +242,7 @@ generate_qr_codes() {
         # 终端显示二维码
         if command -v qrcode-terminal >/dev/null 2>&1; then
             echo -e "${CYAN}VMess WebSocket 二维码 (终端显示):${NC}"
-            qrcode-terminal "$vmess_link"
+            qrcode-terminal "$vmess_link" --small
             echo ""
         fi
         
@@ -268,7 +268,7 @@ generate_qr_codes() {
         # 终端显示二维码
         if command -v qrcode-terminal >/dev/null 2>&1; then
             echo -e "${CYAN}Hysteria2 二维码 (终端显示):${NC}"
-            qrcode-terminal "$hy2_link"
+            qrcode-terminal "$hy2_link" --small
             echo ""
         fi
         
