@@ -134,8 +134,46 @@ generate_share_links() {
     wait_for_input
 }
 
-# 生成 QR 码
+# 安装终端二维码工具
+install_qrcode_terminal() {
+    if ! command -v qrcode-terminal >/dev/null 2>&1; then
+        echo -e "${YELLOW}qrcode-terminal 未安装，正在安装...${NC}"
+        if command -v npm >/dev/null 2>&1; then
+            npm install -g qrcode-terminal
+        elif command -v yarn >/dev/null 2>&1; then
+            yarn global add qrcode-terminal
+        else
+            echo -e "${YELLOW}未找到 npm 或 yarn，尝试安装 Node.js...${NC}"
+            case $OS in
+                ubuntu|debian)
+                    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+                    apt-get install -y nodejs
+                    npm install -g qrcode-terminal
+                    ;;
+                centos|rhel|fedora)
+                    curl -fsSL https://rpm.nodesource.com/setup_lts.x | bash -
+                    if command -v dnf >/dev/null 2>&1; then
+                        dnf install -y nodejs npm
+                    else
+                        yum install -y nodejs npm
+                    fi
+                    npm install -g qrcode-terminal
+                    ;;
+                *)
+                    echo -e "${RED}无法自动安装 qrcode-terminal，请手动安装 Node.js 和 qrcode-terminal${NC}"
+                    echo -e "${YELLOW}安装命令: npm install -g qrcode-terminal${NC}"
+                    ;;
+            esac
+        fi
+    fi
+}
+
+# 生成 QR 码（终端显示 + 文件保存）
 generate_qr_codes() {
+    # 安装终端二维码工具
+    install_qrcode_terminal
+    
+    # 确保传统 qrencode 也可用（用于文件保存）
     if ! command_exists qrencode; then
         echo -e "${YELLOW}qrencode 未安装，正在安装...${NC}"
         case $OS in
@@ -171,10 +209,22 @@ generate_qr_codes() {
         vless_link=$(generate_vless_share_link)
         local qr_file="$qr_dir/vless-reality.png"
         
+        echo -e "${CYAN}VLESS Reality 分享链接:${NC}"
+        echo -e "${YELLOW}$vless_link${NC}"
+        echo ""
+        
+        # 终端显示二维码
+        if command -v qrcode-terminal >/dev/null 2>&1; then
+            echo -e "${CYAN}VLESS Reality 二维码 (终端显示):${NC}"
+            qrcode-terminal "$vless_link"
+            echo ""
+        fi
+        
+        # 保存为文件
         if qrencode -t PNG -o "$qr_file" "$vless_link"; then
-            echo -e "${GREEN}VLESS Reality QR 码已生成: $qr_file${NC}"
+            echo -e "${GREEN}VLESS Reality QR 码文件已生成: $qr_file${NC}"
         else
-            echo -e "${RED}VLESS Reality QR 码生成失败${NC}"
+            echo -e "${RED}VLESS Reality QR 码文件生成失败${NC}"
         fi
         has_config=true
     fi
@@ -185,10 +235,22 @@ generate_qr_codes() {
         vmess_link=$(generate_vmess_share_link)
         local qr_file="$qr_dir/vmess-websocket.png"
         
+        echo -e "${CYAN}VMess WebSocket 分享链接:${NC}"
+        echo -e "${YELLOW}$vmess_link${NC}"
+        echo ""
+        
+        # 终端显示二维码
+        if command -v qrcode-terminal >/dev/null 2>&1; then
+            echo -e "${CYAN}VMess WebSocket 二维码 (终端显示):${NC}"
+            qrcode-terminal "$vmess_link"
+            echo ""
+        fi
+        
+        # 保存为文件
         if qrencode -t PNG -o "$qr_file" "$vmess_link"; then
-            echo -e "${GREEN}VMess WebSocket QR 码已生成: $qr_file${NC}"
+            echo -e "${GREEN}VMess WebSocket QR 码文件已生成: $qr_file${NC}"
         else
-            echo -e "${RED}VMess WebSocket QR 码生成失败${NC}"
+            echo -e "${RED}VMess WebSocket QR 码文件生成失败${NC}"
         fi
         has_config=true
     fi
@@ -199,10 +261,22 @@ generate_qr_codes() {
         hy2_link=$(generate_hysteria2_share_link)
         local qr_file="$qr_dir/hysteria2.png"
         
+        echo -e "${CYAN}Hysteria2 分享链接:${NC}"
+        echo -e "${YELLOW}$hy2_link${NC}"
+        echo ""
+        
+        # 终端显示二维码
+        if command -v qrcode-terminal >/dev/null 2>&1; then
+            echo -e "${CYAN}Hysteria2 二维码 (终端显示):${NC}"
+            qrcode-terminal "$hy2_link"
+            echo ""
+        fi
+        
+        # 保存为文件
         if qrencode -t PNG -o "$qr_file" "$hy2_link"; then
-            echo -e "${GREEN}Hysteria2 QR 码已生成: $qr_file${NC}"
+            echo -e "${GREEN}Hysteria2 QR 码文件已生成: $qr_file${NC}"
         else
-            echo -e "${RED}Hysteria2 QR 码生成失败${NC}"
+            echo -e "${RED}Hysteria2 QR 码文件生成失败${NC}"
         fi
         has_config=true
     fi

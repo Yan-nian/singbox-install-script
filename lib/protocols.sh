@@ -53,6 +53,7 @@ generate_reality_short_id() {
 # 检测可用的 Reality 目标
 detect_reality_target() {
     local targets=(
+        "www.yahoo.com:443"
         "www.microsoft.com:443"
         "www.cloudflare.com:443"
         "www.apple.com:443"
@@ -76,8 +77,8 @@ detect_reality_target() {
     done
     
     log_warn "无法连接到预设目标，使用默认配置"
-    VLESS_TARGET="www.microsoft.com:443"
-    VLESS_SERVER_NAME="www.microsoft.com"
+    VLESS_TARGET="www.yahoo.com:443"
+    VLESS_SERVER_NAME="www.yahoo.com"
 }
 
 # 配置 VLESS Reality

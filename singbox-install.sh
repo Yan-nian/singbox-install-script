@@ -384,7 +384,7 @@ perform_installation() {
     install_dependencies
     install_singbox
     create_service
-    ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+    create_shortcut_command
     
     # 如果是覆盖安装，尝试恢复配置
     if [[ "$is_reinstall" == "true" ]] && [[ -f "$CONFIG_FILE" ]]; then
@@ -964,6 +964,48 @@ EOF
     systemctl enable "$SERVICE_NAME"
     
     echo -e "${GREEN}系统服务创建完成${NC}"
+}
+
+# 创建快捷命令（跨平台兼容）
+create_shortcut_command() {
+    echo -e "${CYAN}正在创建快捷命令...${NC}"
+    
+    # 检测操作系统类型
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ -n "$WINDIR" ]]; then
+        # Windows 环境
+        echo -e "${YELLOW}检测到 Windows 环境，创建批处理快捷命令...${NC}"
+        
+        # 创建批处理文件
+        local batch_file="/c/Windows/System32/sb.bat"
+        cat > "$batch_file" << EOF
+@echo off
+cd /d "%~dp0"
+bash "$SCRIPT_DIR/singbox-install.sh" %*
+EOF
+        
+        # 创建 PowerShell 脚本
+        local ps_file="/c/Windows/System32/sb.ps1"
+        cat > "$ps_file" << EOF
+param([string[]]\$Arguments)
+\$scriptPath = "$SCRIPT_DIR/singbox-install.sh"
+if (Test-Path \$scriptPath) {
+    & bash \$scriptPath @Arguments
+} else {
+    Write-Host "Error: singbox-install.sh not found" -ForegroundColor Red
+}
+EOF
+        
+        echo -e "${GREEN}Windows 快捷命令已创建${NC}"
+        echo -e "${YELLOW}使用方法: 在 PowerShell 中输入 'sb' 或在 CMD 中输入 'sb.bat'${NC}"
+    else
+        # Linux/Unix 环境
+        if [[ -d "/usr/local/bin" ]]; then
+            ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+            echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+        else
+            echo -e "${YELLOW}警告: /usr/local/bin 目录不存在，跳过快捷命令创建${NC}"
+        fi
+    fi
 }
 
 # 创建工作目录
