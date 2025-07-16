@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.4.5
+# 版本: v2.4.3
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.5"
+SCRIPT_VERSION="v2.4.3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -170,320 +170,6 @@ diagnose_module_issues() {
     else
         echo -e "${YELLOW}本地模块目录不存在: $script_dir/lib${NC}"
     fi
-}
-
-# 检查 Sing-box 安装状态
-check_installation_status() {
-    local status="not_installed"
-    local install_method="unknown"
-    local details=""
-    
-    # 检查二进制文件
-    if [[ -f "$SINGBOX_BINARY" ]]; then
-        status="installed"
-        install_method="binary"
-        local version=$($SINGBOX_BINARY version 2>/dev/null | head -1 || echo "未知版本")
-        details="二进制文件存在 ($version)"
-    fi
-    
-    # 检查系统服务
-    if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="service"
-            details="系统服务已安装"
-        else
-            install_method="complete"
-            details="$details + 系统服务"
-        fi
-    fi
-    
-    # 检查配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="config"
-            details="配置文件存在"
-        else
-            details="$details + 配置文件"
-        fi
-    fi
-    
-    # 检查配置目录
-    if [[ -d "$WORK_DIR" ]] && [[ $(ls -A "$WORK_DIR" 2>/dev/null | wc -l) -gt 0 ]]; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="config_dir"
-            details="配置目录存在"
-        else
-            details="$details + 配置目录"
-        fi
-    fi
-    
-    echo "$status:$install_method:$details"
-}
-
-# 诊断安装状态
-diagnose_installation() {
-    echo -e "${CYAN}=== Sing-box 安装状态诊断 ===${NC}"
-    echo
-    
-    # 检查二进制文件
-    if [[ -f "$SINGBOX_BINARY" ]]; then
-        local version=$($SINGBOX_BINARY version 2>/dev/null | head -1 || echo "版本获取失败")
-        echo -e "${GREEN}[OK]${NC} 二进制文件: $SINGBOX_BINARY"
-        echo -e "     版本: $version"
-    else
-        echo -e "${RED}[NO]${NC} 二进制文件: 未找到"
-    fi
-    
-    # 检查系统服务
-    if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
-        local service_status=$(systemctl is-active sing-box 2>/dev/null || echo "未知")
-        local service_enabled=$(systemctl is-enabled sing-box 2>/dev/null || echo "未知")
-        echo -e "${GREEN}[OK]${NC} 系统服务: 已安装"
-        echo -e "     状态: $service_status | 开机启动: $service_enabled"
-    else
-        echo -e "${RED}[NO]${NC} 系统服务: 未安装"
-    fi
-    
-    # 检查配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
-        local config_size=$(du -h "$CONFIG_FILE" 2>/dev/null | cut -f1 || echo "未知")
-        echo -e "${GREEN}[OK]${NC} 配置文件: $CONFIG_FILE"
-        echo -e "     大小: $config_size"
-    else
-        echo -e "${RED}[NO]${NC} 配置文件: 未找到"
-    fi
-    
-    # 检查配置目录
-    if [[ -d "$WORK_DIR" ]]; then
-        local file_count=$(ls -A "$WORK_DIR" 2>/dev/null | wc -l)
-        echo -e "${GREEN}[OK]${NC} 配置目录: $WORK_DIR"
-        echo -e "     文件数量: $file_count"
-    else
-        echo -e "${RED}[NO]${NC} 配置目录: 未找到"
-    fi
-    
-    # 检查快捷命令
-    if [[ -L "/usr/local/bin/sb" ]]; then
-        local target=$(readlink /usr/local/bin/sb 2>/dev/null || echo "读取失败")
-        echo -e "${GREEN}[OK]${NC} 快捷命令: /usr/local/bin/sb"
-        echo -e "     指向: $target"
-    else
-        echo -e "${RED}[NO]${NC} 快捷命令: 未创建"
-    fi
-    
-    # 检查端口占用
-    if command -v netstat >/dev/null 2>&1; then
-        local listening_ports=$(netstat -tlnp 2>/dev/null | grep sing-box | wc -l)
-        if [[ $listening_ports -gt 0 ]]; then
-            echo -e "${GREEN}[OK]${NC} 端口监听: $listening_ports 个端口"
-        else
-            echo -e "${YELLOW}[--]${NC} 端口监听: 无活动端口"
-        fi
-    fi
-    
-    echo
-}
-
-# 显示安装管理菜单
-show_installation_menu() {
-    local install_info="$1"
-    local status=$(echo "$install_info" | cut -d: -f1)
-    local method=$(echo "$install_info" | cut -d: -f2)
-    local details=$(echo "$install_info" | cut -d: -f3)
-    
-    echo -e "${CYAN}=== Sing-box 管理菜单 ===${NC}"
-    echo -e "${GREEN}当前状态:${NC} $details"
-    echo
-    
-    case "$status" in
-        "installed")
-            echo -e "${GREEN}1.${NC} 显示主菜单（管理配置）"
-            echo -e "${GREEN}2.${NC} 重新安装 Sing-box"
-            echo -e "${GREEN}3.${NC} 更新 Sing-box 版本"
-            echo -e "${GREEN}4.${NC} 显示安装状态诊断"
-            echo -e "${GREEN}5.${NC} 卸载 Sing-box"
-            echo -e "${GREEN}0.${NC} 退出"
-            echo
-            
-            read -p "请选择 [0-5]: " choice
-            
-            case "$choice" in
-                1)
-                    # 加载现有配置并显示主菜单
-                    load_existing_config
-                    show_main_menu
-                    ;;
-                2)
-                    echo -e "${YELLOW}确认重新安装？这将覆盖现有配置。${NC}"
-                    read -p "输入 'yes' 确认: " confirm
-                    if [[ "$confirm" == "yes" ]]; then
-                        perform_installation
-                    else
-                        show_installation_menu "$install_info"
-                    fi
-                    ;;
-                3)
-                    update_singbox
-                    ;;
-                4)
-                    diagnose_installation
-                    read -p "按回车键返回菜单..." 
-                    show_installation_menu "$install_info"
-                    ;;
-                5)
-                    uninstall_singbox
-                    ;;
-                0)
-                    exit 0
-                    ;;
-                *)
-                    echo -e "${RED}无效选择${NC}"
-                    show_installation_menu "$install_info"
-                    ;;
-            esac
-            ;;
-        "not_installed")
-            echo -e "${YELLOW}Sing-box 未安装，开始安装流程...${NC}"
-            perform_installation
-            ;;
-    esac
-}
-
-# 执行安装流程
-perform_installation() {
-    echo -e "${CYAN}=== 开始安装 Sing-box ===${NC}"
-    
-    # 记录安装开始
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "开始安装Sing-box" "系统: $OS_TYPE"
-    fi
-    
-    install_dependencies
-    install_singbox
-    create_service
-    ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
-    
-    # 记录安装完成
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "Sing-box安装完成" "服务已创建"
-    fi
-    
-    echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
-    show_main_menu
-}
-
-# 加载现有配置
-load_existing_config() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        echo -e "${CYAN}正在加载现有配置...${NC}"
-        if command -v auto_load_config >/dev/null 2>&1; then
-            auto_load_config
-        else
-            # 兼容旧版本
-            load_config || echo -e "${YELLOW}配置加载失败，将使用默认设置${NC}"
-        fi
-        
-        # 显示配置状态
-        if command -v get_config_status >/dev/null 2>&1; then
-            local status=$(get_config_status)
-            if [[ -n "$status" ]]; then
-                echo -e "${GREEN}配置状态: $status${NC}"
-            fi
-        fi
-        
-        # 记录配置加载信息
-        if command -v log_info >/dev/null 2>&1; then
-            log_info "配置加载完成" "VLESS端口: ${VLESS_PORT:-未配置}, VMess端口: ${VMESS_PORT:-未配置}, Hysteria2端口: ${HY2_PORT:-未配置}"
-        fi
-    else
-        echo -e "${YELLOW}未找到配置文件，将创建新配置${NC}"
-    fi
-}
-
-# 更新 Sing-box
-update_singbox() {
-    echo -e "${CYAN}=== 更新 Sing-box ===${NC}"
-    
-    # 停止服务
-    if systemctl is-active sing-box >/dev/null 2>&1; then
-        echo -e "${YELLOW}停止 Sing-box 服务...${NC}"
-        systemctl stop sing-box
-    fi
-    
-    # 备份配置
-    if [[ -f "$CONFIG_FILE" ]]; then
-        local backup_file="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-        cp "$CONFIG_FILE" "$backup_file"
-        echo -e "${GREEN}配置已备份到: $backup_file${NC}"
-    fi
-    
-    # 重新安装二进制文件
-    install_singbox
-    
-    # 重启服务
-    if systemctl is-enabled sing-box >/dev/null 2>&1; then
-        echo -e "${YELLOW}重启 Sing-box 服务...${NC}"
-        systemctl start sing-box
-        
-        if systemctl is-active sing-box >/dev/null 2>&1; then
-            echo -e "${GREEN}Sing-box 更新完成并已重启${NC}"
-        else
-            echo -e "${RED}Sing-box 更新完成但启动失败，请检查配置${NC}"
-        fi
-    else
-        echo -e "${GREEN}Sing-box 更新完成${NC}"
-    fi
-    
-    read -p "按回车键返回菜单..." 
-    main
-}
-
-# 卸载 Sing-box
-uninstall_singbox() {
-    echo -e "${CYAN}=== 卸载 Sing-box ===${NC}"
-    echo -e "${RED}警告：这将完全删除 Sing-box 及其所有配置！${NC}"
-    read -p "输入 'UNINSTALL' 确认卸载: " confirm
-    
-    if [[ "$confirm" != "UNINSTALL" ]]; then
-        echo -e "${YELLOW}卸载已取消${NC}"
-        return
-    fi
-    
-    # 停止并禁用服务
-    if systemctl is-active sing-box >/dev/null 2>&1; then
-        systemctl stop sing-box
-    fi
-    
-    if systemctl is-enabled sing-box >/dev/null 2>&1; then
-        systemctl disable sing-box
-    fi
-    
-    # 删除服务文件
-    if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
-        rm -f /etc/systemd/system/sing-box.service
-        systemctl daemon-reload
-    fi
-    
-    # 删除二进制文件
-    if [[ -f "$SINGBOX_BINARY" ]]; then
-        rm -f "$SINGBOX_BINARY"
-    fi
-    
-    # 删除配置目录
-    if [[ -d "$WORK_DIR" ]]; then
-        rm -rf "$WORK_DIR"
-    fi
-    
-    # 删除快捷命令
-    if [[ -L "/usr/local/bin/sb" ]]; then
-        rm -f /usr/local/bin/sb
-    fi
-    
-    echo -e "${GREEN}Sing-box 已完全卸载${NC}"
-    exit 0
 }
 
 # 加载模块 - 增强版
@@ -892,7 +578,7 @@ show_banner() {
     echo ""
 }
 
-# 主函数 - 智能版
+# 主函数 - 增强版
 main() {
     # 基础系统检查
     check_root
@@ -904,37 +590,65 @@ main() {
     load_modules
     
     # 记录启动信息
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "Singbox安装脚本启动" "版本: v2.4.5, 系统: $OS_TYPE"
-    fi
+     if command -v log_info >/dev/null 2>&1; then
+         log_info "Singbox安装脚本启动" "版本: v2.4.3, 系统: $OS_TYPE"
+     fi
     
     # 初始化配置变量
     init_config_vars
     
-    # 获取安装状态
-    local install_info=$(check_installation_status)
-    local status=$(echo "$install_info" | cut -d: -f1)
-    
-    if command -v log_debug >/dev/null 2>&1; then
-        log_debug "安装状态检查结果: $install_info"
+    # 检查是否已安装
+    if [[ -f "$SINGBOX_BINARY" ]]; then
+        echo -e "${GREEN}检测到 Sing-box 已安装${NC}"
+        
+        # 自动加载现有配置
+        if [[ -f "$CONFIG_FILE" ]]; then
+            echo -e "${CYAN}正在加载现有配置...${NC}"
+            if command -v auto_load_config >/dev/null 2>&1; then
+                auto_load_config
+            else
+                # 兼容旧版本
+                load_config || echo -e "${YELLOW}配置加载失败，将使用默认设置${NC}"
+            fi
+            
+            # 显示配置状态
+            if command -v get_config_status >/dev/null 2>&1; then
+                local status=$(get_config_status)
+                if [[ -n "$status" ]]; then
+                    echo -e "${GREEN}配置状态: $status${NC}"
+                fi
+            fi
+            
+            # 记录配置加载信息
+            if command -v log_info >/dev/null 2>&1; then
+                log_info "配置加载完成" "VLESS端口: ${VLESS_PORT:-未配置}, VMess端口: ${VMESS_PORT:-未配置}, Hysteria2端口: ${HY2_PORT:-未配置}"
+            fi
+        else
+            echo -e "${YELLOW}未找到配置文件，将创建新配置${NC}"
+        fi
+        
+        show_main_menu
+    else
+        echo -e "${YELLOW}Sing-box 未安装，开始安装...${NC}"
+        
+        # 记录安装开始
+         if command -v log_info >/dev/null 2>&1; then
+             log_info "开始安装Sing-box" "系统: $OS_TYPE"
+         fi
+        
+        install_dependencies
+        install_singbox
+        create_service
+        ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+        
+        # 记录安装完成
+        if command -v log_info >/dev/null 2>&1; then
+            log_info "Sing-box安装完成" "服务已创建"
+        fi
+        
+        echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
+        show_main_menu
     fi
-    
-    # 根据安装状态选择处理方式
-    case "$status" in
-        "installed")
-            echo -e "${GREEN}检测到 Sing-box 已安装${NC}"
-            show_installation_menu "$install_info"
-            ;;
-        "not_installed")
-            echo -e "${YELLOW}Sing-box 未安装，开始安装流程...${NC}"
-            perform_installation
-            ;;
-        *)
-            echo -e "${RED}安装状态检查异常: $install_info${NC}"
-            diagnose_installation
-            exit 1
-            ;;
-    esac
 }
 
 # 处理命令行参数
