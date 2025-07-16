@@ -16,6 +16,9 @@ SCRIPT_DESCRIPTION="支持多协议的 Sing-box 一键安装和管理脚本"
 SCRIPT_AUTHOR="Sing-box 安装脚本项目组"
 SCRIPT_URL="https://github.com/Yan-nian/singbox-install-script"
 
+# QR码生成配置
+QR_SIZE="small"  # 默认使用小尺寸QR码
+
 # 检测在线安装模式
 detect_online_install() {
     # 检查是否通过管道执行（在线安装）
@@ -186,7 +189,7 @@ show_help() {
 
 命令:
   install                 安装 Sing-box
-  uninstall              卸载 Sing-box
+  uninstall              一键完全卸载 Sing-box（删除所有相关文件）
   update                 更新 Sing-box
   restart                重启服务
   status                 查看服务状态
@@ -498,46 +501,212 @@ show_config_info() {
     return 0
 }
 
-# 卸载 Sing-box
+# 完全卸载 Sing-box（一键卸载功能）
 uninstall_singbox() {
-    log_info "开始卸载 Sing-box..."
+    log_info "开始完全卸载 Sing-box..."
     
-    # 停止服务
-    if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
-        log_info "停止 Sing-box 服务..."
-        systemctl stop "$SERVICE_NAME"
-    fi
+    # 显示警告信息
+    echo ""
+    echo -e "${RED}警告: 此操作将完全删除 Sing-box 及其所有相关文件！${NC}"
+    echo -e "${YELLOW}包括：${NC}"
+    echo -e "  - Sing-box 二进制文件"
+    echo -e "  - 系统服务文件"
+    echo -e "  - 所有配置文件"
+    echo -e "  - 日志文件"
+    echo -e "  - 客户端配置文件"
+    echo -e "  - QR码文件"
+    echo -e "  - 备份文件"
+    echo -e "  - 临时文件"
+    echo ""
     
-    # 禁用服务
-    if systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
-        log_info "禁用 Sing-box 服务..."
-        systemctl disable "$SERVICE_NAME"
-    fi
-    
-    # 删除服务文件
-    local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
-    if [[ -f "$service_file" ]]; then
-        rm -f "$service_file"
-        systemctl daemon-reload
-    fi
-    
-    # 删除二进制文件
-    if [[ -f "$INSTALL_PATH" ]]; then
-        rm -f "$INSTALL_PATH"
-    fi
-    
-    # 询问是否删除配置文件
-    if [[ "$INSTALL_MODE" != "silent" ]]; then
-        if confirm "是否删除配置文件和日志?"; then
-            rm -rf "$CONFIG_PATH"
-            rm -rf "$LOG_PATH"
-            log_info "配置文件和日志已删除"
-        else
-            log_info "保留配置文件和日志"
+    # 在静默模式下也需要确认
+    if [[ "$INSTALL_MODE" == "silent" ]]; then
+        log_warn "静默模式下执行完全卸载"
+    else
+        if ! confirm "确认执行完全卸载？此操作不可恢复！"; then
+            log_info "卸载操作已取消"
+            return 0
         fi
     fi
     
-    log_success "Sing-box 卸载完成"
+    # 1. 停止服务
+    log_info "[1/8] 停止 Sing-box 服务..."
+    if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
+        systemctl stop "$SERVICE_NAME" || log_warn "停止服务失败，继续卸载"
+        log_success "服务已停止"
+    else
+        log_info "服务未运行"
+    fi
+    
+    # 2. 禁用服务
+    log_info "[2/8] 禁用 Sing-box 服务..."
+    if systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
+        systemctl disable "$SERVICE_NAME" || log_warn "禁用服务失败，继续卸载"
+        log_success "服务已禁用"
+    else
+        log_info "服务未启用"
+    fi
+    
+    # 3. 删除服务文件
+    log_info "[3/8] 删除系统服务文件..."
+    local service_files=(
+        "/etc/systemd/system/${SERVICE_NAME}.service"
+        "/lib/systemd/system/${SERVICE_NAME}.service"
+        "/usr/lib/systemd/system/${SERVICE_NAME}.service"
+    )
+    
+    for service_file in "${service_files[@]}"; do
+        if [[ -f "$service_file" ]]; then
+            rm -f "$service_file" && log_info "已删除: $service_file"
+        fi
+    done
+    
+    systemctl daemon-reload
+    log_success "系统服务文件已清理"
+    
+    # 4. 删除二进制文件
+    log_info "[4/8] 删除 Sing-box 二进制文件..."
+    local binary_paths=(
+        "$INSTALL_PATH"
+        "/usr/local/bin/sing-box"
+        "/usr/bin/sing-box"
+        "/opt/sing-box/sing-box"
+        "/usr/local/bin/sb"  # 快捷命令
+    )
+    
+    for binary_path in "${binary_paths[@]}"; do
+        if [[ -f "$binary_path" ]]; then
+            rm -f "$binary_path" && log_info "已删除: $binary_path"
+        fi
+    done
+    log_success "二进制文件已清理"
+    
+    # 5. 删除配置目录
+    log_info "[5/8] 删除配置文件和目录..."
+    local config_paths=(
+        "$CONFIG_PATH"
+        "/etc/sing-box"
+        "/opt/sing-box"
+        "${BASE_DIR}/configs"
+        "${BASE_DIR}/clients"
+        "${BASE_DIR}/qrcodes"
+    )
+    
+    for config_path in "${config_paths[@]}"; do
+        if [[ -d "$config_path" ]]; then
+            rm -rf "$config_path" && log_info "已删除目录: $config_path"
+        elif [[ -f "$config_path" ]]; then
+            rm -f "$config_path" && log_info "已删除文件: $config_path"
+        fi
+    done
+    log_success "配置文件已清理"
+    
+    # 6. 删除日志文件
+    log_info "[6/8] 删除日志文件..."
+    local log_paths=(
+        "$LOG_PATH"
+        "/var/log/sing-box"
+        "/var/log/sing-box.log"
+        "/tmp/sing-box.log"
+    )
+    
+    for log_path in "${log_paths[@]}"; do
+        if [[ -d "$log_path" ]]; then
+            rm -rf "$log_path" && log_info "已删除日志目录: $log_path"
+        elif [[ -f "$log_path" ]]; then
+            rm -f "$log_path" && log_info "已删除日志文件: $log_path"
+        fi
+    done
+    log_success "日志文件已清理"
+    
+    # 7. 删除备份文件
+    log_info "[7/8] 删除备份文件..."
+    local backup_patterns=(
+        "/etc/sing-box*.backup*"
+        "${CONFIG_PATH}*.backup*"
+        "${BASE_DIR}/*.backup*"
+        "/tmp/sing-box-backup*"
+    )
+    
+    for pattern in "${backup_patterns[@]}"; do
+        for file in $pattern; do
+            if [[ -f "$file" ]]; then
+                rm -f "$file" && log_info "已删除备份: $file"
+            fi
+        done
+    done
+    log_success "备份文件已清理"
+    
+    # 8. 清理临时文件和缓存
+    log_info "[8/8] 清理临时文件和缓存..."
+    local temp_patterns=(
+        "/tmp/sing-box*"
+        "/tmp/singbox*"
+        "/var/tmp/sing-box*"
+        "${HOME}/.cache/sing-box*"
+    )
+    
+    for pattern in "${temp_patterns[@]}"; do
+        for file in $pattern; do
+            if [[ -e "$file" ]]; then
+                rm -rf "$file" && log_info "已删除临时文件: $file"
+            fi
+        done
+    done
+    
+    # 清理环境变量和别名（如果存在）
+    local shell_configs=(
+        "${HOME}/.bashrc"
+        "${HOME}/.zshrc"
+        "${HOME}/.profile"
+        "/etc/profile"
+    )
+    
+    for config_file in "${shell_configs[@]}"; do
+        if [[ -f "$config_file" ]] && grep -q "sing-box\|singbox" "$config_file"; then
+            # 创建备份
+            cp "$config_file" "${config_file}.bak.$(date +%Y%m%d_%H%M%S)"
+            # 删除相关行
+            sed -i '/sing-box\|singbox/d' "$config_file" 2>/dev/null || true
+            log_info "已清理 $config_file 中的相关配置"
+        fi
+    done
+    
+    log_success "临时文件已清理"
+    
+    # 验证卸载结果
+    echo ""
+    log_info "验证卸载结果..."
+    
+    local remaining_files=()
+    
+    # 检查是否还有残留文件
+    if [[ -f "$INSTALL_PATH" ]]; then
+        remaining_files+=("$INSTALL_PATH")
+    fi
+    
+    if [[ -d "$CONFIG_PATH" ]]; then
+        remaining_files+=("$CONFIG_PATH")
+    fi
+    
+    if systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
+        remaining_files+=("systemd service")
+    fi
+    
+    if [[ ${#remaining_files[@]} -eq 0 ]]; then
+        echo ""
+        log_success "✓ Sing-box 已完全卸载，未发现残留文件"
+        echo -e "${GREEN}卸载完成！系统已恢复到安装前的状态。${NC}"
+    else
+        echo ""
+        log_warn "发现以下残留文件，请手动检查："
+        for file in "${remaining_files[@]}"; do
+            echo -e "  ${YELLOW}- $file${NC}"
+        done
+    fi
+    
+    echo ""
+    log_info "如需重新安装，请重新运行安装脚本"
     return 0
 }
 
@@ -708,8 +877,9 @@ show_interactive_menu() {
                     show_config_info
                     ;;
                 2)
-                    uninstall_singbox
-                    ;;
+                echo -e "${RED}警告: 即将执行完全卸载！${NC}"
+                uninstall_singbox
+                ;;
                 3)
                     update_singbox
                     ;;
@@ -807,6 +977,32 @@ main() {
             exit 1
             ;;
     esac
+}
+
+# 生成QR码函数
+generate_qrcode() {
+    local content="$1"
+    local output_file="$2"
+    
+    # 检查是否安装了qrcode-terminal
+    if ! command -v qrcode-terminal >/dev/null 2>&1; then
+        echo -e "${YELLOW}qrcode-terminal 未安装，正在安装...${NC}"
+        if command -v npm >/dev/null 2>&1; then
+            npm install -g qrcode-terminal
+        elif command -v yarn >/dev/null 2>&1; then
+            yarn global add qrcode-terminal
+        else
+            log_warn "未找到 npm 或 yarn，无法安装 qrcode-terminal"
+            return 1
+        fi
+    fi
+    
+    # 生成QR码
+    if [[ -n "$output_file" ]]; then
+        qrcode-terminal "$content" --${QR_SIZE} > "$output_file"
+    else
+        qrcode-terminal "$content" --${QR_SIZE}
+    fi
 }
 
 # 模拟下载函数（临时实现）
