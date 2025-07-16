@@ -59,33 +59,56 @@
 
 ## 🚀 快速开始
 
-### 一键安装
-
-**方法一：从本仓库安装（推荐）**
+### 方式一：一键安装（推荐）
 
 ```bash
-# 克隆仓库
-git clone https://github.com/Yan-nian/singbox-install-script.git
-cd singbox
-
-# 执行安装脚本
-sudo bash install.sh
-```
-
-**方法二：直接下载安装**
-
-```bash
-# 下载并执行（请确保仓库地址正确）
+# 自动检测并安装/更新
 bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
+
+# 或者下载后安装
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh
+chmod +x install.sh
+./install.sh
 ```
 
-或者使用 wget：
+### 方式二：高级安装选项
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
+# 强制重新安装
+./install.sh -f
+
+# 更新模式（智能检测并更新）
+./install.sh -u
+
+# 仅更新 sing-box 核心程序
+./install.sh -c
+
+# 仅更新管理脚本
+./install.sh -s
+
+# 显示帮助信息
+./install.sh -h
 ```
 
-> ⚠️ **注意**：请将 `your-username` 替换为你的实际 GitHub 用户名
+### 集成安装脚本特性
+
+- 🔍 **智能检测**: 自动识别是否已安装，选择最佳安装方式
+- 📦 **多模式支持**: 新安装、更新、升级、重装等多种模式
+- 🛡️ **自动备份**: 更新前自动备份现有配置和脚本
+- ⚡ **部分更新**: 支持仅更新核心程序或管理脚本
+- 🎯 **智能跳过**: 自动跳过不必要的操作，节省时间
+- 🔄 **服务管理**: 智能处理服务启动、停止和重启
+
+### 安装模式说明
+
+| 模式 | 触发条件 | 执行操作 |
+|------|----------|----------|
+| **新安装** | 未检测到任何组件 | 完整安装所有组件 |
+| **更新** | 检测到完整安装 | 更新核心和脚本，保持配置 |
+| **升级** | 检测到部分安装 | 补充缺失组件，完善安装 |
+| **重装** | 使用 `-f` 参数 | 强制重新安装所有组件 |
+| **核心更新** | 使用 `-c` 参数 | 仅更新 sing-box 核心程序 |
+| **脚本更新** | 使用 `-s` 参数 | 仅更新管理脚本 |
 
 ### 安装完成后
 

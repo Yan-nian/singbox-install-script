@@ -157,16 +157,17 @@ read_input() {
     local input
     
     if [[ -n $default ]]; then
-        echo -ne "${GREEN}$prompt${NC} [${YELLOW}$default${NC}]: "
+        echo -ne "${GREEN}$prompt${NC} [${YELLOW}$default${NC}]: " >&2
     else
-        echo -ne "${GREEN}$prompt${NC}: "
+        echo -ne "${GREEN}$prompt${NC}: " >&2
     fi
     
     read -r input
     # 去除前后空白字符并返回
     input="${input:-$default}"
-    input="${input// /}"  # 移除所有空格
-    printf "%s" "$input"
+    input="${input#"${input%%[![:space:]]*}"}"  # 移除开头空白
+    input="${input%"${input##*[![:space:]]}"}"  # 移除结尾空白
+    echo "$input"
 }
 
 read_port() {
@@ -308,6 +309,8 @@ get_short_id() {
 
 # 数据库操作
 init_db() {
+    # 确保数据目录存在
+    mkdir -p "$(dirname "$DB_FILE")"
     if [[ ! -f $DB_FILE ]]; then
         touch $DB_FILE
     fi
@@ -2343,10 +2346,19 @@ update_core() {
     
     # 获取最新版本
     local latest_version
-    latest_version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    info "正在获取最新版本信息..."
+    latest_version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
     
+    # 如果获取失败，尝试备用方法
     if [[ -z $latest_version ]]; then
-        error "无法获取最新版本信息"
+        warn "API 获取失败，尝试备用方法..."
+        latest_version=$(curl -s "https://github.com/SagerNet/sing-box/releases/latest" | grep -oP 'tag/\K[^"]+' | head -1)
+    fi
+    
+    # 如果仍然失败，使用预设版本
+    if [[ -z $latest_version ]]; then
+        warn "无法获取最新版本，使用预设版本 v1.11.15"
+        latest_version="v1.11.15"
     fi
     
     info "最新版本: $latest_version"
@@ -2723,6 +2735,26 @@ interactive_main() {
 
 # 主函数
 main() {
+    # 创建必要的目录（如果有权限）
+    if [[ $EUID -eq 0 ]]; then
+        mkdir -p "$CONFIG_DIR"
+        mkdir -p "$CONFIG_DIR/configs"
+        mkdir -p "$DATA_DIR"
+        mkdir -p "$LOG_DIR"
+    else
+        # 非root用户使用本地目录
+        local local_dir="$HOME/.sing-box"
+        mkdir -p "$local_dir"
+        mkdir -p "$local_dir/configs"
+        
+        # 更新路径变量
+        CONFIG_DIR="$local_dir"
+        DATA_DIR="$local_dir"
+        LOG_DIR="$local_dir"
+        CONFIG_FILE="$CONFIG_DIR/config.json"
+        DB_FILE="$DATA_DIR/sing-box.db"
+    fi
+    
     # 初始化数据库
     init_db
     
