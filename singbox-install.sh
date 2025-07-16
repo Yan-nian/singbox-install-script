@@ -5,12 +5,62 @@
 # 版本: v2.5.0
 # 更新时间: 2025-01-16
 
+# 设置错误处理，但允许某些命令失败
 set -e
+
+# 检查脚本执行环境
+check_execution_environment() {
+    # 检查是否通过管道或进程替换执行
+    if [[ "${BASH_SOURCE[0]}" == "/dev/fd/"* ]] || [[ "${BASH_SOURCE[0]}" == "/proc/"* ]]; then
+        echo -e "\033[1;33m[警告] 检测到脚本通过管道执行，某些功能可能受限\033[0m"
+        echo -e "\033[1;33m[建议] 下载脚本到本地后执行以获得最佳体验\033[0m"
+        echo ""
+        # 给用户一些时间阅读警告
+        sleep 2
+    fi
+}
+
+# 早期执行环境检查
+check_execution_environment
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
 SCRIPT_VERSION="v2.5.0"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 安全获取脚本目录
+get_script_dir() {
+    local source="${BASH_SOURCE[0]}"
+    local dir
+    
+    # 处理符号链接
+    while [[ -L "$source" ]]; do
+        dir="$(cd -P "$(dirname "$source")" && pwd)"
+        source="$(readlink "$source")"
+        [[ $source != /* ]] && source="$dir/$source"
+    done
+    
+    dir="$(cd -P "$(dirname "$source")" && pwd)"
+    
+    # 如果是通过管道或进程替换执行，尝试其他方法
+    if [[ "$source" == "/dev/fd/"* ]] || [[ "$source" == "/proc/"* ]]; then
+        # 尝试从当前工作目录
+        if [[ -f "$(pwd)/singbox-install.sh" ]]; then
+            dir="$(pwd)"
+        # 尝试从常见位置
+        elif [[ -f "/root/singbox-install.sh" ]]; then
+            dir="/root"
+        elif [[ -f "/tmp/singbox-install.sh" ]]; then
+            dir="/tmp"
+        else
+            # 使用当前目录作为备选
+            dir="$(pwd)"
+        fi
+    fi
+    
+    echo "$dir"
+}
+
+SCRIPT_DIR="$(get_script_dir)"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -311,7 +361,11 @@ perform_installation() {
     fi
     
     create_systemd_service
-    create_shortcut_command
+    
+    # 创建快捷命令（允许失败）
+    if ! create_shortcut_command; then
+        echo -e "${YELLOW}快捷命令创建失败，但不影响主要功能${NC}"
+    fi
     
     # 如果是覆盖安装，尝试恢复配置
     if [[ "$is_reinstall" == "true" ]] && [[ -f "$CONFIG_FILE" ]]; then
@@ -757,18 +811,43 @@ EOF
         # Linux/Unix 环境
         local shortcut_path="/usr/local/bin/sb"
         
-        # 获取脚本的绝对路径
+        # 获取脚本的绝对路径 - 修复版本
         local script_path
-        if [[ "$0" == /* ]]; then
+        
+        # 首先尝试使用 SCRIPT_DIR 变量（在脚本开头定义）
+        if [[ -n "$SCRIPT_DIR" ]] && [[ -f "$SCRIPT_DIR/$(basename "$0")" ]]; then
+            script_path="$SCRIPT_DIR/$(basename "$0")"
+        # 如果 $0 是绝对路径且文件存在
+        elif [[ "$0" == /* ]] && [[ -f "$0" ]] && [[ "$0" != "/dev/fd/"* ]]; then
             script_path="$0"
-        else
+        # 如果 $0 是相对路径
+        elif [[ "$0" != "/dev/fd/"* ]] && [[ -f "$(pwd)/$0" ]]; then
             script_path="$(pwd)/$0"
+        # 尝试通过 readlink 获取真实路径
+        elif command -v readlink >/dev/null 2>&1 && [[ -f "$0" ]]; then
+            script_path="$(readlink -f "$0" 2>/dev/null)"
+        # 最后的备选方案：在常见位置查找脚本
+        else
+            local possible_paths=(
+                "$SCRIPT_DIR/singbox-install.sh"
+                "/root/singbox-install.sh"
+                "/tmp/singbox-install.sh"
+                "$(pwd)/singbox-install.sh"
+            )
+            
+            for path in "${possible_paths[@]}"; do
+                if [[ -f "$path" ]]; then
+                    script_path="$path"
+                    break
+                fi
+            done
         fi
         
-        # 确保路径存在
-        if [[ ! -f "$script_path" ]]; then
-            echo -e "${RED}错误: 无法找到脚本文件 $script_path${NC}"
-            return 1
+        # 检查是否找到了有效的脚本路径
+        if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
+            echo -e "${YELLOW}警告: 无法确定脚本路径，跳过快捷命令创建${NC}"
+            echo -e "${YELLOW}手动创建快捷命令: ln -sf /path/to/singbox-install.sh $shortcut_path${NC}"
+            return 0
         fi
         
         # 删除已存在的符号链接（包括损坏的）
@@ -779,12 +858,12 @@ EOF
         # 创建新的符号链接
         if ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
             chmod +x "$shortcut_path" 2>/dev/null
-            echo -e "${GREEN}快捷命令已创建: $shortcut_path${NC}"
+            echo -e "${GREEN}快捷命令已创建: $shortcut_path -> $script_path${NC}"
         elif command -v sudo >/dev/null 2>&1; then
             # 使用sudo重试
             if sudo ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
                 sudo chmod +x "$shortcut_path" 2>/dev/null
-                echo -e "${GREEN}快捷命令已创建: $shortcut_path${NC}"
+                echo -e "${GREEN}快捷命令已创建: $shortcut_path -> $script_path${NC}"
             else
                 echo -e "${YELLOW}警告: 无法创建快捷命令${NC}"
                 echo -e "${YELLOW}手动创建: sudo ln -sf \"$script_path\" $shortcut_path${NC}"
