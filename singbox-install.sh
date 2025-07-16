@@ -65,8 +65,12 @@ get_actual_script_path() {
             echo "$source"
             return 0
         elif [[ -f "$(pwd)/$source" ]]; then
-            echo "$(pwd)/$source"
-            return 0
+            # 确保返回绝对路径
+            local abs_path="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+            if [[ -f "$abs_path" ]]; then
+                echo "$abs_path"
+                return 0
+            fi
         fi
     fi
     
@@ -75,13 +79,24 @@ get_actual_script_path() {
         "$(pwd)/singbox-install.sh"
         "/root/singbox-install.sh"
         "/tmp/singbox-install.sh"
-        "/home/*/singbox-install.sh"
         "/opt/singbox/singbox-install.sh"
     )
     
+    # 添加用户主目录搜索
+    if [[ -d "/home" ]]; then
+        while IFS= read -r -d '' homepath; do
+            possible_paths+=("$homepath")
+        done < <(find /home -maxdepth 2 -name "singbox-install.sh" -type f 2>/dev/null | head -3 | tr '\n' '\0')
+    fi
+    
     for path in "${possible_paths[@]}"; do
         if [[ -f "$path" ]]; then
-            echo "$path"
+            # 确保返回绝对路径
+            if [[ "$path" == /* ]]; then
+                echo "$path"
+            else
+                echo "$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+            fi
             return 0
         fi
     done
@@ -932,6 +947,12 @@ EOF
     # 获取脚本的真实路径
     local script_path=$(get_actual_script_path)
     
+    # 确保获得的是绝对路径
+    if [[ -n "$script_path" ]] && [[ "$script_path" != /* ]]; then
+        # 如果是相对路径，转换为绝对路径
+        script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
+    fi
+    
     # 如果无法自动检测，提供交互式选择
     if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
         echo -e "${YELLOW}无法自动检测脚本路径${NC}"
@@ -1072,6 +1093,13 @@ manual_fix_shortcut() {
     
     # 获取脚本路径
     local script_path=$(get_actual_script_path)
+    
+    # 确保获得的是绝对路径
+    if [[ -n "$script_path" ]] && [[ "$script_path" != /* ]]; then
+        # 如果是相对路径，转换为绝对路径
+        script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
+    fi
+    
     if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
         echo -e "${RED}无法确定脚本路径，请手动操作${NC}"
         echo -e "${YELLOW}手动创建步骤:${NC}"
