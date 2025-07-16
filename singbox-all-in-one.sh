@@ -2934,6 +2934,7 @@ quick_setup_all_protocols() {
     
     # 显示分享链接
     generate_share_links
+}
 
 # ==================== 安装和卸载 ====================
 
