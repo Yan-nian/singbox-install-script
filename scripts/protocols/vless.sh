@@ -6,7 +6,6 @@
 # VLESS Reality 相关变量
 VLESS_PORT="443"
 VLESS_UUID=""
-VLESS_FLOW="xtls-rprx-vision"
 VLESS_DEST="www.microsoft.com:443"
 VLESS_SERVER_NAME="www.microsoft.com"
 VLESS_PRIVATE_KEY=""
@@ -153,8 +152,7 @@ generate_vless_inbound() {
       "listen_port": $VLESS_PORT,
       "users": [
         {
-          "uuid": "$VLESS_UUID",
-          "flow": "$VLESS_FLOW"
+          "uuid": "$VLESS_UUID"
         }
       ],
       "tls": {
@@ -239,7 +237,6 @@ generate_vless_client_config() {
       "server": "$server_ip",
       "server_port": $VLESS_PORT,
       "uuid": "$VLESS_UUID",
-      "flow": "$VLESS_FLOW",
       "tls": {
         "enabled": true,
         "server_name": "$VLESS_SERVER_NAME",
@@ -316,7 +313,6 @@ generate_vless_share_link() {
     # 构建 VLESS 链接
     local vless_link="vless://${VLESS_UUID}@${server_ip}:${VLESS_PORT}"
     vless_link+="?encryption=none"
-    vless_link+="&flow=${VLESS_FLOW}"
     vless_link+="&security=reality"
     vless_link+="&sni=${VLESS_SERVER_NAME}"
     vless_link+="&fp=chrome"
@@ -351,10 +347,9 @@ generate_vless_qr_code() {
 show_vless_config() {
     local server_ip="$1"
     
-    echo -e "${CYAN}=== VLESS Reality Vision 配置信息 ===${NC}"
+    echo -e "${CYAN}=== VLESS Reality 配置信息 ===${NC}"
     echo -e "协议: ${GREEN}VLESS${NC}"
     echo -e "传输: ${GREEN}TCP${NC}"
-    echo -e "流控: ${GREEN}$VLESS_FLOW${NC}"
     echo -e "加密: ${GREEN}Reality${NC}"
     echo -e "服务器: ${GREEN}$server_ip${NC}"
     echo -e "端口: ${GREEN}$VLESS_PORT${NC}"
@@ -379,12 +374,11 @@ save_vless_config() {
     local config_file="$WORK_DIR/vless-reality-config.txt"
     
     cat > "$config_file" << EOF
-# VLESS Reality Vision 配置信息
+# VLESS Reality 配置信息
 # 生成时间: $(date)
 
 协议: VLESS
 传输: TCP
-流控: $VLESS_FLOW
 加密: Reality
 服务器: $server_ip
 端口: $VLESS_PORT

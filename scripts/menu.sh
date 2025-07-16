@@ -762,30 +762,10 @@ generate_share_links() {
 }
 
 generate_qr_codes() {
-    echo -e "${CYAN}=== 生成 QR 码 ===${NC}"
-    echo ""
-    
-    local server_ip
-    server_ip=$(get_public_ip)
-    
-    if command_exists qrencode; then
-        if [[ -n "$VLESS_UUID" ]]; then
-            generate_vless_qr_code "$server_ip"
-        fi
-        
-        if [[ -n "$VMESS_UUID" ]]; then
-            generate_vmess_qr_code "$server_ip" false
-        fi
-        
-        if [[ -n "$HY2_PASSWORD" ]]; then
-            generate_hysteria2_qr_code "$server_ip"
-        fi
-        
-        echo "QR 码已生成到 $WORK_DIR 目录"
-    else
-        echo "qrencode 未安装，无法生成 QR 码"
-        echo "请运行: apt install qrencode (Debian/Ubuntu) 或 yum install qrencode (CentOS/RHEL)"
-    fi
+    # 调用 lib/subscription.sh 中统一的二维码生成实现
+    # 该实现已经统一使用 --small 参数，确保所有协议的终端二维码大小一致
+    source "$SCRIPT_DIR/../lib/subscription.sh"
+    generate_qr_codes
 }
 
 configure_firewall_interactive() {
