@@ -303,7 +303,6 @@ show_all_qr_codes() {
     echo ""
     wait_for_input
 }
-}
 
 # 二维码菜单
 show_qr_menu() {
