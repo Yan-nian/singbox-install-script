@@ -9,6 +9,57 @@
 # 设置错误处理
 set -e
 
+# ==================== 系统兼容性检查 ====================
+
+# 检查操作系统兼容性
+check_os_compatibility() {
+    # 检查是否为Linux系统
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo -e "\033[0;31m错误: 此脚本仅支持 Linux 系统\033[0m"
+        echo -e "\033[1;33m检测到的系统: $(uname -s)\033[0m"
+        echo ""
+        echo "支持的系统:"
+        echo "  - Ubuntu 18.04+"
+        echo "  - Debian 10+"
+        echo "  - CentOS 7+"
+        echo "  - RHEL 7+"
+        echo "  - Fedora 30+"
+        echo "  - Arch Linux"
+        echo ""
+        echo "如果您在 Windows 上，请使用 WSL (Windows Subsystem for Linux)"
+        echo "如果您在 macOS 上，请使用 Docker 或虚拟机运行 Linux"
+        exit 1
+    fi
+    
+    # 检查是否有systemd支持
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo -e "\033[0;31m错误: 此脚本需要 systemd 支持\033[0m"
+        echo -e "\033[1;33m未找到 systemctl 命令\033[0m"
+        echo ""
+        echo "请确保您的系统支持 systemd 服务管理"
+        exit 1
+    fi
+    
+    # 检查基本命令
+    local missing_commands=()
+    for cmd in bash curl tar grep sed awk; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing_commands+=("$cmd")
+        fi
+    done
+    
+    if [[ ${#missing_commands[@]} -gt 0 ]]; then
+        echo -e "\033[0;31m错误: 缺少必要的系统命令\033[0m"
+        echo -e "\033[1;33m缺少的命令: ${missing_commands[*]}\033[0m"
+        echo ""
+        echo "请安装缺少的命令后重试"
+        exit 1
+    fi
+}
+
+# 立即执行系统兼容性检查
+check_os_compatibility
+
 # 脚本信息
 SCRIPT_NAME="Sing-box 全能一键安装脚本"
 SCRIPT_VERSION="v3.0.0"
@@ -521,8 +572,17 @@ validate_port() {
 get_service_status() {
     local service="$1"
     
+    # 检查服务文件是否存在
+    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$service.service"; then
+        echo "not_installed"
+        return
+    fi
+    
+    # 检查服务是否正在运行
     if systemctl is-active "$service" >/dev/null 2>&1; then
         echo "running"
+    elif systemctl is-failed "$service" >/dev/null 2>&1; then
+        echo "failed"
     elif systemctl is-enabled "$service" >/dev/null 2>&1; then
         echo "stopped"
     else
@@ -530,16 +590,114 @@ get_service_status() {
     fi
 }
 
+# 获取服务状态的详细描述
+get_service_status_description() {
+    local service="$1"
+    local status=$(get_service_status "$service")
+    
+    case "$status" in
+        "running")
+            echo -e "${GREEN}运行中${NC}"
+            ;;
+        "stopped")
+            echo -e "${YELLOW}已停止${NC}"
+            ;;
+        "failed")
+            echo -e "${RED}启动失败${NC}"
+            ;;
+        "disabled")
+            echo -e "${YELLOW}已禁用${NC}"
+            ;;
+        "not_installed")
+            echo -e "${RED}未安装${NC}"
+            ;;
+        *)
+            echo -e "${RED}未知状态${NC}"
+            ;;
+    esac
+}
+
+# 检查安装状态
+check_installation_status() {
+    local issues=()
+    
+    # 检查二进制文件
+    if [[ ! -f "$SINGBOX_BINARY" ]]; then
+        issues+=("Sing-box 二进制文件未安装")
+    elif [[ ! -x "$SINGBOX_BINARY" ]]; then
+        issues+=("Sing-box 二进制文件无执行权限")
+    fi
+    
+    # 检查服务文件
+    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$SERVICE_NAME.service"; then
+        issues+=("systemd 服务文件未创建")
+    fi
+    
+    # 检查工作目录
+    if [[ ! -d "$WORK_DIR" ]]; then
+        issues+=("工作目录不存在")
+    fi
+    
+    # 检查配置文件
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        issues+=("配置文件不存在")
+    fi
+    
+    if [[ ${#issues[@]} -gt 0 ]]; then
+        echo -e "${RED}发现安装问题:${NC}"
+        for issue in "${issues[@]}"; do
+            echo -e "  ${RED}✗${NC} $issue"
+        done
+        echo ""
+        echo -e "${YELLOW}建议: 请先完成 Sing-box 的完整安装${NC}"
+        return 1
+    fi
+    
+    return 0
+}
+
 # 启动服务
 start_service() {
     local service="$1"
     
     log_info "启动服务: $service"
-    if systemctl start "$service"; then
-        log_success "服务启动成功: $service"
-        return 0
+    
+    # 检查安装状态
+    if ! check_installation_status; then
+        log_error "安装状态检查失败，无法启动服务"
+        return 1
+    fi
+    
+    # 验证配置文件
+    if [[ -f "$CONFIG_FILE" ]]; then
+        if ! "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
+            log_error "配置文件验证失败: $CONFIG_FILE"
+            log_error "请检查配置文件语法或重新生成配置"
+            return 1
+        fi
+    else
+        log_error "配置文件不存在: $CONFIG_FILE"
+        log_error "请先配置协议生成配置文件"
+        return 1
+    fi
+    
+    # 启动服务
+    if systemctl start "$service" 2>/dev/null; then
+        # 等待服务启动
+        sleep 2
+        
+        # 验证服务状态
+        if systemctl is-active "$service" >/dev/null 2>&1; then
+            log_success "服务启动成功: $service"
+            return 0
+        else
+            log_error "服务启动后状态异常"
+            show_service_diagnostics "$service"
+            return 1
+        fi
     else
         log_error "服务启动失败: $service"
+        show_service_diagnostics "$service"
         return 1
     fi
 }
@@ -549,12 +707,138 @@ stop_service() {
     local service="$1"
     
     log_info "停止服务: $service"
-    if systemctl stop "$service"; then
+    if systemctl stop "$service" 2>/dev/null; then
         log_success "服务停止成功: $service"
         return 0
     else
         log_error "服务停止失败: $service"
+        show_service_diagnostics "$service"
         return 1
+    fi
+}
+
+# 显示服务诊断信息
+show_service_diagnostics() {
+    local service="$1"
+    
+    echo -e "${YELLOW}=== 服务诊断信息 ===${NC}"
+    echo ""
+    
+    # 显示服务状态
+    echo -e "${CYAN}服务状态:${NC}"
+    if systemctl status "$service" --no-pager -l 2>/dev/null; then
+        echo ""
+    else
+        echo "无法获取服务状态"
+        echo ""
+    fi
+    
+    # 显示最近的日志
+    echo -e "${CYAN}最近的服务日志:${NC}"
+    if journalctl -u "$service" --no-pager -n 10 2>/dev/null; then
+        echo ""
+    else
+        echo "无法获取服务日志"
+        echo ""
+    fi
+    
+    # 检查配置文件
+    echo -e "${CYAN}配置文件检查:${NC}"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        echo "✓ 配置文件存在: $CONFIG_FILE"
+        if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
+            echo "✓ 配置文件语法正确"
+        else
+            echo "✗ 配置文件语法错误"
+            echo "  建议: 重新生成配置文件"
+        fi
+    else
+        echo "✗ 配置文件不存在: $CONFIG_FILE"
+        echo "  建议: 先配置协议生成配置文件"
+    fi
+    echo ""
+    
+    # 检查二进制文件
+    echo -e "${CYAN}二进制文件检查:${NC}"
+    if [[ -f "$SINGBOX_BINARY" ]]; then
+        echo "✓ Sing-box 二进制文件存在: $SINGBOX_BINARY"
+        if "$SINGBOX_BINARY" version >/dev/null 2>&1; then
+            local version=$("$SINGBOX_BINARY" version 2>/dev/null | head -n1 || echo "未知版本")
+            echo "✓ 二进制文件可执行: $version"
+        else
+            echo "✗ 二进制文件无法执行"
+            echo "  建议: 重新安装 Sing-box"
+        fi
+    else
+        echo "✗ Sing-box 二进制文件不存在: $SINGBOX_BINARY"
+        echo "  建议: 先安装 Sing-box"
+    fi
+    echo ""
+    
+    # 检查端口占用
+    echo -e "${CYAN}端口占用检查:${NC}"
+    local ports_to_check=()
+    [[ -n "$VLESS_PORT" ]] && ports_to_check+=("$VLESS_PORT")
+    [[ -n "$VMESS_PORT" ]] && ports_to_check+=("$VMESS_PORT")
+    [[ -n "$HY2_PORT" ]] && ports_to_check+=("$HY2_PORT")
+    
+    if [[ ${#ports_to_check[@]} -gt 0 ]]; then
+        for port in "${ports_to_check[@]}"; do
+            if check_port "$port"; then
+                echo "✗ 端口 $port 被占用"
+                echo "  占用进程: $(ss -tulpn | grep ":$port " | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 || echo '未知')"
+            else
+                echo "✓ 端口 $port 可用"
+            fi
+        done
+    else
+        echo "未配置端口信息"
+    fi
+    echo ""
+    
+    # 提供修复建议
+    echo -e "${CYAN}修复建议:${NC}"
+    echo "1. 检查配置文件语法: $SINGBOX_BINARY check -c $CONFIG_FILE"
+    echo "2. 查看详细日志: journalctl -u $service -f"
+    echo "3. 重新生成配置: 选择菜单中的协议配置选项"
+    echo "4. 重新安装服务: 选择菜单中的安装选项"
+    echo "5. 检查防火墙设置: 确保端口未被阻止"
+    echo ""
+    
+    # 提供快速修复选项
+    echo -e "${YELLOW}快速修复选项:${NC}"
+    echo -n -e "${YELLOW}是否尝试自动修复常见问题? [y/N]: ${NC}"
+    read -r auto_fix
+    
+    if [[ "$auto_fix" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${CYAN}正在尝试自动修复...${NC}"
+        
+        # 1. 检查并修复配置文件权限
+        if [[ -f "$CONFIG_FILE" ]]; then
+            chmod 644 "$CONFIG_FILE"
+            echo "✓ 已修复配置文件权限"
+        fi
+        
+        # 2. 检查并修复二进制文件权限
+        if [[ -f "$SINGBOX_BINARY" ]]; then
+            chmod +x "$SINGBOX_BINARY"
+            echo "✓ 已修复二进制文件权限"
+        fi
+        
+        # 3. 重新加载systemd
+        if systemctl daemon-reload 2>/dev/null; then
+            echo "✓ 已重新加载systemd配置"
+        fi
+        
+        # 4. 尝试重启服务
+        echo ""
+        echo -e "${YELLOW}尝试重启服务...${NC}"
+        if restart_service "$service"; then
+            echo -e "${GREEN}自动修复成功！服务已启动${NC}"
+        else
+            echo -e "${RED}自动修复失败，请手动检查问题${NC}"
+        fi
     fi
 }
 
@@ -1553,18 +1837,7 @@ show_main_menu() {
         echo -e "${GREEN}公网IP:${NC} $PUBLIC_IP"
         
         # 显示服务状态
-        local status=$(get_service_status "$SERVICE_NAME")
-        case "$status" in
-            "running")
-                echo -e "${GREEN}服务状态:${NC} ${GREEN}运行中${NC}"
-                ;;
-            "stopped")
-                echo -e "${GREEN}服务状态:${NC} ${YELLOW}已停止${NC}"
-                ;;
-            *)
-                echo -e "${GREEN}服务状态:${NC} ${RED}未启用${NC}"
-                ;;
-        esac
+        echo -e "${GREEN}服务状态:${NC} $(get_service_status_description "$SERVICE_NAME")"
         
         # 显示配置状态
         echo -e "${GREEN}配置状态:${NC}"
@@ -1675,13 +1948,22 @@ show_service_menu() {
         echo -e "${CYAN}=== 服务管理菜单 ===${NC}"
         echo ""
         
-        local status=$(get_service_status "$SERVICE_NAME")
-        echo -e "${GREEN}当前状态:${NC} "
-        case "$status" in
-            "running") echo -e "${GREEN}运行中${NC}" ;;
-            "stopped") echo -e "${YELLOW}已停止${NC}" ;;
-            *) echo -e "${RED}未启用${NC}" ;;
-        esac
+        # 显示详细的服务状态
+        echo -e "${GREEN}当前状态:${NC} $(get_service_status_description "$SERVICE_NAME")"
+        
+        # 显示配置文件状态
+        if [[ -f "$CONFIG_FILE" ]]; then
+            echo -e "${GREEN}配置文件:${NC} ${GREEN}存在${NC}"
+        else
+            echo -e "${GREEN}配置文件:${NC} ${RED}不存在${NC}"
+        fi
+        
+        # 显示二进制文件状态
+        if [[ -f "$SINGBOX_BINARY" ]]; then
+            echo -e "${GREEN}程序文件:${NC} ${GREEN}已安装${NC}"
+        else
+            echo -e "${GREEN}程序文件:${NC} ${RED}未安装${NC}"
+        fi
         echo ""
         
         echo -e "${YELLOW}请选择操作:${NC}"
@@ -1690,11 +1972,12 @@ show_service_menu() {
         echo -e "  ${GREEN}2.${NC} 停止服务"
         echo -e "  ${GREEN}3.${NC} 重启服务"
         echo -e "  ${GREEN}4.${NC} 查看日志"
+        echo -e "  ${GREEN}5.${NC} 服务诊断"
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-4]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-5]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -1712,6 +1995,10 @@ show_service_menu() {
                 ;;
             4)
                 show_service_logs
+                ;;
+            5)
+                show_service_diagnostics "$SERVICE_NAME"
+                wait_for_input
                 ;;
             0)
                 return
