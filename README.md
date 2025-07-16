@@ -52,6 +52,42 @@ chmod +x singbox-install.sh
 ./singbox-install.sh
 ```
 
+### Windows 环境使用
+
+**注意**: 本脚本主要为 Linux 系统设计。在 Windows 环境中使用需要额外配置。
+
+#### 快捷命令解决方案
+
+我们提供了两种 Windows 环境下的快捷启动方案：
+
+**方案 1: 批处理文件 (推荐)**
+```cmd
+# 使用 sb.bat 启动
+sb.bat
+
+# 传递参数
+sb.bat --help
+sb.bat --install
+```
+
+**方案 2: PowerShell 脚本**
+```powershell
+# 使用 sb.ps1 启动
+.\sb.ps1
+
+# 传递参数
+.\sb.ps1 --help
+```
+
+#### 环境要求
+
+需要安装 bash 环境支持：
+- **Git for Windows** (推荐): https://git-scm.com/download/win
+- **WSL**: `wsl --install`
+- **Cygwin**: https://www.cygwin.com/
+
+详细的 Windows 使用指南请参考 [WINDOWS_USAGE.md](WINDOWS_USAGE.md)
+
 ## 📖 使用指南
 
 ### 命令行参数

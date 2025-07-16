@@ -9,7 +9,7 @@ set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.0"
+SCRIPT_VERSION="v2.4.2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -154,20 +154,107 @@ install_dependencies() {
     
     case $OS in
         ubuntu|debian)
+            echo -e "${CYAN}更新软件包列表...${NC}"
             apt update
-            apt install -y curl wget unzip openssl qrencode jq
+            echo -e "${CYAN}安装必要依赖...${NC}"
+            apt install -y \
+                curl \
+                wget \
+                unzip \
+                tar \
+                gzip \
+                openssl \
+                qrencode \
+                jq \
+                uuid-runtime \
+                coreutils \
+                net-tools \
+                procps \
+                systemd \
+                grep \
+                gawk \
+                sed \
+                util-linux \
+                ca-certificates
             ;;
         centos|rhel|fedora)
             if command -v dnf >/dev/null 2>&1; then
-                dnf install -y curl wget unzip openssl qrencode jq
+                echo -e "${CYAN}安装必要依赖...${NC}"
+                dnf install -y \
+                    curl \
+                    wget \
+                    unzip \
+                    tar \
+                    gzip \
+                    openssl \
+                    qrencode \
+                    jq \
+                    util-linux \
+                    coreutils \
+                    net-tools \
+                    procps-ng \
+                    systemd \
+                    grep \
+                    gawk \
+                    sed \
+                    ca-certificates
             else
-                yum install -y curl wget unzip openssl qrencode jq
+                echo -e "${CYAN}安装必要依赖...${NC}"
+                yum install -y \
+                    curl \
+                    wget \
+                    unzip \
+                    tar \
+                    gzip \
+                    openssl \
+                    qrencode \
+                    jq \
+                    util-linux \
+                    coreutils \
+                    net-tools \
+                    procps \
+                    systemd \
+                    grep \
+                    gawk \
+                    sed \
+                    ca-certificates
             fi
             ;;
         *)
-            echo -e "${YELLOW}警告: 未知系统，跳过依赖安装${NC}"
+            echo -e "${YELLOW}警告: 未知系统 ($OS)，尝试安装基础依赖...${NC}"
+            # 尝试使用通用包管理器
+            if command -v apt >/dev/null 2>&1; then
+                apt update && apt install -y curl wget unzip tar openssl jq
+            elif command -v yum >/dev/null 2>&1; then
+                yum install -y curl wget unzip tar openssl jq
+            elif command -v pacman >/dev/null 2>&1; then
+                pacman -Sy --noconfirm curl wget unzip tar openssl jq
+            else
+                echo -e "${RED}错误: 无法识别包管理器，请手动安装以下依赖:${NC}"
+                echo -e "${YELLOW}curl wget unzip tar openssl jq uuid-runtime coreutils net-tools${NC}"
+                read -p "按回车键继续..."
+            fi
             ;;
     esac
+    
+    # 验证关键依赖是否安装成功
+    echo -e "${CYAN}验证依赖安装...${NC}"
+    local missing_deps=()
+    local required_deps=("curl" "wget" "jq" "openssl" "tar" "unzip")
+    
+    for dep in "${required_deps[@]}"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            missing_deps+=("$dep")
+        fi
+    done
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        echo -e "${RED}错误: 以下依赖安装失败: ${missing_deps[*]}${NC}"
+        echo -e "${YELLOW}请手动安装这些依赖后重新运行脚本${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}所有依赖安装完成${NC}"
 }
 
 # 下载并安装 Sing-box
