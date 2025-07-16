@@ -148,12 +148,13 @@ show_system_menu() {
     echo -e "${YELLOW}  [3]${NC} 重启服务"
     echo -e "${YELLOW}  [4]${NC} 查看状态"
     echo -e "${YELLOW}  [5]${NC} 查看日志"
-    echo -e "${YELLOW}  [6]${NC} 系统优化"
-    echo -e "${YELLOW}  [7]${NC} 更新脚本"
-    echo -e "${YELLOW}  [8]${NC} 更新核心"
-    echo -e "${YELLOW}  [9]${NC} 备份配置"
-    echo -e "${YELLOW}  [10]${NC} 恢复配置"
-    echo -e "${YELLOW}  [11]${NC} 卸载 Sing-box"
+    echo -e "${YELLOW}  [6]${NC} 系统诊断"
+    echo -e "${YELLOW}  [7]${NC} 系统优化"
+    echo -e "${YELLOW}  [8]${NC} 更新脚本"
+    echo -e "${YELLOW}  [9]${NC} 更新核心"
+    echo -e "${YELLOW}  [10]${NC} 备份配置"
+    echo -e "${YELLOW}  [11]${NC} 恢复配置"
+    echo -e "${YELLOW}  [12]${NC} 卸载 Sing-box"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -2042,6 +2043,184 @@ interactive_show_logs() {
     done
 }
 
+interactive_system_diagnose() {
+    clear
+    print_banner
+    echo -e "${GREEN}系统诊断${NC}"
+    print_sub_separator
+    
+    echo -e "${YELLOW}正在诊断 Sing-box 服务状态...${NC}"
+    echo
+    
+    # 检查服务状态
+    echo -e "${CYAN}1. 检查服务状态${NC}"
+    if systemctl is-active --quiet sing-box; then
+        echo "  ✓ 服务正在运行"
+    else
+        echo "  ✗ 服务未运行"
+        echo "  详细状态:"
+        systemctl status sing-box --no-pager -l | head -10
+    fi
+    echo
+    
+    # 检查配置文件
+    echo -e "${CYAN}2. 检查配置文件${NC}"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        echo "  ✓ 配置文件存在: $CONFIG_FILE"
+        
+        # 测试配置文件语法
+        echo "  正在测试配置文件语法..."
+        if /usr/local/bin/sing-box check -c "$CONFIG_FILE" 2>/dev/null; then
+            echo "  ✓ 配置文件语法正确"
+        else
+            echo "  ✗ 配置文件语法错误"
+            echo "  详细错误:"
+            /usr/local/bin/sing-box check -c "$CONFIG_FILE" 2>&1 | head -5
+        fi
+    else
+        echo "  ✗ 配置文件不存在: $CONFIG_FILE"
+    fi
+    echo
+    
+    # 检查文件权限
+    echo -e "${CYAN}3. 检查文件权限${NC}"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local config_perm=$(stat -c "%a" "$CONFIG_FILE" 2>/dev/null || stat -f "%A" "$CONFIG_FILE")
+        local config_owner=$(stat -c "%U:%G" "$CONFIG_FILE" 2>/dev/null || stat -f "%Su:%Sg" "$CONFIG_FILE")
+        echo "  配置文件权限: $config_perm ($config_owner)"
+        if [[ $config_perm -eq 644 ]] || [[ $config_perm -eq 600 ]]; then
+            echo "  ✓ 配置文件权限正常"
+        else
+            echo "  ⚠ 配置文件权限可能有问题"
+        fi
+    fi
+    
+    if [[ -f "/usr/local/bin/sing-box" ]]; then
+        local binary_perm=$(stat -c "%a" "/usr/local/bin/sing-box" 2>/dev/null || stat -f "%A" "/usr/local/bin/sing-box")
+        echo "  二进制文件权限: $binary_perm"
+        if [[ $binary_perm -eq 755 ]]; then
+            echo "  ✓ 二进制文件权限正常"
+        else
+            echo "  ⚠ 二进制文件权限可能有问题"
+        fi
+    else
+        echo "  ✗ Sing-box 二进制文件不存在"
+    fi
+    echo
+    
+    # 检查端口占用
+    echo -e "${CYAN}4. 检查端口占用${NC}"
+    local configs=$(list_configs_from_db)
+    if [[ -n $configs ]]; then
+        while IFS='|' read -r name protocol port uuid extra created; do
+            if ss -tuln | grep -q ":$port "; then
+                echo "  ✓ 端口 $port ($name) - 正在监听"
+            else
+                echo "  ✗ 端口 $port ($name) - 未监听"
+            fi
+        done <<< "$configs"
+    else
+        echo "  ⚠ 未找到配置信息"
+    fi
+    echo
+    
+    # 检查最近的错误日志
+    echo -e "${CYAN}5. 最近的错误日志${NC}"
+    local error_logs=$(journalctl -u sing-box --no-pager -p err -n 5 2>/dev/null)
+    if [[ -n $error_logs ]]; then
+        echo "$error_logs"
+    else
+        echo "  ✓ 近期无错误日志"
+    fi
+    echo
+    
+    # 检查系统资源
+    echo -e "${CYAN}6. 系统资源检查${NC}"
+    local memory_usage=$(free -h | grep "Mem:" | awk '{print $3"/"$2}')
+    local disk_usage=$(df -h / | tail -1 | awk '{print $5}')
+    echo "  内存使用: $memory_usage"
+    echo "  磁盘使用: $disk_usage"
+    echo
+    
+    # 提供修复建议
+    echo -e "${CYAN}7. 修复建议${NC}"
+    if ! systemctl is-active --quiet sing-box; then
+        echo "  🔧 服务未运行，建议："
+        echo "     - 检查配置文件语法"
+        echo "     - 查看详细错误日志"
+        echo "     - 重新启动服务"
+        echo "     - 检查端口冲突"
+    fi
+    
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo "  🔧 配置文件缺失，建议："
+        echo "     - 重新生成配置文件"
+        echo "     - 检查配置目录权限"
+    fi
+    
+    echo
+    echo -e "${YELLOW}诊断完成！${NC}"
+    echo
+    echo -e "${GREEN}快速修复选项：${NC}"
+    echo "  [1] 重启服务"
+    echo "  [2] 检查配置文件语法"
+    echo "  [3] 修复文件权限"
+    echo "  [4] 查看详细错误日志"
+    echo "  [0] 返回上级菜单"
+    echo
+    
+    local choice
+    while true; do
+        choice=$(read_input "请选择修复选项" "0")
+        case "$choice" in
+            "1")
+                info "正在重启服务..."
+                systemctl restart sing-box
+                if systemctl is-active --quiet sing-box; then
+                    success "服务重启成功"
+                else
+                    error "服务重启失败，请查看日志"
+                fi
+                break
+                ;;
+            "2")
+                info "正在检查配置文件..."
+                if [[ -f "$CONFIG_FILE" ]]; then
+                    /usr/local/bin/sing-box check -c "$CONFIG_FILE"
+                else
+                    error "配置文件不存在"
+                fi
+                break
+                ;;
+            "3")
+                info "正在修复文件权限..."
+                if [[ -f "$CONFIG_FILE" ]]; then
+                    chmod 644 "$CONFIG_FILE"
+                    success "配置文件权限已修复"
+                fi
+                if [[ -f "/usr/local/bin/sing-box" ]]; then
+                    chmod 755 "/usr/local/bin/sing-box"
+                    success "二进制文件权限已修复"
+                fi
+                break
+                ;;
+            "4")
+                info "详细错误日志："
+                journalctl -u sing-box --no-pager -p err -n 20
+                break
+                ;;
+            "0")
+                return
+                ;;
+            *)
+                warn "请输入有效的选项"
+                ;;
+        esac
+    done
+    
+    wait_for_input
+}
+
 interactive_system_optimize() {
     clear
     print_banner
@@ -3239,12 +3418,13 @@ interactive_main() {
                         "3") interactive_restart_service ;;
                         "4") interactive_show_status ;;
                         "5") interactive_show_logs ;;
-                        "6") interactive_system_optimize ;;
-                        "7") interactive_update_script ;;
-                        "8") interactive_update_core ;;
-                        "9") interactive_backup_configs ;;
-                        "10") interactive_restore_configs ;;
-                        "11") interactive_uninstall ;;
+                        "6") interactive_system_diagnose ;;
+                        "7") interactive_system_optimize ;;
+                        "8") interactive_update_script ;;
+                        "9") interactive_update_core ;;
+                        "10") interactive_backup_configs ;;
+                        "11") interactive_restore_configs ;;
+                        "12") interactive_uninstall ;;
                         "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
