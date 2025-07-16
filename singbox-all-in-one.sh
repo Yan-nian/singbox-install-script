@@ -1,5 +1,4 @@
-﻿
-# Sing-box 全能一键安装脚本
+﻿# Sing-box 全能一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
 # 版本: v3.0.1 (All-in-One)
 # 更新时间: 2025-01-16
