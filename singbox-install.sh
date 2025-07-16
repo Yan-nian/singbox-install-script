@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.0.1
+# 版本: v2.0.2
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.0.1"
+SCRIPT_VERSION="v2.0.2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -39,7 +39,7 @@ load_modules() {
     local temp_dir="/tmp/singbox-modules"
     
     # 检查是否为在线执行（curl管道）
-    if [[ "$(dirname "$0")" == "/dev/fd" ]] || [[ ! -d "$lib_dir" ]]; then
+    if [[ "$0" == "bash" ]] || [[ "$0" == "-bash" ]] || [[ "$(dirname "$0")" == "/dev/fd" ]] || [[ ! -d "$lib_dir" ]]; then
         echo -e "${CYAN}检测到在线执行，正在下载模块...${NC}"
         
         # 创建临时目录
