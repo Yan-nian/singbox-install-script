@@ -36,14 +36,14 @@
 ### 在线安装
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-install.sh)
 ```
 
 ### 离线安装
 
 ```bash
 # 下载脚本
-wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-install.sh
 
 # 添加执行权限
 chmod +x singbox-install.sh
