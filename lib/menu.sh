@@ -197,13 +197,14 @@ show_config_menu() {
         echo ""
         echo -e "  ${GREEN}1.${NC} 查看配置信息"
         echo -e "  ${GREEN}2.${NC} 验证配置文件"
-        echo -e "  ${GREEN}3.${NC} 编辑配置文件"
-        echo -e "  ${GREEN}4.${NC} 备份配置"
+        echo -e "  ${GREEN}3.${NC} 配置验证和修复"
+        echo -e "  ${GREEN}4.${NC} 编辑配置文件"
+        echo -e "  ${GREEN}5.${NC} 备份配置"
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-4]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-5]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -214,9 +215,12 @@ show_config_menu() {
                 validate_current_config
                 ;;
             3)
-                edit_config_file
+                validate_and_fix_config
                 ;;
             4)
+                edit_config_file
+                ;;
+            5)
                 backup_current_config
                 ;;
             0)
@@ -241,12 +245,13 @@ show_share_menu() {
         echo -e "  ${GREEN}1.${NC} 生成分享链接"
         echo -e "  ${GREEN}2.${NC} 生成 QR 码"
         echo -e "  ${GREEN}3.${NC} 生成客户端配置"
-        echo -e "  ${GREEN}4.${NC} 生成订阅链接"
+        echo -e "  ${GREEN}4.${NC} 生成配置模板"
+        echo -e "  ${GREEN}5.${NC} 生成订阅链接"
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-4]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-5]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -260,6 +265,9 @@ show_share_menu() {
                 generate_client_configs
                 ;;
             4)
+                generate_client_config_template
+                ;;
+            5)
                 generate_subscription
                 ;;
             0)
@@ -285,13 +293,14 @@ show_system_menu() {
         echo -e "  ${GREEN}2.${NC} 网络测试"
         echo -e "  ${GREEN}3.${NC} 端口检查"
         echo -e "  ${GREEN}4.${NC} 防火墙配置"
-        echo -e "  ${GREEN}5.${NC} 清理临时文件"
-        echo -e "  ${GREEN}6.${NC} 卸载 Sing-box"
+        echo -e "  ${GREEN}5.${NC} 连接诊断"
+        echo -e "  ${GREEN}6.${NC} 清理临时文件"
+        echo -e "  ${GREEN}7.${NC} 卸载 Sing-box"
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-6]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-7]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -308,10 +317,13 @@ show_system_menu() {
                 configure_firewall
                 ;;
             5)
+                diagnose_connection_issues
+                ;;
+            6)
                 cleanup_temp
                 wait_for_input
                 ;;
-            6)
+            7)
                 uninstall_singbox
                 ;;
             0)

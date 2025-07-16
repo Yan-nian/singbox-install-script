@@ -29,8 +29,7 @@
 
 ```bash
 # 下载脚本
-wget -O https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-all-in-one.sh
-
+wget -O singbox-all-in-one.sh https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-all-in-one.sh && chmod +x singbox-all-in-one.sh && sudo ./singbox-all-in-one.sh
 # 添加执行权限
 chmod +x singbox-all-in-one.sh
 

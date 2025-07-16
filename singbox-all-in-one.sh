@@ -1075,6 +1075,27 @@ generate_config() {
     "level": "info",
     "timestamp": true
   },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "geosite": "cn",
+        "server": "local"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
   "inbounds": [
 EOF
     then
@@ -1116,6 +1137,10 @@ EOF
           "private_key": "$VLESS_PRIVATE_KEY",
           "short_id": ["$VLESS_SHORT_ID"]
         }
+      },
+      "sniff": {
+        "enabled": true,
+        "sniff_override_destination": true
       }
     }
 EOF
@@ -1151,6 +1176,10 @@ EOF
         "headers": {
           "Host": "$VMESS_HOST"
         }
+      },
+      "sniff": {
+        "enabled": true,
+        "sniff_override_destination": true
       }
     }
 EOF
@@ -1190,9 +1219,11 @@ EOF
       },
       "obfs": {
         "type": "salamander",
-        "salamander": {
-          "password": "$HY2_OBFS_PASSWORD"
-        }
+        "password": "$HY2_OBFS_PASSWORD"
+      },
+      "sniff": {
+        "enabled": true,
+        "sniff_override_destination": true
       }
     }
 EOF
@@ -1217,10 +1248,27 @@ EOF
       "tag": "direct"
     },
     {
+      "type": "dns",
+      "tag": "dns-out"
+    },
+    {
       "type": "block",
       "tag": "block"
     }
-  ]
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "auto_detect_interface": true
+  }
 }
 EOF
     then
@@ -1972,6 +2020,598 @@ regenerate_config() {
     else
         echo -e "${RED}配置生成失败${NC}"
     fi
+    
+    wait_for_input
+}
+
+# 诊断节点连接问题
+diagnose_connection_issues() {
+    clear
+    echo -e "${CYAN}=== 节点连接诊断 ===${NC}"
+    echo ""
+    
+    local issues_found=false
+    
+    echo -e "${YELLOW}正在检查常见问题...${NC}"
+    echo ""
+    
+    # 1. 检查服务状态
+    echo -e "${GREEN}1. 检查服务状态:${NC}"
+    local status=$(get_service_status "$SERVICE_NAME")
+    case "$status" in
+        "running") 
+            echo -e "  ✓ 服务正在运行"
+            ;;
+        "stopped") 
+            echo -e "  ✗ 服务已停止"
+            issues_found=true
+            echo -e "  ${YELLOW}建议: 启动服务 - systemctl start $SERVICE_NAME${NC}"
+            ;;
+        *) 
+            echo -e "  ✗ 服务未启用"
+            issues_found=true
+            echo -e "  ${YELLOW}建议: 启用并启动服务${NC}"
+            ;;
+    esac
+    echo ""
+    
+    # 2. 检查配置文件
+    echo -e "${GREEN}2. 检查配置文件:${NC}"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        echo -e "  ✓ 配置文件存在"
+        if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
+            echo -e "  ✓ 配置文件语法正确"
+        else
+            echo -e "  ✗ 配置文件语法错误"
+            issues_found=true
+            echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
+        fi
+    else
+        echo -e "  ✗ 配置文件不存在"
+        issues_found=true
+        echo -e "  ${YELLOW}建议: 生成配置文件${NC}"
+    fi
+    echo ""
+    
+    # 3. 检查端口占用
+    echo -e "${GREEN}3. 检查端口状态:${NC}"
+    local ports=("$VLESS_PORT" "$VMESS_PORT" "$HY2_PORT")
+    local names=("VLESS" "VMess" "Hysteria2")
+    
+    for i in "${!ports[@]}"; do
+        local port="${ports[$i]}"
+        local name="${names[$i]}"
+        
+        if [[ -n "$port" ]]; then
+            if check_port "$port"; then
+                echo -e "  ✓ $name 端口 $port 正在使用"
+            else
+                echo -e "  ✗ $name 端口 $port 未被使用"
+                issues_found=true
+                echo -e "  ${YELLOW}建议: 检查服务是否正常启动${NC}"
+            fi
+        fi
+    done
+    echo ""
+    
+    # 4. 检查防火墙
+    echo -e "${GREEN}4. 检查防火墙状态:${NC}"
+    if command_exists ufw; then
+        if ufw status | grep -q "Status: active"; then
+            echo -e "  ! UFW 防火墙已启用"
+            echo -e "  ${YELLOW}建议: 确保已开放相关端口${NC}"
+        else
+            echo -e "  ✓ UFW 防火墙未启用"
+        fi
+    elif command_exists firewall-cmd; then
+        if firewall-cmd --state 2>/dev/null | grep -q "running"; then
+            echo -e "  ! Firewalld 防火墙已启用"
+            echo -e "  ${YELLOW}建议: 确保已开放相关端口${NC}"
+        else
+            echo -e "  ✓ Firewalld 防火墙未启用"
+        fi
+    else
+        echo -e "  ? 无法检测防火墙状态"
+    fi
+    echo ""
+    
+    # 5. 检查证书文件（Hysteria2）
+    if [[ -n "$HY2_PASSWORD" ]]; then
+        echo -e "${GREEN}5. 检查 Hysteria2 证书:${NC}"
+        if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
+            echo -e "  ✓ 证书文件存在"
+        else
+            echo -e "  ✗ 证书文件缺失"
+            issues_found=true
+            echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
+        fi
+        echo ""
+    fi
+    
+    # 6. 检查网络连通性
+    echo -e "${GREEN}6. 检查网络连通性:${NC}"
+    if curl -s --max-time 5 www.google.com >/dev/null; then
+        echo -e "  ✓ 外网连接正常"
+    else
+        echo -e "  ✗ 外网连接异常"
+        issues_found=true
+        echo -e "  ${YELLOW}建议: 检查网络设置${NC}"
+    fi
+    echo ""
+    
+    # 总结
+    if [[ "$issues_found" == "true" ]]; then
+        echo -e "${RED}发现问题，请根据上述建议进行修复${NC}"
+        echo ""
+        echo -e "${YELLOW}快速修复选项:${NC}"
+        echo -e "  1. 重新生成配置并重启服务"
+        echo -e "  2. 配置防火墙规则"
+        echo -e "  3. 重新生成证书"
+        echo ""
+        read -p "是否执行快速修复？[y/N]: " fix_confirm
+        if [[ "$fix_confirm" =~ ^[Yy]$ ]]; then
+            echo -e "${CYAN}正在执行快速修复...${NC}"
+            
+            # 重新生成配置
+            if generate_config; then
+                echo -e "${GREEN}✓ 配置文件重新生成完成${NC}"
+            fi
+            
+            # 重启服务
+            if restart_service "$SERVICE_NAME"; then
+                echo -e "${GREEN}✓ 服务重启成功${NC}"
+            fi
+            
+            # 配置防火墙
+            configure_firewall
+            
+            echo -e "${GREEN}快速修复完成${NC}"
+        fi
+    else
+        echo -e "${GREEN}未发现明显问题，配置看起来正常${NC}"
+        echo -e "${YELLOW}如果仍然无法连接，请检查:${NC}"
+        echo -e "  • 客户端配置是否正确"
+        echo -e "  • 服务器IP地址是否正确"
+        echo -e "  • 网络环境是否支持相关协议"
+    fi
+    
+    wait_for_input
+}
+
+# 配置验证和修复
+validate_and_fix_config() {
+    clear
+    echo -e "${CYAN}=== 配置验证和修复 ===${NC}"
+    echo ""
+    
+    local config_issues=false
+    
+    echo -e "${YELLOW}正在验证配置...${NC}"
+    echo ""
+    
+    # 1. 检查配置文件是否存在
+    echo -e "${GREEN}1. 检查配置文件:${NC}"
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo -e "  ✗ 配置文件不存在"
+        config_issues=true
+        echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
+    else
+        echo -e "  ✓ 配置文件存在"
+        
+        # 检查配置文件语法
+        if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
+            echo -e "  ✓ 配置文件语法正确"
+        else
+            echo -e "  ✗ 配置文件语法错误"
+            config_issues=true
+            echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
+        fi
+    fi
+    echo ""
+    
+    # 2. 检查协议配置
+    echo -e "${GREEN}2. 检查协议配置:${NC}"
+    local protocols_configured=false
+    
+    if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
+        echo -e "  ✓ VLESS Reality 已配置 (端口: $VLESS_PORT)"
+        protocols_configured=true
+    fi
+    
+    if [[ -n "$VMESS_UUID" ]] && [[ -n "$VMESS_PORT" ]]; then
+        echo -e "  ✓ VMess WebSocket 已配置 (端口: $VMESS_PORT)"
+        protocols_configured=true
+    fi
+    
+    if [[ -n "$HY2_PASSWORD" ]] && [[ -n "$HY2_PORT" ]]; then
+        echo -e "  ✓ Hysteria2 已配置 (端口: $HY2_PORT)"
+        protocols_configured=true
+    fi
+    
+    if [[ "$protocols_configured" == "false" ]]; then
+        echo -e "  ✗ 未配置任何协议"
+        config_issues=true
+        echo -e "  ${YELLOW}建议: 配置至少一个协议${NC}"
+    fi
+    echo ""
+    
+    # 3. 检查端口冲突
+    echo -e "${GREEN}3. 检查端口冲突:${NC}"
+    local port_conflicts=false
+    
+    # 检查端口是否重复
+    local ports=()
+    [[ -n "$VLESS_PORT" ]] && ports+=("$VLESS_PORT")
+    [[ -n "$VMESS_PORT" ]] && ports+=("$VMESS_PORT")
+    [[ -n "$HY2_PORT" ]] && ports+=("$HY2_PORT")
+    
+    # 检查重复端口
+    local unique_ports=($(printf '%s\n' "${ports[@]}" | sort -u))
+    if [[ ${#ports[@]} -ne ${#unique_ports[@]} ]]; then
+        echo -e "  ✗ 发现端口冲突"
+        port_conflicts=true
+        config_issues=true
+        echo -e "  ${YELLOW}建议: 重新分配端口${NC}"
+    else
+        echo -e "  ✓ 无端口冲突"
+    fi
+    
+    # 检查端口是否被其他进程占用
+    for port in "${ports[@]}"; do
+        if [[ -n "$port" ]]; then
+            if ss -tuln | grep -q ":$port " && ! pgrep -f "sing-box" >/dev/null; then
+                echo -e "  ✗ 端口 $port 被其他进程占用"
+                port_conflicts=true
+                config_issues=true
+            fi
+        fi
+    done
+    
+    if [[ "$port_conflicts" == "false" ]] && [[ ${#ports[@]} -gt 0 ]]; then
+        echo -e "  ✓ 端口状态正常"
+    fi
+    echo ""
+    
+    # 4. 检查证书文件
+    if [[ -n "$HY2_PASSWORD" ]]; then
+        echo -e "${GREEN}4. 检查 Hysteria2 证书:${NC}"
+        if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
+            echo -e "  ✓ 证书文件存在"
+            
+            # 检查证书有效性
+            if openssl x509 -in "/etc/ssl/private/hysteria.crt" -noout -checkend 86400 2>/dev/null; then
+                echo -e "  ✓ 证书有效"
+            else
+                echo -e "  ✗ 证书已过期或无效"
+                config_issues=true
+                echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
+            fi
+        else
+            echo -e "  ✗ 证书文件缺失"
+            config_issues=true
+            echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
+        fi
+        echo ""
+    fi
+    
+    # 5. 检查 Reality 配置
+    if [[ -n "$VLESS_UUID" ]]; then
+        echo -e "${GREEN}5. 检查 VLESS Reality 配置:${NC}"
+        if [[ -n "$REALITY_PRIVATE_KEY" ]] && [[ -n "$REALITY_PUBLIC_KEY" ]]; then
+            echo -e "  ✓ Reality 密钥对已生成"
+        else
+            echo -e "  ✗ Reality 密钥对缺失"
+            config_issues=true
+            echo -e "  ${YELLOW}建议: 重新生成 Reality 配置${NC}"
+        fi
+        
+        if [[ -n "$REALITY_TARGET" ]]; then
+            echo -e "  ✓ Reality 目标已设置: $REALITY_TARGET"
+        else
+            echo -e "  ✗ Reality 目标未设置"
+            config_issues=true
+            echo -e "  ${YELLOW}建议: 设置 Reality 目标${NC}"
+        fi
+        echo ""
+    fi
+    
+    # 总结和修复选项
+    if [[ "$config_issues" == "true" ]]; then
+        echo -e "${RED}发现配置问题，需要修复${NC}"
+        echo ""
+        echo -e "${YELLOW}自动修复选项:${NC}"
+        echo -e "  1. 重新生成所有配置"
+        echo -e "  2. 重新分配端口"
+        echo -e "  3. 重新生成证书"
+        echo -e "  4. 重新生成 Reality 配置"
+        echo ""
+        
+        read -p "是否执行自动修复？[y/N]: " fix_confirm
+        if [[ "$fix_confirm" =~ ^[Yy]$ ]]; then
+            echo -e "${CYAN}正在执行自动修复...${NC}"
+            echo ""
+            
+            # 重新分配端口（如果有冲突）
+            if [[ "$port_conflicts" == "true" ]]; then
+                echo -e "${CYAN}重新分配端口...${NC}"
+                [[ -n "$VLESS_PORT" ]] && VLESS_PORT=$(get_random_port)
+                [[ -n "$VMESS_PORT" ]] && VMESS_PORT=$(get_random_port)
+                [[ -n "$HY2_PORT" ]] && HY2_PORT=$(get_random_port)
+                echo -e "${GREEN}✓ 端口重新分配完成${NC}"
+            fi
+            
+            # 重新生成配置
+            if generate_config; then
+                echo -e "${GREEN}✓ 配置文件重新生成完成${NC}"
+            fi
+            
+            # 保存配置
+            save_config
+            echo -e "${GREEN}✓ 配置已保存${NC}"
+            
+            # 重启服务
+            if restart_service "$SERVICE_NAME"; then
+                echo -e "${GREEN}✓ 服务重启成功${NC}"
+            fi
+            
+            echo -e "${GREEN}自动修复完成${NC}"
+        fi
+    else
+        echo -e "${GREEN}配置验证通过，未发现问题${NC}"
+    fi
+    
+    wait_for_input
+}
+
+# 生成客户端配置模板
+generate_client_config_template() {
+    clear
+    echo -e "${CYAN}=== 客户端配置生成 ===${NC}"
+    echo ""
+    
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo -e "${RED}配置文件不存在，请先配置服务器${NC}"
+        wait_for_input
+        return
+    fi
+    
+    echo -e "${YELLOW}正在生成客户端配置模板...${NC}"
+    echo ""
+    
+    local client_config_dir="$WORK_DIR/client-configs"
+    mkdir -p "$client_config_dir"
+    
+    # 生成通用客户端配置
+    local client_config="$client_config_dir/sing-box-client.json"
+    
+    cat > "$client_config" << EOF
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "geosite": "cn",
+        "server": "local"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    },
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "inet4_address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": false,
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+EOF
+    
+    # 添加配置的协议出站
+    local outbounds_added=false
+    
+    # VLESS Reality
+    if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
+        if [[ "$outbounds_added" == "true" ]]; then
+            echo "," >> "$client_config"
+        fi
+        cat >> "$client_config" << EOF
+    {
+      "type": "vless",
+      "tag": "vless-reality",
+      "server": "$PUBLIC_IP",
+      "server_port": $VLESS_PORT,
+      "uuid": "$VLESS_UUID",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "$REALITY_TARGET",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "$REALITY_PUBLIC_KEY",
+          "short_id": "$REALITY_SHORT_ID"
+        }
+      }
+    }EOF
+        outbounds_added=true
+    fi
+    
+    # VMess WebSocket
+    if [[ -n "$VMESS_UUID" ]] && [[ -n "$VMESS_PORT" ]]; then
+        if [[ "$outbounds_added" == "true" ]]; then
+            echo "," >> "$client_config"
+        fi
+        cat >> "$client_config" << EOF
+    {
+      "type": "vmess",
+      "tag": "vmess-ws",
+      "server": "$PUBLIC_IP",
+      "server_port": $VMESS_PORT,
+      "uuid": "$VMESS_UUID",
+      "security": "auto",
+      "transport": {
+        "type": "ws",
+        "path": "$VMESS_PATH",
+        "headers": {
+          "Host": "$VMESS_HOST"
+        }
+      }
+    }EOF
+        outbounds_added=true
+    fi
+    
+    # Hysteria2
+    if [[ -n "$HY2_PASSWORD" ]] && [[ -n "$HY2_PORT" ]]; then
+        if [[ "$outbounds_added" == "true" ]]; then
+            echo "," >> "$client_config"
+        fi
+        cat >> "$client_config" << EOF
+    {
+      "type": "hysteria2",
+      "tag": "hysteria2",
+      "server": "$PUBLIC_IP",
+      "server_port": $HY2_PORT,
+      "password": "$HY2_PASSWORD",
+      "obfs": {
+        "type": "salamander",
+        "password": "$HY2_OBFS_PASSWORD"
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "$HY2_DOMAIN",
+        "insecure": true
+      }
+    }EOF
+        outbounds_added=true
+    fi
+    
+    # 添加直连和DNS出站
+    if [[ "$outbounds_added" == "true" ]]; then
+        echo "," >> "$client_config"
+    fi
+    
+    cat >> "$client_config" << EOF
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "geosite": "cn",
+        "outbound": "direct"
+      },
+      {
+        "geoip": "private",
+        "outbound": "direct"
+      }
+    ],
+    "auto_detect_interface": true
+  }
+}
+EOF
+    
+    echo -e "${GREEN}客户端配置已生成:${NC}"
+    echo -e "  ${CYAN}配置文件: $client_config${NC}"
+    echo ""
+    
+    # 生成使用说明
+    local readme_file="$client_config_dir/README.md"
+    cat > "$readme_file" << EOF
+# Sing-box 客户端配置说明
+
+## 配置文件
+- \`sing-box-client.json\`: 通用客户端配置文件
+
+## 使用方法
+
+### Windows
+1. 下载 sing-box Windows 版本
+2. 将配置文件放在 sing-box 同目录
+3. 运行: \`sing-box.exe run -c sing-box-client.json\`
+
+### macOS
+1. 安装 sing-box: \`brew install sing-box\`
+2. 运行: \`sing-box run -c sing-box-client.json\`
+
+### Linux
+1. 下载对应架构的 sing-box
+2. 运行: \`./sing-box run -c sing-box-client.json\`
+
+### Android
+使用 SFA (Sing-box for Android) 应用，导入配置文件
+
+### iOS
+使用支持 sing-box 的客户端应用
+
+## 代理设置
+- HTTP/SOCKS5 代理: 127.0.0.1:7890
+- 或启用 TUN 模式进行全局代理
+
+## 协议说明
+EOF
+    
+    if [[ -n "$VLESS_UUID" ]]; then
+        echo "- VLESS Reality: 高性能，推荐使用" >> "$readme_file"
+    fi
+    
+    if [[ -n "$VMESS_UUID" ]]; then
+        echo "- VMess WebSocket: 兼容性好，适合受限网络" >> "$readme_file"
+    fi
+    
+    if [[ -n "$HY2_PASSWORD" ]]; then
+        echo "- Hysteria2: 高速传输，适合高带宽需求" >> "$readme_file"
+    fi
+    
+    echo -e "${GREEN}使用说明已生成:${NC}"
+    echo -e "  ${CYAN}说明文件: $readme_file${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}提示:${NC}"
+    echo -e "  • 客户端配置文件包含所有已配置的协议"
+    echo -e "  • 可根据需要选择使用不同的出站标签"
+    echo -e "  • 建议先测试连接再进行实际使用"
+    echo -e "  • 配置文件位于: $client_config_dir"
     
     wait_for_input
 }
