@@ -125,7 +125,11 @@ show_system_menu() {
     echo -e "${YELLOW}  [4]${NC} 查看状态"
     echo -e "${YELLOW}  [5]${NC} 查看日志"
     echo -e "${YELLOW}  [6]${NC} 系统优化"
-    echo -e "${YELLOW}  [7]${NC} 卸载 Sing-box"
+    echo -e "${YELLOW}  [7]${NC} 更新脚本"
+    echo -e "${YELLOW}  [8]${NC} 更新核心"
+    echo -e "${YELLOW}  [9]${NC} 备份配置"
+    echo -e "${YELLOW}  [10]${NC} 恢复配置"
+    echo -e "${YELLOW}  [11]${NC} 卸载 Sing-box"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -1823,6 +1827,131 @@ interactive_show_system_info() {
     wait_for_input
 }
 
+# 更新脚本函数
+interactive_update_script() {
+    clear
+    print_banner
+    echo -e "${GREEN}更新脚本${NC}"
+    print_sub_separator
+    
+    info "正在检查更新..."
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "更新脚本需要 root 权限"
+    fi
+    
+    # 备份现有脚本
+    local backup_path="/usr/local/bin/sing-box.bak.$(date +%Y%m%d_%H%M%S)"
+    if [[ -f "/usr/local/bin/sing-box" ]]; then
+        info "备份现有脚本..."
+        cp "/usr/local/bin/sing-box" "$backup_path"
+        success "备份完成: $backup_path"
+    fi
+    
+    # 更新脚本
+    info "下载最新版本..."
+    if wget -O "/usr/local/bin/sing-box" "https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/sing-box.sh" 2>/dev/null; then
+        chmod +x "/usr/local/bin/sing-box"
+        ln -sf "/usr/local/bin/sing-box" /usr/local/bin/sb
+        success "脚本更新完成"
+        
+        # 验证更新
+        if bash -n "/usr/local/bin/sing-box"; then
+            success "脚本语法验证通过"
+        else
+            warn "脚本语法验证失败，已回滚"
+            cp "$backup_path" "/usr/local/bin/sing-box"
+        fi
+    else
+        error "下载失败，请检查网络连接"
+    fi
+    
+    wait_for_input
+}
+
+# 交互式更新核心程序
+interactive_update_core() {
+    clear
+    print_banner
+    echo -e "${GREEN}更新核心程序${NC}"
+    print_sub_separator
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "更新核心程序需要 root 权限"
+    fi
+    
+    # 确认更新
+    local confirm
+    confirm=$(read_input "确认更新 sing-box 核心程序? (y/N)" "n")
+    if [[ $confirm != "y" ]] && [[ $confirm != "Y" ]]; then
+        info "取消更新"
+        wait_for_input
+        return
+    fi
+    
+    # 执行更新
+    update_core
+    
+    wait_for_input
+}
+
+# 交互式备份配置
+interactive_backup_configs() {
+    clear
+    print_banner
+    echo -e "${GREEN}备份配置${NC}"
+    print_sub_separator
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "备份配置需要 root 权限"
+    fi
+    
+    # 确认备份
+    local confirm
+    confirm=$(read_input "确认备份当前配置? (y/N)" "n")
+    if [[ $confirm != "y" ]] && [[ $confirm != "Y" ]]; then
+        info "取消备份"
+        wait_for_input
+        return
+    fi
+    
+    # 执行备份
+    backup_configs
+    
+    wait_for_input
+}
+
+# 交互式恢复配置
+interactive_restore_configs() {
+    clear
+    print_banner
+    echo -e "${GREEN}恢复配置${NC}"
+    print_sub_separator
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "恢复配置需要 root 权限"
+    fi
+    
+    # 获取备份文件路径
+    local backup_file
+    backup_file=$(read_input "请输入备份文件路径" "")
+    
+    if [[ -z "$backup_file" ]]; then
+        warn "未指定备份文件"
+        wait_for_input
+        return
+    fi
+    
+    # 执行恢复
+    restore_configs "$backup_file"
+    
+    wait_for_input
+}
+
 # 系统优化函数
 enable_bbr() {
     info "启用 BBR 拥塞控制算法..."
@@ -2186,6 +2315,229 @@ regenerate_uuid() {
     echo "新 UUID: $new_uuid"
 }
 
+# 更新核心程序
+update_core() {
+    info "更新 sing-box 核心程序..."
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "更新核心程序需要 root 权限"
+    fi
+    
+    # 获取系统架构
+    local arch=$(uname -m)
+    case $arch in
+        x86_64)
+            arch="amd64"
+            ;;
+        aarch64)
+            arch="arm64"
+            ;;
+        armv7l)
+            arch="armv7"
+            ;;
+        *)
+            error "不支持的架构: $arch"
+            ;;
+    esac
+    
+    # 获取最新版本
+    local latest_version
+    latest_version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    
+    if [[ -z $latest_version ]]; then
+        error "无法获取最新版本信息"
+    fi
+    
+    info "最新版本: $latest_version"
+    
+    # 检查当前版本
+    local current_version
+    if command -v /usr/local/bin/sing-box >/dev/null 2>&1; then
+        current_version=$(/usr/local/bin/sing-box version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
+        info "当前版本: $current_version"
+        
+        if [[ "$current_version" == "$latest_version" ]]; then
+            success "已是最新版本"
+            return
+        fi
+    fi
+    
+    # 停止服务
+    info "停止服务..."
+    systemctl stop sing-box 2>/dev/null || true
+    
+    # 备份现有程序
+    if [[ -f "/usr/local/bin/sing-box" ]]; then
+        cp "/usr/local/bin/sing-box" "/usr/local/bin/sing-box.bak.$(date +%Y%m%d_%H%M%S)"
+    fi
+    
+    # 下载新版本
+    local download_url="https://github.com/SagerNet/sing-box/releases/download/${latest_version}/sing-box-${latest_version#v}-linux-${arch}.tar.gz"
+    
+    cd /tmp
+    if wget -O sing-box.tar.gz "$download_url"; then
+        # 解压安装
+        tar -xzf sing-box.tar.gz
+        local extract_dir=$(find . -name "sing-box-*-linux-${arch}" -type d | head -1)
+        
+        if [[ -n $extract_dir ]]; then
+            cp "$extract_dir/sing-box" /usr/local/bin/
+            chmod +x /usr/local/bin/sing-box
+            
+            # 清理临时文件
+            rm -rf sing-box.tar.gz "$extract_dir"
+            
+            success "核心程序更新完成"
+            
+            # 重启服务
+            systemctl start sing-box
+            success "服务已重启"
+        else
+            error "解压失败"
+        fi
+    else
+        error "下载失败"
+    fi
+}
+
+# 版本检查
+check_version() {
+    echo -e "${GREEN}版本信息${NC}"
+    echo "─────────────────────────────────────────────────────────────────────────────"
+    echo "脚本版本: $SCRIPT_VERSION"
+    
+    if command -v /usr/local/bin/sing-box >/dev/null 2>&1; then
+        echo "核心版本: $(/usr/local/bin/sing-box version 2>/dev/null | head -1 || echo '获取失败')"
+    else
+        echo "核心版本: 未安装"
+    fi
+    
+    # 检查最新版本
+    echo -n "检查最新版本..."
+    local latest_version
+    latest_version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null)
+    
+    if [[ -n $latest_version ]]; then
+        echo " $latest_version"
+    else
+        echo " 检查失败"
+    fi
+    
+    echo "─────────────────────────────────────────────────────────────────────────────"
+}
+
+# 配置备份功能
+backup_configs() {
+    info "创建配置备份..."
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "备份配置需要 root 权限"
+    fi
+    
+    # 创建备份目录
+    local backup_dir="/tmp/sing-box-backup-$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_dir"
+    
+    # 备份配置文件
+    if [[ -d "$CONFIG_DIR" ]]; then
+        cp -r "$CONFIG_DIR" "$backup_dir/"
+        success "配置文件已备份到: $backup_dir/sing-box"
+    else
+        warn "配置目录不存在: $CONFIG_DIR"
+    fi
+    
+    # 备份数据库文件
+    if [[ -d "$DATA_DIR" ]]; then
+        cp -r "$DATA_DIR" "$backup_dir/"
+        success "数据文件已备份到: $backup_dir/sing-box"
+    else
+        warn "数据目录不存在: $DATA_DIR"
+    fi
+    
+    # 创建压缩包
+    local archive_name="sing-box-backup-$(date +%Y%m%d_%H%M%S).tar.gz"
+    cd /tmp
+    tar -czf "$archive_name" "$(basename "$backup_dir")"
+    
+    # 移动到用户目录
+    if [[ -n "$SUDO_USER" ]]; then
+        local user_home=$(eval echo ~$SUDO_USER)
+        mv "$archive_name" "$user_home/"
+        chown $SUDO_USER:$SUDO_USER "$user_home/$archive_name"
+        success "备份完成: $user_home/$archive_name"
+    else
+        mv "$archive_name" /root/
+        success "备份完成: /root/$archive_name"
+    fi
+    
+    # 清理临时目录
+    rm -rf "$backup_dir"
+    
+    info "备份包含以下内容:"
+    info "  - 配置文件: $CONFIG_DIR"
+    info "  - 数据文件: $DATA_DIR"
+    info "  - 数据库文件: $DB_FILE"
+}
+
+# 配置恢复功能
+restore_configs() {
+    local backup_file="$1"
+    
+    if [[ -z "$backup_file" ]]; then
+        error "请指定备份文件路径"
+    fi
+    
+    if [[ ! -f "$backup_file" ]]; then
+        error "备份文件不存在: $backup_file"
+    fi
+    
+    # 检查权限
+    if [[ $EUID -ne 0 ]]; then
+        error "恢复配置需要 root 权限"
+    fi
+    
+    warn "即将恢复配置，这将覆盖现有配置"
+    read -p "确认恢复? (y/N): " confirm
+    if [[ $confirm != "y" ]] && [[ $confirm != "Y" ]]; then
+        info "取消恢复"
+        return
+    fi
+    
+    info "停止服务..."
+    systemctl stop sing-box 2>/dev/null || true
+    
+    # 备份现有配置
+    local current_backup="/tmp/sing-box-current-$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$current_backup"
+    [[ -d "$CONFIG_DIR" ]] && cp -r "$CONFIG_DIR" "$current_backup/"
+    [[ -d "$DATA_DIR" ]] && cp -r "$DATA_DIR" "$current_backup/"
+    
+    # 恢复配置
+    info "恢复配置..."
+    cd /tmp
+    tar -xzf "$backup_file"
+    
+    # 找到解压后的目录
+    local extracted_dir=$(find . -name "sing-box-backup-*" -type d | head -1)
+    if [[ -n "$extracted_dir" ]]; then
+        # 恢复文件
+        [[ -d "$extracted_dir/sing-box" ]] && cp -r "$extracted_dir/sing-box"/* "$CONFIG_DIR/"
+        [[ -d "$extracted_dir/sing-box" ]] && cp -r "$extracted_dir/sing-box"/* "$DATA_DIR/"
+        
+        # 清理解压文件
+        rm -rf "$extracted_dir"
+        
+        # 重启服务
+        systemctl start sing-box
+        success "配置恢复完成"
+        success "当前配置已备份到: $current_backup"
+    else
+        error "无法找到备份内容"
+    fi
+}
+
 # 卸载脚本
 uninstall_singbox() {
     warn "即将卸载 sing-box，这将删除所有配置和数据"
@@ -2236,8 +2588,16 @@ show_help() {
     echo "  log                               查看日志"
     echo "  uninstall                         卸载脚本"
     echo ""
+    echo "更新功能:"
+    echo "  update script                     更新管理脚本"
+    echo "  update core                       更新核心程序"
+    echo ""
+    echo "备份功能:"
+    echo "  backup                            备份配置文件"
+    echo "  restore <backup_file>             恢复配置文件"
+    echo ""
     echo "其他:"
-    echo "  version                           显示版本"
+    echo "  version                           显示版本信息"
     echo "  help                              显示帮助"
     echo ""
     echo "示例:"
@@ -2245,6 +2605,10 @@ show_help() {
     echo "  sing-box add vmess my-vmess 8080  添加指定端口的 VMess 配置"
     echo "  sing-box info vless-001           查看配置详情"
     echo "  sing-box url vless-001            获取分享链接"
+    echo "  sing-box update script            更新管理脚本"
+    echo "  sing-box update core              更新核心程序"
+    echo "  sing-box backup                   备份配置文件"
+    echo "  sing-box restore backup.tar.gz   恢复配置文件"
 }
 
 # 交互式主菜单处理
@@ -2307,7 +2671,11 @@ interactive_main() {
                         "4") interactive_show_status ;;
                         "5") interactive_show_logs ;;
                         "6") interactive_system_optimize ;;
-                        "7") interactive_uninstall ;;
+                        "7") interactive_update_script ;;
+                        "8") interactive_update_core ;;
+                        "9") interactive_backup_configs ;;
+                        "10") interactive_restore_configs ;;
+                        "11") interactive_uninstall ;;
                         "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
@@ -2336,14 +2704,7 @@ interactive_main() {
                 ;;
             "6")
                 # 更新脚本
-                clear
-                print_banner
-                echo -e "${GREEN}更新脚本${NC}"
-                print_sub_separator
-                info "正在检查更新..."
-                # 这里可以添加更新逻辑
-                warn "更新功能尚未实现"
-                wait_for_input
+                interactive_update_script
                 ;;
             "0")
                 # 退出
@@ -2444,10 +2805,27 @@ main() {
             journalctl -u sing-box -f
             ;;
         "version")
-            echo "Sing-box 管理脚本 $SCRIPT_VERSION"
-            if command -v /usr/local/bin/sing-box >/dev/null 2>&1; then
-                /usr/local/bin/sing-box version
-            fi
+            check_version
+            ;;
+        "update")
+            case "$2" in
+                "script")
+                    interactive_update_script
+                    ;;
+                "core")
+                    update_core
+                    ;;
+                *)
+                    info "更新脚本: sing-box update script"
+                    info "更新核心: sing-box update core"
+                    ;;
+            esac
+            ;;
+        "backup")
+            backup_configs
+            ;;
+        "restore")
+            restore_configs "$2"
             ;;
         "uninstall")
             uninstall_singbox
