@@ -19,6 +19,7 @@ SCRIPT_PATH="/usr/local/bin/sing-box"
 CONFIG_DIR="/etc/sing-box"
 DATA_DIR="/usr/local/etc/sing-box"
 LOG_DIR="/var/log/sing-box"
+CONFIG_FILE="$CONFIG_DIR/config.json"
 SERVICE_FILE="/etc/systemd/system/sing-box.service"
 SINGBOX_VERSION="latest"
 
