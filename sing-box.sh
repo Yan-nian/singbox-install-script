@@ -351,6 +351,98 @@ get_short_id() {
     openssl rand -hex 8
 }
 
+# 检查配置文件语法（兼容不同版本）
+check_config_syntax() {
+    local config_file="$1"
+    
+    if [[ ! -f "$config_file" ]]; then
+        return 1
+    fi
+    
+    # 检查 sing-box 二进制文件是否存在
+    if [[ ! -f "/usr/local/bin/sing-box" ]]; then
+        return 1
+    fi
+    
+    # 尝试不同的命令格式
+    # 新版本格式：sing-box check -c config.json
+    if /usr/local/bin/sing-box check -c "$config_file" >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # 旧版本格式：sing-box check config.json
+    if /usr/local/bin/sing-box check "$config_file" >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # 更旧版本格式：sing-box -c config.json -check
+    if /usr/local/bin/sing-box -c "$config_file" -check >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # 如果都不行，尝试手动启动测试（但立即停止）
+    timeout 2 /usr/local/bin/sing-box run -c "$config_file" >/dev/null 2>&1
+    local exit_code=$?
+    
+    # 如果超时（退出码 124），说明配置文件可能是正确的
+    if [[ $exit_code -eq 124 ]]; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# 获取配置文件错误信息
+get_config_error() {
+    local config_file="$1"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo "配置文件不存在"
+        return
+    fi
+    
+    if [[ ! -f "/usr/local/bin/sing-box" ]]; then
+        echo "sing-box 二进制文件不存在"
+        return
+    fi
+    
+    # 尝试不同的命令格式获取错误信息
+    local error_output
+    
+    # 新版本格式
+    error_output=$(/usr/local/bin/sing-box check -c "$config_file" 2>&1)
+    if [[ $? -eq 0 ]]; then
+        echo "配置文件语法正确"
+        return
+    fi
+    
+    # 如果错误信息包含 "未知命令"，尝试其他格式
+    if echo "$error_output" | grep -q "未知命令\|unknown command"; then
+        # 旧版本格式
+        error_output=$(/usr/local/bin/sing-box check "$config_file" 2>&1)
+        if [[ $? -eq 0 ]]; then
+            echo "配置文件语法正确"
+            return
+        fi
+        
+        # 更旧版本格式
+        error_output=$(/usr/local/bin/sing-box -c "$config_file" -check 2>&1)
+        if [[ $? -eq 0 ]]; then
+            echo "配置文件语法正确"
+            return
+        fi
+        
+        # 手动启动测试
+        error_output=$(timeout 2 /usr/local/bin/sing-box run -c "$config_file" 2>&1)
+        if [[ $? -eq 124 ]]; then
+            echo "配置文件语法正确（通过启动测试验证）"
+            return
+        fi
+    fi
+    
+    echo "$error_output"
+}
+
 # 数据库操作
 init_db() {
     # 确保数据目录存在
@@ -2460,12 +2552,12 @@ interactive_system_diagnose() {
         
         # 测试配置文件语法
         echo "  正在测试配置文件语法..."
-        if /usr/local/bin/sing-box check -c "$CONFIG_FILE" 2>/dev/null; then
+        if check_config_syntax "$CONFIG_FILE"; then
             echo "  ✓ 配置文件语法正确"
         else
             echo "  ✗ 配置文件语法错误"
             echo "  详细错误:"
-            /usr/local/bin/sing-box check -c "$CONFIG_FILE" 2>&1 | head -5
+            get_config_error "$CONFIG_FILE"
         fi
     else
         echo "  ✗ 配置文件不存在: $CONFIG_FILE"
@@ -2576,7 +2668,7 @@ interactive_system_diagnose() {
             "2")
                 info "正在检查配置文件..."
                 if [[ -f "$CONFIG_FILE" ]]; then
-                    /usr/local/bin/sing-box check -c "$CONFIG_FILE"
+                    get_config_error "$CONFIG_FILE"
                 else
                     error "配置文件不存在"
                 fi
