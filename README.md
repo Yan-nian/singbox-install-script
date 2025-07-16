@@ -51,7 +51,7 @@ sudo bash install.sh
 
 ```bash
 # 下载并执行（请确保仓库地址正确）
-bash <(curl -fsSL https://raw.githubusercontent.com/your-username/singbox/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
 ```
 
 或者使用 wget：

@@ -2,6 +2,20 @@
 
 本文档记录了 Sing-box 一键配置脚本的所有重要更改。
 
+## [v1.0.4] - 2024年
+
+### 🐛 Bug 修复
+- 修复 `install.sh` 中全局变量（如 `CONFIG_DIR`, `DATA_DIR`, `CONFIG_FILE`）的定义顺序和重复定义问题，解决了 `touch: cannot touch '': No such file or directory` 错误。
+
+---
+
+## [v1.0.3] - 2024年
+
+### 🐛 Bug 修复
+- 修复 `install.sh` 中 `CONFIG_FILE` 变量的重复定义问题。
+
+---
+
 ## [v1.0.2] - 2024年
 
 ### 📝 文档更新
