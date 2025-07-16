@@ -36,15 +36,15 @@
 ### 在线安装
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install_standalone.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-install.sh)
 ```
 
 ### 离线安装
 
 ```bash
-wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install_standalone.sh
-chmod +x install_standalone.sh
-sudo ./install_standalone.sh
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-install.sh
+chmod +x singbox-install.sh
+sudo ./singbox-install.sh
 ```
 
 
@@ -54,23 +54,30 @@ sudo ./install_standalone.sh
 ### 基本命令
 
 ```bash
-./install_standalone.sh              # 交互式安装
-./install_standalone.sh --vless     # 安装 VLESS Reality
-./install_standalone.sh --vmess     # 安装 VMess WebSocket
-./install_standalone.sh --hysteria  # 安装 Hysteria2
-./install_standalone.sh --status    # 查看状态
-./install_standalone.sh --uninstall # 卸载
+# 安装/管理菜单
+./singbox-install.sh
+
+# 直接安装
+./singbox-install.sh --install
+
+# 一键完全卸载（删除所有文件）
+./singbox-install.sh --uninstall
+
+# 帮助信息
+./singbox-install.sh --help
 ```
 
-
-
-## 🔧 服务管理
+### 服务管理
 
 ```bash
-systemctl start sing-box      # 启动
-systemctl stop sing-box       # 停止
-systemctl restart sing-box    # 重启
-systemctl status sing-box     # 状态
+# 启动/停止/重启服务
+sudo systemctl start/stop/restart sing-box
+
+# 查看服务状态
+sudo systemctl status sing-box
+
+# 开机启动/禁用
+sudo systemctl enable/disable sing-box
 ```
 
 

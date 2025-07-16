@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.4.12
+# 版本: v2.5.0
 # 更新时间: 2025-01-16
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.13"
+SCRIPT_VERSION="v2.5.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -32,143 +32,26 @@ OS=""
 ARCH=""
 PUBLIC_IP=""
 
-# 定义关键函数 - 确保基础功能始终可用
-define_essential_functions() {
-    # 基础日志函数
-    if ! command -v log_debug >/dev/null 2>&1; then
-        log_debug() {
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [DEBUG] $*" >&2
-        }
-    fi
-    
-    if ! command -v log_info >/dev/null 2>&1; then
-        log_info() {
-            echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $*${NC}"
-        }
-    fi
-    
-    if ! command -v log_warn >/dev/null 2>&1; then
-        log_warn() {
-            echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $*${NC}" >&2
-        }
-    fi
-    
-    if ! command -v log_error >/dev/null 2>&1; then
-        log_error() {
-            echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $*${NC}" >&2
-        }
-    fi
-    
-    # 基础验证函数
-    if ! command -v validate_uuid >/dev/null 2>&1; then
-        validate_uuid() {
-            local uuid="$1"
-            if [[ -z "$uuid" ]]; then
-                log_error "UUID 参数不能为空"
-                return 1
-            fi
-            
-            if [[ "$uuid" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-                return 0
-            else
-                log_error "无效的 UUID 格式: $uuid"
-                return 1
-            fi
-        }
-    fi
-    
-    if ! command -v validate_port >/dev/null 2>&1; then
-        validate_port() {
-            local port="$1"
-            if [[ -z "$port" ]]; then
-                log_error "端口参数不能为空"
-                return 1
-            fi
-            
-            if [[ "$port" =~ ^[0-9]+$ ]] && [[ "$port" -ge 1 ]] && [[ "$port" -le 65535 ]]; then
-                return 0
-            else
-                log_error "无效的端口号: $port (范围: 1-65535)"
-                return 1
-            fi
-        }
-    fi
-    
-    # 基础错误处理函数
-    if ! command -v handle_error >/dev/null 2>&1; then
-        handle_error() {
-            local error_msg="$1"
-            local exit_code="${2:-1}"
-            log_error "$error_msg"
-            exit "$exit_code"
-        }
-    fi
+# 基础日志函数
+log_info() {
+    echo -e "${GREEN}[INFO] $*${NC}"
 }
 
-# 验证模块函数是否可用
-verify_module_functions() {
-    local missing_functions=()
-    
-    # 检查日志函数
-    for func in log_debug log_info log_warn log_error; do
-        if ! command -v "$func" >/dev/null 2>&1; then
-            missing_functions+=("$func")
-        fi
-    done
-    
-    # 检查验证函数
-    for func in validate_uuid validate_port; do
-        if ! command -v "$func" >/dev/null 2>&1; then
-            missing_functions+=("$func")
-        fi
-    done
-    
-    if [[ ${#missing_functions[@]} -gt 0 ]]; then
-        echo "缺失函数: ${missing_functions[*]}"
-        return 1
-    fi
-    
-    return 0
+log_warn() {
+    echo -e "${YELLOW}[WARN] $*${NC}"
 }
 
-# 自动修复缺失的模块函数
-auto_repair_modules() {
-    echo -e "${YELLOW}正在修复缺失的模块函数...${NC}"
-    
-    # 定义基础函数
-    define_essential_functions
-    
-    # 重新验证
-    if verify_module_functions; then
-        echo -e "${GREEN}模块函数修复成功${NC}"
+log_error() {
+    echo -e "${RED}[ERROR] $*${NC}"
+}
+
+# 基础验证函数
+validate_port() {
+    local port="$1"
+    if [[ "$port" =~ ^[0-9]+$ ]] && [[ "$port" -ge 1 ]] && [[ "$port" -le 65535 ]]; then
         return 0
     else
-        echo -e "${RED}模块函数修复失败${NC}"
         return 1
-    fi
-}
-
-# 诊断模块问题
-diagnose_module_issues() {
-    echo -e "${CYAN}正在诊断模块加载问题...${NC}"
-    
-    # 检查网络连接
-    if ! curl -s --max-time 5 https://www.google.com >/dev/null 2>&1; then
-        echo -e "${YELLOW}网络连接异常，可能影响远程模块下载${NC}"
-    fi
-    
-    # 检查临时目录权限
-    if [[ ! -w "/tmp" ]]; then
-        echo -e "${RED}/tmp 目录无写入权限${NC}"
-    fi
-    
-    # 检查本地模块目录
-    local script_dir="$(dirname "$0")"
-    if [[ -d "$script_dir/lib" ]]; then
-        echo -e "${GREEN}发现本地模块目录: $script_dir/lib${NC}"
-        ls -la "$script_dir/lib/" | head -10
-    else
-        echo -e "${YELLOW}本地模块目录不存在: $script_dir/lib${NC}"
     fi
 }
 
@@ -182,8 +65,7 @@ check_installation_status() {
     if [[ -f "$SINGBOX_BINARY" ]]; then
         status="installed"
         install_method="binary"
-        local version=$($SINGBOX_BINARY version 2>/dev/null | head -1 || echo "未知版本")
-        details="二进制文件存在 ($version)"
+        details="已安装"
     fi
     
     # 检查系统服务
@@ -191,149 +73,59 @@ check_installation_status() {
         status="installed"
         if [[ "$install_method" == "unknown" ]]; then
             install_method="service"
-            details="系统服务已安装"
-        else
-            install_method="complete"
-            details="$details + 系统服务"
-        fi
-    fi
-    
-    # 检查配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="config"
-            details="配置文件存在"
-        else
-            details="$details + 配置文件"
-        fi
-    fi
-    
-    # 检查配置目录
-    if [[ -d "$WORK_DIR" ]] && [[ $(ls -A "$WORK_DIR" 2>/dev/null | wc -l) -gt 0 ]]; then
-        status="installed"
-        if [[ "$install_method" == "unknown" ]]; then
-            install_method="config_dir"
-            details="配置目录存在"
-        else
-            details="$details + 配置目录"
+            details="已安装"
         fi
     fi
     
     echo "$status:$install_method:$details"
 }
 
-# 诊断安装状态
+# 简化的诊断功能
 diagnose_installation() {
-    echo -e "${CYAN}=== Sing-box 安装状态诊断 ===${NC}"
-    echo
+    echo -e "${CYAN}=== Sing-box 状态 ===${NC}"
     
     # 检查二进制文件
     if [[ -f "$SINGBOX_BINARY" ]]; then
-        local version=$($SINGBOX_BINARY version 2>/dev/null | head -1 || echo "版本获取失败")
-        echo -e "${GREEN}[OK]${NC} 二进制文件: $SINGBOX_BINARY"
-        echo -e "     版本: $version"
+        echo -e "${GREEN}[OK]${NC} 二进制文件已安装"
     else
-        echo -e "${RED}[NO]${NC} 二进制文件: 未找到"
+        echo -e "${RED}[NO]${NC} 二进制文件未安装"
     fi
     
     # 检查系统服务
     if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
-        local service_status=$(systemctl is-active sing-box 2>/dev/null || echo "未知")
-        local service_enabled=$(systemctl is-enabled sing-box 2>/dev/null || echo "未知")
-        echo -e "${GREEN}[OK]${NC} 系统服务: 已安装"
-        echo -e "     状态: $service_status | 开机启动: $service_enabled"
+        echo -e "${GREEN}[OK]${NC} 系统服务已安装"
     else
-        echo -e "${RED}[NO]${NC} 系统服务: 未安装"
-    fi
-    
-    # 检查配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
-        local config_size=$(du -h "$CONFIG_FILE" 2>/dev/null | cut -f1 || echo "未知")
-        echo -e "${GREEN}[OK]${NC} 配置文件: $CONFIG_FILE"
-        echo -e "     大小: $config_size"
-    else
-        echo -e "${RED}[NO]${NC} 配置文件: 未找到"
-    fi
-    
-    # 检查配置目录
-    if [[ -d "$WORK_DIR" ]]; then
-        local file_count=$(ls -A "$WORK_DIR" 2>/dev/null | wc -l)
-        echo -e "${GREEN}[OK]${NC} 配置目录: $WORK_DIR"
-        echo -e "     文件数量: $file_count"
-    else
-        echo -e "${RED}[NO]${NC} 配置目录: 未找到"
-    fi
-    
-    # 检查快捷命令
-    if [[ -L "/usr/local/bin/sb" ]]; then
-        local target=$(readlink /usr/local/bin/sb 2>/dev/null || echo "读取失败")
-        echo -e "${GREEN}[OK]${NC} 快捷命令: /usr/local/bin/sb"
-        echo -e "     指向: $target"
-    else
-        echo -e "${RED}[NO]${NC} 快捷命令: 未创建"
-    fi
-    
-    # 检查端口占用
-    if command -v netstat >/dev/null 2>&1; then
-        local listening_ports=$(netstat -tlnp 2>/dev/null | grep sing-box | wc -l)
-        if [[ $listening_ports -gt 0 ]]; then
-            echo -e "${GREEN}[OK]${NC} 端口监听: $listening_ports 个端口"
-        else
-            echo -e "${YELLOW}[--]${NC} 端口监听: 无活动端口"
-        fi
+        echo -e "${RED}[NO]${NC} 系统服务未安装"
     fi
     
     echo
 }
 
-# 显示安装管理菜单
+# 简化的安装管理菜单
 show_installation_menu() {
     local install_info="$1"
     local status=$(echo "$install_info" | cut -d: -f1)
-    local method=$(echo "$install_info" | cut -d: -f2)
-    local details=$(echo "$install_info" | cut -d: -f3)
     
-    echo -e "${CYAN}=== Sing-box 管理菜单 ===${NC}"
-    echo -e "${GREEN}当前状态:${NC} $details"
-    echo
+    echo -e "${CYAN}=== Sing-box 管理 ===${NC}"
     
     case "$status" in
         "installed")
-            echo -e "${GREEN}1.${NC} 显示主菜单（管理配置）"
-            echo -e "${GREEN}2.${NC} 重新安装 Sing-box"
-            echo -e "${GREEN}3.${NC} 更新 Sing-box 版本"
-            echo -e "${GREEN}4.${NC} 显示安装状态诊断"
-            echo -e "${GREEN}5.${NC} 卸载 Sing-box"
-            echo -e "${GREEN}0.${NC} 退出"
+            echo "1. 重新安装"
+            echo "2. 更新版本"
+            echo "3. 卸载"
+            echo "0. 退出"
             echo
             
-            read -p "请选择 [0-5]: " choice
+            read -p "请选择 [0-3]: " choice
             
             case "$choice" in
                 1)
-                    # 加载现有配置并显示主菜单
-                    load_existing_config
-                    show_main_menu
+                    perform_installation
                     ;;
                 2)
-                    echo -e "${YELLOW}确认重新安装？这将覆盖现有配置。${NC}"
-                    read -p "输入 'yes' 确认: " confirm
-                    if [[ "$confirm" == "yes" ]]; then
-                        perform_installation
-                    else
-                        show_installation_menu "$install_info"
-                    fi
-                    ;;
-                3)
                     update_singbox
                     ;;
-                4)
-                    diagnose_installation
-                    read -p "按回车键返回菜单..." 
-                    show_installation_menu "$install_info"
-                    ;;
-                5)
+                3)
                     uninstall_singbox
                     ;;
                 0)
@@ -346,20 +138,15 @@ show_installation_menu() {
             esac
             ;;
         "not_installed")
-            echo -e "${YELLOW}Sing-box 未安装，开始安装流程...${NC}"
+            echo -e "${YELLOW}Sing-box 未安装，开始安装...${NC}"
             perform_installation
             ;;
     esac
 }
 
-# 执行安装流程
+# 简化的安装函数
 perform_installation() {
     echo -e "${CYAN}=== 开始安装 Sing-box ===${NC}"
-    
-    # 记录安装开始
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "开始安装Sing-box" "系统: $OS_TYPE"
-    fi
     
     # 检查是否为覆盖安装
     local is_reinstall=false
@@ -399,13 +186,10 @@ perform_installation() {
         fi
     fi
     
-    # 记录安装完成
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "Sing-box安装完成" "服务已创建"
-    fi
-    
     echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
-    show_main_menu
+    if command -v show_main_menu >/dev/null 2>&1; then
+        show_main_menu
+    fi
 }
 
 # 加载现有配置
@@ -502,177 +286,197 @@ update_singbox() {
     main
 }
 
-# 卸载 Sing-box
+# 一键完全卸载 Sing-box
 uninstall_singbox() {
-    echo -e "${CYAN}=== 卸载 Sing-box ===${NC}"
-    echo -e "${RED}警告：这将完全删除 Sing-box 及其所有配置！${NC}"
-    read -p "输入 'UNINSTALL' 确认卸载: " confirm
+    echo -e "${CYAN}=== 一键完全卸载 Sing-box ===${NC}"
+    echo -e "${RED}警告：这将完全删除 Sing-box 及其所有配置、日志、证书等文件！${NC}"
+    echo -e "${YELLOW}将要删除的内容：${NC}"
+    echo -e "  • Sing-box 服务和二进制文件"
+    echo -e "  • 所有配置文件和目录"
+    echo -e "  • 日志文件和证书"
+    echo -e "  • 快捷命令和符号链接"
+    echo -e "  • 防火墙规则（如果存在）"
+    echo -e "  • 系统用户和组（如果存在）"
+    echo
+    read -p "输入 'UNINSTALL' 确认完全卸载: " confirm
     
     if [[ "$confirm" != "UNINSTALL" ]]; then
         echo -e "${YELLOW}卸载已取消${NC}"
         return
     fi
     
-    # 停止并禁用服务
+    echo -e "${CYAN}开始执行完全卸载...${NC}"
+    
+    # 1. 停止并禁用服务
+    echo -e "${YELLOW}[1/8] 停止和禁用服务...${NC}"
     if systemctl is-active sing-box >/dev/null 2>&1; then
         systemctl stop sing-box
+        log_info "已停止 Sing-box 服务"
     fi
     
     if systemctl is-enabled sing-box >/dev/null 2>&1; then
         systemctl disable sing-box
+        log_info "已禁用 Sing-box 开机启动"
     fi
     
-    # 删除服务文件
-    if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
-        rm -f /etc/systemd/system/sing-box.service
-        systemctl daemon-reload
+    # 2. 删除服务文件
+    echo -e "${YELLOW}[2/8] 删除服务文件...${NC}"
+    local service_files=(
+        "/etc/systemd/system/sing-box.service"
+        "/lib/systemd/system/sing-box.service"
+        "/usr/lib/systemd/system/sing-box.service"
+    )
+    
+    for service_file in "${service_files[@]}"; do
+        if [[ -f "$service_file" ]]; then
+            rm -f "$service_file"
+            log_info "已删除服务文件: $service_file"
+        fi
+    done
+    
+    systemctl daemon-reload
+    
+    # 3. 删除二进制文件
+    echo -e "${YELLOW}[3/8] 删除二进制文件...${NC}"
+    local binary_files=(
+        "$SINGBOX_BINARY"
+        "/usr/bin/sing-box"
+        "/usr/sbin/sing-box"
+        "/opt/sing-box/sing-box"
+    )
+    
+    for binary in "${binary_files[@]}"; do
+        if [[ -f "$binary" ]]; then
+            rm -f "$binary"
+            log_info "已删除二进制文件: $binary"
+        fi
+    done
+    
+    # 4. 删除配置和工作目录
+    echo -e "${YELLOW}[4/8] 删除配置和工作目录...${NC}"
+    local config_dirs=(
+        "$WORK_DIR"
+        "/etc/sing-box"
+        "/opt/sing-box"
+        "/var/lib/sing-box"
+        "/usr/local/etc/sing-box"
+    )
+    
+    for dir in "${config_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            rm -rf "$dir"
+            log_info "已删除目录: $dir"
+        fi
+    done
+    
+    # 5. 删除日志文件
+    echo -e "${YELLOW}[5/8] 删除日志文件...${NC}"
+    local log_files=(
+        "$LOG_FILE"
+        "/var/log/sing-box.log"
+        "/var/log/sing-box/*.log"
+        "/tmp/sing-box*.log"
+    )
+    
+    for log_pattern in "${log_files[@]}"; do
+        if ls $log_pattern >/dev/null 2>&1; then
+            rm -f $log_pattern
+            log_info "已删除日志文件: $log_pattern"
+        fi
+    done
+    
+    # 6. 删除快捷命令和符号链接
+    echo -e "${YELLOW}[6/8] 删除快捷命令...${NC}"
+    local shortcuts=(
+        "/usr/local/bin/sb"
+        "/usr/bin/sb"
+        "/usr/local/bin/singbox"
+        "/usr/bin/singbox"
+    )
+    
+    for shortcut in "${shortcuts[@]}"; do
+        if [[ -L "$shortcut" ]] || [[ -f "$shortcut" ]]; then
+            rm -f "$shortcut"
+            log_info "已删除快捷命令: $shortcut"
+        fi
+    done
+    
+    # 7. 清理防火墙规则（如果存在）
+    echo -e "${YELLOW}[7/8] 清理防火墙规则...${NC}"
+    if command -v ufw >/dev/null 2>&1; then
+        # Ubuntu/Debian UFW
+        ufw --force delete allow 443/tcp 2>/dev/null || true
+        ufw --force delete allow 80/tcp 2>/dev/null || true
+        log_info "已清理 UFW 防火墙规则"
+    elif command -v firewall-cmd >/dev/null 2>&1; then
+        # CentOS/RHEL firewalld
+        firewall-cmd --permanent --remove-port=443/tcp 2>/dev/null || true
+        firewall-cmd --permanent --remove-port=80/tcp 2>/dev/null || true
+        firewall-cmd --reload 2>/dev/null || true
+        log_info "已清理 firewalld 防火墙规则"
     fi
     
-    # 删除二进制文件
-    if [[ -f "$SINGBOX_BINARY" ]]; then
-        rm -f "$SINGBOX_BINARY"
+    # 8. 删除系统用户和组（如果存在）
+    echo -e "${YELLOW}[8/8] 清理系统用户和组...${NC}"
+    if id sing-box >/dev/null 2>&1; then
+        userdel sing-box 2>/dev/null || true
+        log_info "已删除系统用户: sing-box"
     fi
     
-    # 删除配置目录
-    if [[ -d "$WORK_DIR" ]]; then
-        rm -rf "$WORK_DIR"
+    if getent group sing-box >/dev/null 2>&1; then
+        groupdel sing-box 2>/dev/null || true
+        log_info "已删除系统组: sing-box"
     fi
     
-    # 删除快捷命令
-    if [[ -L "/usr/local/bin/sb" ]]; then
-        rm -f /usr/local/bin/sb
-    fi
+    # 清理临时文件
+    rm -rf /tmp/sing-box* 2>/dev/null || true
+    rm -rf /tmp/singbox* 2>/dev/null || true
     
-    echo -e "${GREEN}Sing-box 已完全卸载${NC}"
+    echo
+    echo -e "${GREEN}✅ Sing-box 已完全卸载！${NC}"
+    echo -e "${GREEN}✅ 所有相关文件、配置、服务已清理完毕${NC}"
+    echo -e "${CYAN}感谢使用 Sing-box 安装脚本！${NC}"
     exit 0
 }
 
-# 加载模块 - 增强版
+# 简化的模块加载
 load_modules() {
     local lib_dir="$(dirname "$0")/lib"
-    local base_url="https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/lib"
-    local temp_dir="/tmp/singbox-modules"
     
     echo -e "${CYAN}正在加载模块...${NC}"
     
-    # 首先定义关键函数，确保基础功能可用
-    define_essential_functions
-    
-    # 优先使用本地模块目录
-    if [[ -d "$lib_dir" ]] && [[ "$0" != "bash" ]] && [[ "$0" != "-bash" ]] && [[ "$(dirname "$0")" != "/dev/fd" ]]; then
+    # 只加载本地模块，简化逻辑
+    if [[ -d "$lib_dir" ]]; then
         echo -e "${GREEN}使用本地模块目录: $lib_dir${NC}"
-    else
-        echo -e "${CYAN}检测到在线执行，正在下载模块...${NC}"
         
-        # 创建临时目录
-        mkdir -p "$temp_dir"
+        # 按依赖顺序加载核心模块
+        local core_modules=(
+            "common.sh"
+            "config_manager.sh"
+            "protocols.sh"
+            "menu.sh"
+            "subscription.sh"
+        )
         
-        # 下载模块文件（按依赖顺序）
-        local modules=("error_handler.sh" "logger.sh" "validator.sh" "common.sh" "protocols.sh" "menu.sh" "subscription.sh" "config_manager.sh")
-        local download_failed=false
-        
-        for module in "${modules[@]}"; do
-            if curl -fsSL "$base_url/$module" -o "$temp_dir/$module" 2>/dev/null; then
-                echo -e "${GREEN}已下载: $module${NC}"
+        for module in "${core_modules[@]}"; do
+            local module_path="$lib_dir/$module"
+            if [[ -f "$module_path" ]]; then
+                if source "$module_path" 2>/dev/null; then
+                    echo -e "${GREEN}已加载模块: $module${NC}"
+                else
+                    echo -e "${YELLOW}警告: 加载模块失败: $module${NC}"
+                fi
             else
-                echo -e "${RED}下载失败: $module${NC}"
-                download_failed=true
+                echo -e "${YELLOW}警告: 模块文件不存在: $module${NC}"
             fi
         done
         
-        if [[ "$download_failed" == "true" ]]; then
-            echo -e "${YELLOW}部分模块下载失败，将使用内嵌函数${NC}"
-            diagnose_module_issues
-        fi
-        
-        lib_dir="$temp_dir"
-    fi
-    
-    # 按依赖顺序加载模块
-    
-    # 1. 首先加载错误处理模块
-    if [[ -f "$lib_dir/error_handler.sh" ]]; then
-        source "$lib_dir/error_handler.sh"
-        echo -e "${GREEN}已加载错误处理模块${NC}"
+        echo -e "${GREEN}模块加载完成${NC}"
+        return 0
     else
-        echo -e "${YELLOW}警告: 错误处理模块不存在，使用基础错误处理${NC}"
+        echo -e "${YELLOW}本地模块目录不存在，使用内置功能${NC}"
+        return 1
     fi
-    
-    # 2. 加载日志模块
-    if [[ -f "$lib_dir/logger.sh" ]]; then
-        source "$lib_dir/logger.sh"
-        echo -e "${GREEN}已加载日志模块${NC}"
-        # 初始化日志系统
-        if command -v init_logger >/dev/null 2>&1; then
-            init_logger
-        fi
-    else
-        echo -e "${YELLOW}警告: 日志模块不存在，使用基础日志${NC}"
-    fi
-    
-    # 3. 加载验证模块
-    if [[ -f "$lib_dir/validator.sh" ]]; then
-        source "$lib_dir/validator.sh"
-        echo -e "${GREEN}已加载验证模块${NC}"
-    else
-        echo -e "${YELLOW}警告: 验证模块不存在，使用内嵌验证函数${NC}"
-    fi
-    
-    # 4. 加载通用函数库
-    if [[ -f "$lib_dir/common.sh" ]]; then
-        source "$lib_dir/common.sh"
-        echo -e "${GREEN}已加载通用函数库${NC}"
-    else
-        echo -e "${RED}错误: 通用函数库不存在${NC}"
-        exit 1
-    fi
-    
-    # 5. 加载配置管理模块（在协议模块之前）
-    if [[ -f "$lib_dir/config_manager.sh" ]]; then
-        source "$lib_dir/config_manager.sh"
-        echo -e "${GREEN}已加载配置管理模块${NC}"
-    else
-        echo -e "${RED}错误: 配置管理模块不存在${NC}"
-        exit 1
-    fi
-    
-    # 6. 加载协议模块
-    if [[ -f "$lib_dir/protocols.sh" ]]; then
-        source "$lib_dir/protocols.sh"
-        echo -e "${GREEN}已加载协议模块${NC}"
-    else
-        echo -e "${RED}错误: 协议模块不存在${NC}"
-        exit 1
-    fi
-    
-    # 7. 加载菜单模块
-    if [[ -f "$lib_dir/menu.sh" ]]; then
-        source "$lib_dir/menu.sh"
-        echo -e "${GREEN}已加载菜单模块${NC}"
-    else
-        echo -e "${RED}错误: 菜单模块不存在${NC}"
-        exit 1
-    fi
-    
-    # 8. 加载订阅模块
-    if [[ -f "$lib_dir/subscription.sh" ]]; then
-        source "$lib_dir/subscription.sh"
-        echo -e "${GREEN}已加载订阅模块${NC}"
-    else
-        echo -e "${RED}错误: 订阅模块不存在${NC}"
-        exit 1
-    fi
-    
-    # 验证关键函数是否可用
-    echo -e "${CYAN}验证模块函数...${NC}"
-    if ! verify_module_functions; then
-        echo -e "${YELLOW}检测到缺失的函数，正在自动修复...${NC}"
-        if ! auto_repair_modules; then
-            echo -e "${RED}自动修复失败，某些功能可能不可用${NC}"
-        fi
-    fi
-    
-    echo -e "${GREEN}所有模块加载完成${NC}"
 }
 
 # 检查 root 权限
@@ -1084,46 +888,32 @@ show_banner() {
     echo ""
 }
 
-# 主函数 - 智能版
+# 简化的主函数
 main() {
-    # 基础系统检查
+    # 基础检查
     check_root
     show_banner
     detect_system
     create_directories
     
-    # 加载所有模块（包括错误处理、日志、验证等）
-    load_modules
+    # 加载模块（可选）
+    load_modules 2>/dev/null || true
     
-    # 记录启动信息
-    if command -v log_info >/dev/null 2>&1; then
-        log_info "Singbox安装脚本启动" "版本: v2.4.5, 系统: $OS_TYPE"
-    fi
-    
-    # 初始化配置变量
-    init_config_vars
-    
-    # 获取安装状态
+    # 检查安装状态并显示菜单
     local install_info=$(check_installation_status)
     local status=$(echo "$install_info" | cut -d: -f1)
     
-    if command -v log_debug >/dev/null 2>&1; then
-        log_debug "安装状态检查结果: $install_info"
-    fi
-    
-    # 根据安装状态选择处理方式
     case "$status" in
         "installed")
-            echo -e "${GREEN}检测到 Sing-box 已安装${NC}"
+            echo -e "${GREEN}Sing-box 已安装${NC}"
             show_installation_menu "$install_info"
             ;;
         "not_installed")
-            echo -e "${YELLOW}Sing-box 未安装，开始安装流程...${NC}"
-            perform_installation
+            echo -e "${YELLOW}Sing-box 未安装${NC}"
+            show_installation_menu "$install_info"
             ;;
         *)
-            echo -e "${RED}安装状态检查异常: $install_info${NC}"
-            diagnose_installation
+            echo -e "${RED}未知安装状态${NC}"
             exit 1
             ;;
     esac
