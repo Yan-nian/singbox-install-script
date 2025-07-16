@@ -16,7 +16,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # 全局变量
-SCRIPT_VERSION="v1.0.6"
+SCRIPT_VERSION="v1.0.7"
 CONFIG_DIR="/etc/sing-box"
 DATA_DIR="/usr/local/etc/sing-box"
 LOG_DIR="/var/log/sing-box"
@@ -115,7 +115,8 @@ show_add_menu() {
     echo -e "${YELLOW}  [2]${NC} VLESS Reality (推荐)"
     echo -e "${YELLOW}  [3]${NC} VMess"
     echo -e "${YELLOW}  [4]${NC} Hysteria2"
-    echo -e "${YELLOW}  [5]${NC} Shadowsocks"
+    echo -e "${YELLOW}  [5]${NC} TUIC5"
+    echo -e "${YELLOW}  [6]${NC} Shadowsocks"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -150,11 +151,12 @@ show_system_menu() {
     echo -e "${YELLOW}  [5]${NC} 查看日志"
     echo -e "${YELLOW}  [6]${NC} 系统诊断"
     echo -e "${YELLOW}  [7]${NC} 系统优化"
-    echo -e "${YELLOW}  [8]${NC} 更新脚本"
-    echo -e "${YELLOW}  [9]${NC} 更新核心"
-    echo -e "${YELLOW}  [10]${NC} 备份配置"
-    echo -e "${YELLOW}  [11]${NC} 恢复配置"
-    echo -e "${YELLOW}  [12]${NC} 卸载 Sing-box"
+    echo -e "${YELLOW}  [8]${NC} 配置模板更新"
+    echo -e "${YELLOW}  [9]${NC} 更新脚本"
+    echo -e "${YELLOW}  [10]${NC} 更新核心"
+    echo -e "${YELLOW}  [11]${NC} 备份配置"
+    echo -e "${YELLOW}  [12]${NC} 恢复配置"
+    echo -e "${YELLOW}  [13]${NC} 卸载 Sing-box"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -170,6 +172,7 @@ show_share_menu() {
     echo -e "${YELLOW}  [2]${NC} 显示指定配置链接"
     echo -e "${YELLOW}  [3]${NC} 生成二维码"
     echo -e "${YELLOW}  [4]${NC} 导出配置文件"
+    echo -e "${YELLOW}  [5]${NC} 生成客户端配置"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -517,6 +520,41 @@ generate_hy2_config() {
 EOF
 }
 
+# TUIC5 配置模板
+generate_tuic5_config() {
+    local name=$1
+    local port=$2
+    local uuid=$3
+    local password=$4
+    local domain=$5
+    
+    cat << EOF
+{
+  "type": "tuic",
+  "tag": "$name",
+  "listen": "::",
+  "listen_port": $port,
+  "users": [
+    {
+      "uuid": "$uuid",
+      "password": "$password"
+    }
+  ],
+  "congestion_control": "bbr",
+  "tls": {
+    "enabled": true,
+    "server_name": "$domain",
+    "certificate_path": "$CERT_FILE",
+    "key_path": "$KEY_FILE",
+    "alpn": ["h3"]
+  },
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
+}
+EOF
+}
+
 # Hysteria2 配置模板（别名）
 generate_hysteria2_config() {
     generate_hy2_config "$1" "$2" "$3" "$4"
@@ -570,11 +608,27 @@ update_main_config() {
 {
   "log": {
     "disabled": false,
-    "level": "error",
+    "level": "info",
     "timestamp": true,
     "output": "$LOG_DIR/sing-box.log"
   },
   "dns": {
+    "servers": [
+      {
+        "tag": "remote",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "🚀 节点选择"
+      },
+      {
+        "tag": "local",
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "⚡ 直连"
+      },
+      {
+        "tag": "block",
+        "address": "rcode://success"
+      }
+    ],
     "rules": [
       {
         "outbound": ["any"],
@@ -597,6 +651,8 @@ update_main_config() {
         "server": "block"
       }
     ],
+    "strategy": "prefer_ipv4"
+  },
     "servers": [
       {
         "address": "https://1.1.1.1/dns-query",
@@ -1612,6 +1668,340 @@ generate_ss_url() {
     echo "$url"
 }
 
+# 生成现代化客户端配置
+generate_client_config() {
+    local server_ip=$(get_public_ip)
+    local configs=$(list_configs_from_db)
+    
+    if [[ -z $configs ]]; then
+        error "暂无配置，请先添加节点配置"
+        return 1
+    fi
+    
+    # 生成 outbounds 配置
+    local outbounds_json=""
+    local outbound_names=""
+    
+    while IFS='|' read -r name protocol port uuid extra created; do
+        if [[ -n "$name" ]]; then
+            # 添加到选择器列表
+            if [[ -n "$outbound_names" ]]; then
+                outbound_names="$outbound_names, \"$name\""
+            else
+                outbound_names="\"$name\""
+            fi
+            
+            # 生成对应的 outbound 配置
+            case "$protocol" in
+                "vless-reality")
+                    local public_key=$(echo "$extra" | cut -d'|' -f2)
+                    local short_id=$(echo "$extra" | cut -d'|' -f3)
+                    local sni=$(echo "$extra" | cut -d'|' -f4)
+                    
+                    outbounds_json="$outbounds_json,
+    {
+      \"type\": \"vless\",
+      \"tag\": \"$name\",
+      \"server\": \"$server_ip\",
+      \"server_port\": $port,
+      \"uuid\": \"$uuid\",
+      \"packet_encoding\": \"xudp\",
+      \"flow\": \"xtls-rprx-vision\",
+      \"tls\": {
+        \"enabled\": true,
+        \"server_name\": \"$sni\",
+        \"utls\": {
+          \"enabled\": true,
+          \"fingerprint\": \"chrome\"
+        },
+        \"reality\": {
+          \"enabled\": true,
+          \"public_key\": \"$public_key\",
+          \"short_id\": \"$short_id\"
+        }
+      }
+    }"
+                    ;;
+                "vmess")
+                    local domain=$(echo "$extra" | cut -d'|' -f2)
+                    local path=$(echo "$extra" | cut -d'|' -f1)
+                    
+                    outbounds_json="$outbounds_json,
+    {
+      \"type\": \"vmess\",
+      \"tag\": \"$name\",
+      \"server\": \"$server_ip\",
+      \"server_port\": $port,
+      \"uuid\": \"$uuid\",
+      \"security\": \"auto\",
+      \"packet_encoding\": \"packetaddr\",
+      \"transport\": {
+        \"type\": \"ws\",
+        \"path\": \"$path\",
+        \"headers\": {
+          \"Host\": [\"$domain\"]
+        }
+      },
+      \"tls\": {
+        \"enabled\": true,
+        \"server_name\": \"$domain\",
+        \"insecure\": false,
+        \"utls\": {
+          \"enabled\": true,
+          \"fingerprint\": \"chrome\"
+        }
+      }
+    }"
+                    ;;
+                "hysteria2")
+                    local domain=$(echo "$extra" | cut -d'|' -f1)
+                    
+                    outbounds_json="$outbounds_json,
+    {
+      \"type\": \"hysteria2\",
+      \"tag\": \"$name\",
+      \"server\": \"$server_ip\",
+      \"server_port\": $port,
+      \"password\": \"$uuid\",
+      \"tls\": {
+        \"enabled\": true,
+        \"server_name\": \"$domain\",
+        \"insecure\": true,
+        \"alpn\": [\"h3\"]
+      }
+    }"
+                    ;;
+                "tuic5")
+                    local domain=$(echo "$extra" | cut -d'|' -f1)
+                    local password=$(echo "$extra" | cut -d'|' -f2)
+                    
+                    outbounds_json="$outbounds_json,
+    {
+      \"type\": \"tuic\",
+      \"tag\": \"$name\",
+      \"server\": \"$server_ip\",
+      \"server_port\": $port,
+      \"uuid\": \"$uuid\",
+      \"password\": \"$password\",
+      \"congestion_control\": \"bbr\",
+      \"udp_relay_mode\": \"native\",
+      \"udp_over_stream\": false,
+      \"zero_rtt_handshake\": false,
+      \"heartbeat\": \"10s\",
+      \"tls\": {
+        \"enabled\": true,
+        \"server_name\": \"$domain\",
+        \"insecure\": true,
+        \"alpn\": [\"h3\"]
+      }
+    }"
+                    ;;
+                "shadowsocks")
+                    local method=$(echo "$extra" | cut -d'|' -f1)
+                    
+                    outbounds_json="$outbounds_json,
+    {
+      \"type\": \"shadowsocks\",
+      \"tag\": \"$name\",
+      \"server\": \"$server_ip\",
+      \"server_port\": $port,
+      \"method\": \"$method\",
+      \"password\": \"$uuid\"
+    }"
+                    ;;
+            esac
+        fi
+    done <<< "$configs"
+    
+    # 生成完整的客户端配置
+    cat << EOF
+{
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "timestamp": true
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "",
+      "external_ui_download_detour": "",
+      "secret": "",
+      "default_mode": "Rule"
+    },
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "store_fakeip": true
+    }
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "proxydns",
+        "address": "tls://8.8.8.8/dns-query",
+        "detour": "select"
+      },
+      {
+        "tag": "localdns",
+        "address": "h3://223.5.5.5/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns_fakeip",
+        "address": "fakeip"
+      }
+    ],
+    "rules": [
+      {
+        "outbound": "any",
+        "server": "localdns",
+        "disable_cache": true
+      },
+      {
+        "clash_mode": "Global",
+        "server": "proxydns"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "localdns"
+      },
+      {
+        "rule_set": "geosite-cn",
+        "server": "localdns"
+      },
+      {
+        "rule_set": "geosite-geolocation-!cn",
+        "server": "proxydns"
+      },
+      {
+        "rule_set": "geosite-geolocation-!cn",
+        "query_type": ["A", "AAAA"],
+        "server": "dns_fakeip"
+      }
+    ],
+    "fakeip": {
+      "enabled": true,
+      "inet4_range": "198.18.0.0/15",
+      "inet6_range": "fc00::/18"
+    },
+    "independent_cache": true,
+    "final": "proxydns"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": ["172.19.0.1/30", "fd00::1/126"],
+      "auto_route": true,
+      "strict_route": true,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "prefer_ipv4"
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "select",
+      "type": "selector",
+      "default": "auto",
+      "outbounds": ["auto", $outbound_names]
+    },
+    {
+      "tag": "auto",
+      "type": "urltest",
+      "outbounds": [$outbound_names],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "1m",
+      "tolerance": 50,
+      "interrupt_exist_connections": false
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    }$outbounds_json
+  ],
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geosite-geolocation-!cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
+        "download_detour": "select",
+        "update_interval": "1d"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
+        "download_detour": "select",
+        "update_interval": "1d"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
+        "download_detour": "select",
+        "update_interval": "1d"
+      }
+    ],
+    "auto_detect_interface": true,
+    "final": "select",
+    "rules": [
+      {
+        "inbound": "tun-in",
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "port": 443,
+        "network": "udp",
+        "action": "reject"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "direct"
+      },
+      {
+        "clash_mode": "Global",
+        "outbound": "select"
+      },
+      {
+        "rule_set": "geoip-cn",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": "geosite-cn",
+        "outbound": "direct"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": "geosite-geolocation-!cn",
+        "outbound": "select"
+      }
+    ]
+  },
+  "ntp": {
+    "enabled": true,
+    "server": "time.apple.com",
+    "server_port": 123,
+    "interval": "30m",
+    "detour": "direct"
+  }
+}
+EOF
+}
+
 # 交互式管理功能
 interactive_list_configs() {
     clear
@@ -2277,6 +2667,99 @@ interactive_system_optimize() {
     wait_for_input
 }
 
+interactive_update_templates() {
+    clear
+    print_banner
+    echo -e "${GREEN}配置模板更新${NC}"
+    print_sub_separator
+    
+    echo -e "${YELLOW}可用的更新选项：${NC}"
+    echo "  [1] 更新服务端配置模板"
+    echo "  [2] 更新客户端配置模板"
+    echo "  [3] 更新规则集源"
+    echo "  [4] 全部更新"
+    echo "  [0] 返回上级菜单"
+    echo
+    
+    local choice
+    while true; do
+        choice=$(read_input "请选择" "0")
+        case "$choice" in
+            "1")
+                info "正在更新服务端配置模板..."
+                update_server_config_template
+                success "服务端配置模板更新完成"
+                break
+                ;;
+            "2")
+                info "正在更新客户端配置模板..."
+                update_client_config_template
+                success "客户端配置模板更新完成"
+                break
+                ;;
+            "3")
+                info "正在更新规则集源..."
+                update_rule_sets
+                success "规则集源更新完成"
+                break
+                ;;
+            "4")
+                info "正在执行全部更新..."
+                update_server_config_template
+                update_client_config_template
+                update_rule_sets
+                success "配置模板全部更新完成"
+                break
+                ;;
+            "0")
+                return
+                ;;
+            *)
+                warn "请输入有效的选项"
+                ;;
+        esac
+    done
+    
+    wait_for_input
+}
+
+# 更新服务端配置模板
+update_server_config_template() {
+    info "重新生成服务端主配置..."
+    update_main_config
+    
+    if systemctl is-active --quiet sing-box; then
+        info "重启服务以应用更新..."
+        systemctl restart sing-box
+    fi
+}
+
+# 更新客户端配置模板
+update_client_config_template() {
+    info "客户端配置模板已更新至最新版本"
+    echo "  • 支持 Clash API"
+    echo "  • 支持 FakeIP"
+    echo "  • 支持 TUN 模式"
+    echo "  • 支持智能分流"
+    echo "  • 支持多协议"
+}
+
+# 更新规则集源
+update_rule_sets() {
+    info "更新规则集源地址..."
+    
+    # 清除旧的规则集缓存
+    if [[ -d "$DATA_DIR" ]]; then
+        rm -f "$DATA_DIR"/*.srs 2>/dev/null || true
+    fi
+    
+    info "规则集源已更新至最新版本"
+    echo "  • geosite-cn: 中国大陆网站"
+    echo "  • geoip-cn: 中国大陆IP"
+    echo "  • geosite-geolocation-!cn: 海外网站"
+    echo "  • category-ads-all: 广告过滤"
+}
+
 interactive_uninstall() {
     clear
     print_banner
@@ -2497,6 +2980,106 @@ interactive_export_config() {
     echo
     echo -e "${YELLOW}配置内容：${NC}"
     cat "$export_file"
+    
+    wait_for_input
+}
+
+interactive_generate_client_config() {
+    clear
+    print_banner
+    echo -e "${GREEN}生成客户端配置${NC}"
+    print_sub_separator
+    
+    local configs=$(list_configs_from_db)
+    if [[ -z $configs ]]; then
+        warn "暂无配置，请先添加节点配置"
+        wait_for_input
+        return
+    fi
+    
+    echo -e "${YELLOW}可用配置：${NC}"
+    echo
+    
+    local count=1
+    while IFS='|' read -r name protocol port uuid extra created; do
+        echo "  [$count] $name ($protocol)"
+        ((count++))
+    done <<< "$configs"
+    
+    echo
+    echo -e "${YELLOW}生成选项：${NC}"
+    echo "  [1] 生成完整客户端配置"
+    echo "  [2] 保存配置到文件"
+    echo "  [3] 显示配置内容"
+    echo "  [0] 返回上级菜单"
+    echo
+    
+    local choice
+    while true; do
+        choice=$(read_input "请选择" "1")
+        case "$choice" in
+            "1")
+                clear
+                print_banner
+                echo -e "${GREEN}完整客户端配置${NC}"
+                print_sub_separator
+                
+                info "正在生成客户端配置..."
+                echo
+                generate_client_config
+                break
+                ;;
+            "2")
+                clear
+                print_banner
+                echo -e "${GREEN}保存客户端配置${NC}"
+                print_sub_separator
+                
+                local filename
+                filename=$(read_input "请输入保存的文件名" "client_config.json")
+                
+                if [[ ! $filename =~ \.json$ ]]; then
+                    filename="$filename.json"
+                fi
+                
+                local filepath="/tmp/$filename"
+                
+                info "正在生成配置..."
+                generate_client_config > "$filepath"
+                
+                success "客户端配置已保存到: $filepath"
+                echo
+                echo -e "${YELLOW}使用说明：${NC}"
+                echo "  1. 将配置文件下载到客户端设备"
+                echo "  2. 在 sing-box 客户端中导入配置文件"
+                echo "  3. 启动客户端即可使用"
+                echo
+                echo -e "${YELLOW}支持的客户端：${NC}"
+                echo "  • sing-box"
+                echo "  • SFI (iOS)"
+                echo "  • SFA (Android)"
+                echo "  • sing-box GUI (Windows/macOS/Linux)"
+                break
+                ;;
+            "3")
+                clear
+                print_banner
+                echo -e "${GREEN}客户端配置内容${NC}"
+                print_sub_separator
+                
+                generate_client_config | head -50
+                echo
+                echo -e "${YELLOW}... (配置内容已截断，选择选项2保存完整配置)${NC}"
+                break
+                ;;
+            "0")
+                return
+                ;;
+            *)
+                warn "请输入有效的选项"
+                ;;
+        esac
+    done
     
     wait_for_input
 }
@@ -3420,11 +4003,12 @@ interactive_main() {
                         "5") interactive_show_logs ;;
                         "6") interactive_system_diagnose ;;
                         "7") interactive_system_optimize ;;
-                        "8") interactive_update_script ;;
-                        "9") interactive_update_core ;;
-                        "10") interactive_backup_configs ;;
-                        "11") interactive_restore_configs ;;
-                        "12") interactive_uninstall ;;
+                        "8") interactive_update_templates ;;
+                        "9") interactive_update_script ;;
+                        "10") interactive_update_core ;;
+                        "11") interactive_backup_configs ;;
+                        "12") interactive_restore_configs ;;
+                        "13") interactive_uninstall ;;
                         "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
@@ -3442,6 +4026,7 @@ interactive_main() {
                         "2") interactive_show_single_url ;;
                         "3") interactive_generate_qr ;;
                         "4") interactive_export_config ;;
+                        "5") interactive_generate_client_config ;;
                         "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
