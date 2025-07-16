@@ -91,10 +91,10 @@ install_dependencies() {
     
     if [[ $PM == "yum" ]]; then
         yum update -y
-        yum install -y curl wget unzip systemd
+        yum install -y curl wget unzip systemd openssl qrencode bc
     else
         apt-get update -y
-        apt-get install -y curl wget unzip systemd
+        apt-get install -y curl wget unzip systemd openssl qrencode bc
     fi
     
     success "依赖包安装完成"
@@ -153,122 +153,21 @@ create_directories() {
 
 # 下载主脚本
 download_script() {
-    info "下载管理脚本..."
+    info "安装管理脚本..."
     
-    # 这里应该从你的仓库下载，暂时创建本地版本
-    cat > "$SCRIPT_PATH" << 'EOF'
-#!/bin/bash
-
-# Sing-box 管理脚本
-# 版本: v1.0.0
-
-set -e
-
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# 配置路径
-CONFIG_DIR="/etc/sing-box"
-DATA_DIR="/usr/local/etc/sing-box"
-LOG_DIR="/var/log/sing-box"
-DB_FILE="$DATA_DIR/sing-box.db"
-
-# 输出函数
-info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
-
-# 显示帮助信息
-show_help() {
-    echo "Sing-box 管理脚本 v1.0.0"
-    echo "使用方法: sing-box [命令] [参数]"
-    echo ""
-    echo "基础命令:"
-    echo "  add <protocol>     添加配置 (vless/vmess/hy2)"
-    echo "  list               列出所有配置"
-    echo "  info <name>        查看配置详情"
-    echo "  del <name>         删除配置"
-    echo "  url <name>         获取分享链接"
-    echo "  qr <name>          生成二维码"
-    echo "  port <name> <port> 更换端口"
-    echo ""
-    echo "系统管理:"
-    echo "  start              启动服务"
-    echo "  stop               停止服务"
-    echo "  restart            重启服务"
-    echo "  status             查看状态"
-    echo "  log                查看日志"
-    echo "  uninstall          卸载脚本"
-    echo ""
-    echo "其他:"
-    echo "  version            显示版本"
-    echo "  help               显示帮助"
-}
-
-# 主函数
-main() {
-    case "$1" in
-        "add")
-            case "$2" in
-                "vless")
-                    info "添加 VLESS Reality 配置功能开发中..."
-                    ;;
-                "vmess")
-                    info "添加 VMess 配置功能开发中..."
-                    ;;
-                "hy2")
-                    info "添加 Hysteria2 配置功能开发中..."
-                    ;;
-                *)
-                    error "不支持的协议: $2"
-                    ;;
-            esac
-            ;;
-        "list")
-            info "列出配置功能开发中..."
-            ;;
-        "start")
-            systemctl start sing-box
-            success "服务已启动"
-            ;;
-        "stop")
-            systemctl stop sing-box
-            success "服务已停止"
-            ;;
-        "restart")
-            systemctl restart sing-box
-            success "服务已重启"
-            ;;
-        "status")
-            systemctl status sing-box
-            ;;
-        "log")
-            journalctl -u sing-box -f
-            ;;
-        "version")
-            echo "Sing-box 管理脚本 v1.0.0"
-            /usr/local/bin/sing-box version
-            ;;
-        "help"|"")
-            show_help
-            ;;
-        "uninstall")
-            info "卸载功能开发中..."
-            ;;
-        *)
-            error "未知命令: $1，使用 'sing-box help' 查看帮助"
-            ;;
-    esac
-}
-
-main "$@"
-EOF
-
+    # 检查当前目录是否有 sing-box.sh 文件
+    if [[ -f "./sing-box.sh" ]]; then
+        info "使用本地 sing-box.sh 文件"
+        cp "./sing-box.sh" "$SCRIPT_PATH"
+    else
+        info "从 GitHub 下载最新脚本..."
+        # 下载完整的管理脚本
+        wget -O "$SCRIPT_PATH" "https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/sing-box.sh" || {
+            error "下载管理脚本失败，请检查网络连接"
+        }
+    fi
+    
+    # 设置执行权限
     chmod +x "$SCRIPT_PATH"
     
     # 创建软链接
@@ -339,21 +238,30 @@ show_completion() {
     echo ""
     success "=== Sing-box 安装完成 ==="
     echo ""
-    info "管理命令:"
-    echo "  sing-box help    - 查看帮助"
-    echo "  sb help          - 快捷命令"
+    info "🎨 交互式界面:"
+    echo "  sing-box             - 启动交互式菜单（推荐）"
+    echo "  sb                   - 快捷命令"
     echo ""
-    info "快速开始:"
-    echo "  sing-box add vless    - 添加 VLESS Reality 配置"
-    echo "  sing-box add vmess    - 添加 VMess 配置"
-    echo "  sing-box add hy2      - 添加 Hysteria2 配置"
+    info "🔧 快速开始:"
+    echo "  sing-box add vless   - 添加 VLESS Reality 配置"
+    echo "  sing-box add vmess   - 添加 VMess 配置"
+    echo "  sing-box add hy2     - 添加 Hysteria2 配置"
+    echo "  sing-box add ss      - 添加 Shadowsocks 配置"
     echo ""
-    info "服务管理:"
-    echo "  sing-box start        - 启动服务"
-    echo "  sing-box status       - 查看状态"
-    echo "  sing-box log          - 查看日志"
+    info "📊 管理命令:"
+    echo "  sing-box list        - 查看所有配置"
+    echo "  sing-box info <name> - 查看配置详情"
+    echo "  sing-box url <name>  - 获取分享链接"
+    echo "  sing-box qr <name>   - 生成二维码"
     echo ""
-    warn "注意: 当前为基础框架，协议配置功能正在开发中"
+    info "🛠️ 服务管理:"
+    echo "  sing-box start       - 启动服务"
+    echo "  sing-box stop        - 停止服务"
+    echo "  sing-box restart     - 重启服务"
+    echo "  sing-box status      - 查看状态"
+    echo "  sing-box log         - 查看日志"
+    echo ""
+    success "✅ 安装成功！运行 'sing-box' 开始使用交互式界面"
     echo ""
 }
 

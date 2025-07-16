@@ -65,7 +65,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/singbox.git
+git clone https://github.com/Yan-nian/singbox-install-script.git
 cd singbox
 
 # 执行安装脚本
@@ -82,7 +82,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-scr
 或者使用 wget：
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/your-username/singbox/main/install.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
 ```
 
 > ⚠️ **注意**：请将 `your-username` 替换为你的实际 GitHub 用户名
