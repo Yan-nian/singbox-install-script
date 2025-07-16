@@ -9,7 +9,7 @@ set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.3.0"
+SCRIPT_VERSION="v2.4.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -46,7 +46,7 @@ load_modules() {
         mkdir -p "$temp_dir"
         
         # 下载模块文件
-        local modules=("common.sh" "protocols.sh" "menu.sh" "subscription.sh")
+        local modules=("common.sh" "protocols.sh" "menu.sh" "subscription.sh" "config_manager.sh")
         for module in "${modules[@]}"; do
             if curl -fsSL "$base_url/$module" -o "$temp_dir/$module"; then
                 echo -e "${GREEN}已下载: $module${NC}"
@@ -92,6 +92,15 @@ load_modules() {
         echo -e "${GREEN}已加载订阅模块${NC}"
     else
         echo -e "${RED}错误: 订阅模块不存在${NC}"
+        exit 1
+    fi
+    
+    # 加载配置管理模块
+    if [[ -f "$lib_dir/config_manager.sh" ]]; then
+        source "$lib_dir/config_manager.sh"
+        echo -e "${GREEN}已加载配置管理模块${NC}"
+    else
+        echo -e "${RED}错误: 配置管理模块不存在${NC}"
         exit 1
     fi
 }
@@ -146,13 +155,13 @@ install_dependencies() {
     case $OS in
         ubuntu|debian)
             apt update
-            apt install -y curl wget unzip openssl qrencode
+            apt install -y curl wget unzip openssl qrencode jq
             ;;
         centos|rhel|fedora)
             if command -v dnf >/dev/null 2>&1; then
-                dnf install -y curl wget unzip openssl qrencode
+                dnf install -y curl wget unzip openssl qrencode jq
             else
-                yum install -y curl wget unzip openssl qrencode
+                yum install -y curl wget unzip openssl qrencode jq
             fi
             ;;
         *)

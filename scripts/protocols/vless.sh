@@ -264,33 +264,45 @@ generate_vless_client_config() {
     }
   ],
   "route": {
-    "geoip": {
-      "path": "geoip.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-      "download_detour": "direct"
-    },
-    "geosite": {
-      "path": "geosite.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-      "download_detour": "direct"
-    },
+    "auto_detect_interface": true,
     "rules": [
       {
-        "protocol": "dns",
-        "outbound": "dns-out"
+        "action": "sniff"
       },
       {
-        "geosite": "cn",
-        "geoip": "cn",
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "rule_set": ["geosite-cn"],
         "outbound": "direct"
       },
       {
-        "geosite": "geolocation-!cn",
-        "outbound": "proxy"
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "action": "reject"
       }
     ],
-    "final": "proxy",
-    "auto_detect_interface": true
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "direct"
+      }
+    ],
+    "final": "proxy"
   }
 }
 EOF

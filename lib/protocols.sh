@@ -339,26 +339,45 @@ generate_config() {
     cat > "$CONFIG_FILE" << EOF
 {
   "log": {
-    "level": "info",
+    "disabled": false,
+    "level": "error",
     "output": "$LOG_FILE",
     "timestamp": true
   },
   "dns": {
-    "servers": [
+    "rules": [
       {
-        "tag": "cloudflare",
-        "address": "1.1.1.1",
-        "strategy": "ipv4_only"
+        "rule_set": ["geosite-cn"],
+        "server": "local"
       },
       {
-        "tag": "local",
-        "address": "223.5.5.5",
-        "strategy": "ipv4_only",
-        "detour": "direct"
+        "rule_set": ["category-ads-all"],
+        "server": "block"
       }
     ],
-    "final": "cloudflare",
-    "strategy": "ipv4_only"
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct",
+        "tag": "remote"
+      },
+      {
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "direct",
+        "tag": "local"
+      },
+      {
+        "address": "rcode://success",
+        "tag": "block"
+      }
+    ],
+    "final": "remote",
+    "strategy": "prefer_ipv4"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
   },
   "inbounds": [
 $(IFS=','; echo "${inbounds[*]}")
@@ -371,32 +390,52 @@ $(IFS=','; echo "${inbounds[*]}")
     {
       "type": "block",
       "tag": "block"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
     }
   ],
   "route": {
-    "geoip": {
-      "path": "geoip.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-      "download_detour": "direct"
-    },
-    "geosite": {
-      "path": "geosite.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-      "download_detour": "direct"
-    },
+    "auto_detect_interface": true,
     "rules": [
       {
-        "protocol": "dns",
-        "outbound": "dns-out"
+        "action": "sniff"
       },
       {
-        "geosite": "cn",
-        "geoip": "cn",
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "rule_set": ["geosite-cn"],
         "outbound": "direct"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["category-ads-all"],
+        "action": "reject"
       }
     ],
-    "final": "direct",
-    "auto_detect_interface": true
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "direct"
+      }
+    ],
+    "final": "direct"
   }
 }
 EOF

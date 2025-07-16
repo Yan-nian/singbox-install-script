@@ -54,12 +54,12 @@ generate_base_config() {
         "server": "local"
       },
       {
-        "geosite": "cn",
+        "rule_set": ["geosite-cn"],
         "server": "local"
       },
       {
-        "geosite": "geolocation-!cn",
-        "server": "google"
+        "rule_set": ["category-ads-all"],
+        "server": "block"
       }
     ],
     "final": "direct",
@@ -89,44 +89,45 @@ generate_base_config() {
     }
   ],
   "route": {
-    "geoip": {
-      "path": "geoip.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-      "download_detour": "direct"
-    },
-    "geosite": {
-      "path": "geosite.db",
-      "download_url": "https://mirror.ghproxy.com/https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-      "download_detour": "direct"
-    },
+    "auto_detect_interface": true,
     "rules": [
       {
+        "action": "sniff"
+      },
+      {
         "protocol": "dns",
-        "outbound": "dns-out"
+        "action": "hijack-dns"
       },
       {
-        "geosite": "private",
+        "rule_set": ["geosite-cn"],
         "outbound": "direct"
       },
       {
-        "geoip": "private",
+        "ip_is_private": true,
         "outbound": "direct"
       },
       {
-        "geosite": "cn",
-        "outbound": "direct"
-      },
-      {
-        "geoip": "cn",
-        "outbound": "direct"
-      },
-      {
-        "geosite": "geolocation-!cn",
-        "outbound": "direct"
+        "rule_set": ["category-ads-all"],
+        "action": "reject"
       }
     ],
-    "final": "direct",
-    "auto_detect_interface": true
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-category-ads-all.srs",
+        "download_detour": "direct"
+      }
+    ],
+    "final": "direct"
   },
   "experimental": {
     "cache_file": {

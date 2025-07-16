@@ -844,7 +844,16 @@ change_single_port() {
         save_config
         
         # 重新生成配置文件
-        generate_config
+        local protocols=()
+        [[ -n "$VLESS_PORT" ]] && protocols+=("vless")
+        [[ -n "$VMESS_PORT" ]] && protocols+=("vmess")
+        [[ -n "$HY2_PORT" ]] && protocols+=("hysteria2")
+        
+        if [[ ${#protocols[@]} -gt 0 ]]; then
+            generate_config "${protocols[@]}"
+        else
+            echo -e "${YELLOW}警告: 没有找到已配置的协议${NC}"
+        fi
         
         # 重启服务
         if [[ "$(get_service_status "$SERVICE_NAME")" == "running" ]]; then
@@ -904,7 +913,16 @@ reassign_all_ports() {
     save_config
     
     # 重新生成配置文件
-    generate_config
+    local protocols=()
+    [[ -n "$VLESS_PORT" ]] && protocols+=("vless")
+    [[ -n "$VMESS_PORT" ]] && protocols+=("vmess")
+    [[ -n "$HY2_PORT" ]] && protocols+=("hysteria2")
+    
+    if [[ ${#protocols[@]} -gt 0 ]]; then
+        generate_config "${protocols[@]}"
+    else
+        echo -e "${YELLOW}警告: 没有找到已配置的协议${NC}"
+    fi
     
     # 重启服务
     if [[ "$(get_service_status "$SERVICE_NAME")" == "running" ]]; then
