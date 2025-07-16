@@ -27,37 +27,77 @@ check_execution_environment
 SCRIPT_NAME="Sing-box 精简安装脚本"
 SCRIPT_VERSION="v2.5.0"
 
-# 安全获取脚本目录
-get_script_dir() {
-    local source="${BASH_SOURCE[0]}"
-    local dir
+# 获取脚本的实际路径（增强版）
+get_actual_script_path() {
+    local script_path=""
     
-    # 处理符号链接
-    while [[ -L "$source" ]]; do
-        dir="$(cd -P "$(dirname "$source")" && pwd)"
-        source="$(readlink "$source")"
-        [[ $source != /* ]] && source="$dir/$source"
-    done
-    
-    dir="$(cd -P "$(dirname "$source")" && pwd)"
-    
-    # 如果是通过管道或进程替换执行，尝试其他方法
-    if [[ "$source" == "/dev/fd/"* ]] || [[ "$source" == "/proc/"* ]]; then
-        # 尝试从当前工作目录
-        if [[ -f "$(pwd)/singbox-install.sh" ]]; then
-            dir="$(pwd)"
-        # 尝试从常见位置
-        elif [[ -f "/root/singbox-install.sh" ]]; then
-            dir="/root"
-        elif [[ -f "/tmp/singbox-install.sh" ]]; then
-            dir="/tmp"
-        else
-            # 使用当前目录作为备选
-            dir="$(pwd)"
+    # 方法1: 通过 ps 命令获取当前进程的命令行
+    if command -v ps >/dev/null 2>&1; then
+        script_path=$(ps -o args= -p $$ 2>/dev/null | awk '{print $2}' 2>/dev/null)
+        if [[ -f "$script_path" ]] && [[ "$script_path" != "/dev/fd/"* ]]; then
+            echo "$script_path"
+            return 0
         fi
     fi
     
-    echo "$dir"
+    # 方法2: 检查 /proc/self/cmdline
+    if [[ -r "/proc/self/cmdline" ]]; then
+        script_path=$(tr '\0' ' ' < /proc/self/cmdline 2>/dev/null | awk '{print $2}')
+        if [[ -f "$script_path" ]] && [[ "$script_path" != "/dev/fd/"* ]]; then
+            echo "$script_path"
+            return 0
+        fi
+    fi
+    
+    # 方法3: 使用 realpath 命令
+    if command -v realpath >/dev/null 2>&1; then
+        script_path=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
+        if [[ -f "$script_path" ]] && [[ "$script_path" != "/dev/fd/"* ]]; then
+            echo "$script_path"
+            return 0
+        fi
+    fi
+    
+    # 方法4: 传统方法但排除特殊文件描述符
+    local source="${BASH_SOURCE[0]}"
+    if [[ "$source" != "/dev/fd/"* ]] && [[ "$source" != "/proc/"* ]]; then
+        if [[ "$source" == /* ]] && [[ -f "$source" ]]; then
+            echo "$source"
+            return 0
+        elif [[ -f "$(pwd)/$source" ]]; then
+            echo "$(pwd)/$source"
+            return 0
+        fi
+    fi
+    
+    # 方法5: 在常见位置搜索
+    local possible_paths=(
+        "$(pwd)/singbox-install.sh"
+        "/root/singbox-install.sh"
+        "/tmp/singbox-install.sh"
+        "/home/*/singbox-install.sh"
+        "/opt/singbox/singbox-install.sh"
+    )
+    
+    for path in "${possible_paths[@]}"; do
+        if [[ -f "$path" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    
+    # 如果都失败了，返回空
+    return 1
+}
+
+# 安全获取脚本目录
+get_script_dir() {
+    local script_path=$(get_actual_script_path)
+    if [[ -n "$script_path" ]]; then
+        dirname "$script_path"
+    else
+        pwd
+    fi
 }
 
 SCRIPT_DIR="$(get_script_dir)"
@@ -107,6 +147,36 @@ log_error() {
     fi
 }
 
+# 统一的错误处理函数
+handle_error() {
+    local error_code="$1"
+    local error_message="$2"
+    local suggestion="${3:-}"
+    
+    log_error "错误代码: $error_code - $error_message"
+    echo -e "${RED}[错误 $error_code] $error_message${NC}"
+    
+    if [[ -n "$suggestion" ]]; then
+        echo -e "${YELLOW}建议: $suggestion${NC}"
+    fi
+    
+    # 记录到错误日志
+    mkdir -p "$WORK_DIR" 2>/dev/null || true
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR[$error_code]: $error_message" >> "$WORK_DIR/error.log" 2>/dev/null || true
+}
+
+# 成功操作的确认函数
+confirm_operation() {
+    local operation="$1"
+    local details="$2"
+    
+    echo -e "${GREEN}✓ $operation 成功${NC}"
+    if [[ -n "$details" ]]; then
+        echo -e "${CYAN}  详情: $details${NC}"
+    fi
+    log_info "$operation 成功" "$details"
+}
+
 # 基础验证函数
 validate_port() {
     local port="$1"
@@ -115,6 +185,24 @@ validate_port() {
     else
         return 1
     fi
+}
+
+# 检查PATH环境变量
+check_path_environment() {
+    echo -e "${CYAN}检查PATH环境变量...${NC}"
+    
+    local path_dirs=("/usr/local/bin" "/usr/bin" "$HOME/.local/bin")
+    
+    for dir in "${path_dirs[@]}"; do
+        if [[ ":$PATH:" == *":$dir:"* ]]; then
+            echo -e "${GREEN}✓ $dir 在PATH中${NC}"
+        else
+            echo -e "${YELLOW}⚠ $dir 不在PATH中${NC}"
+            if [[ "$dir" == "$HOME/.local/bin" ]]; then
+                echo -e "${YELLOW}建议添加到 ~/.bashrc: export PATH=\"$dir:\$PATH\"${NC}"
+            fi
+        fi
+    done
 }
 
 # 检查 Sing-box 安装状态
@@ -174,11 +262,12 @@ show_installation_menu() {
         "installed")
             echo "1. 重新安装"
             echo "2. 更新版本"
-            echo "3. 卸载"
+            echo "3. 验证安装"
+            echo "4. 卸载"
             echo "0. 退出"
             echo
             
-            read -p "请选择 [0-3]: " choice
+            read -p "请选择 [0-4]: " choice
             
             case "$choice" in
                 1)
@@ -188,6 +277,11 @@ show_installation_menu() {
                     update_singbox
                     ;;
                 3)
+                    verify_installation
+                    read -p "按回车键返回菜单..." 
+                    show_installation_menu "$install_info"
+                    ;;
+                4)
                     uninstall_singbox
                     ;;
                 0)
@@ -380,7 +474,26 @@ perform_installation() {
         fi
     fi
     
-    echo -e "${GREEN}安装完成！快捷命令 'sb' 已创建。${NC}"
+    echo -e "${GREEN}Sing-box 安装完成！快捷命令 'sb' 已创建。${NC}"
+    echo -e "${CYAN}配置文件位置: $WORK_DIR/config.json${NC}"
+    echo -e "${CYAN}日志文件位置: $LOG_FILE${NC}"
+    echo -e "${CYAN}使用 'sb' 命令快速管理 Sing-box${NC}"
+    echo ""
+    
+    # 自动验证安装
+    echo -e "${CYAN}正在验证安装...${NC}"
+    echo ""
+    if verify_installation; then
+        echo ""
+        echo -e "${YELLOW}请根据需要编辑配置文件，然后启动服务${NC}"
+        echo -e "${CYAN}启动命令: sudo systemctl start sing-box${NC}"
+        echo -e "${CYAN}开机自启: sudo systemctl enable sing-box${NC}"
+    else
+        echo ""
+        echo -e "${RED}安装验证发现问题，请检查上述建议${NC}"
+        echo -e "${YELLOW}可以稍后运行脚本选择 '验证安装' 重新检查${NC}"
+    fi
+    
     if command -v show_main_menu >/dev/null 2>&1; then
         show_main_menu
     fi
@@ -788,7 +901,7 @@ EOF
     echo -e "${GREEN}系统服务创建完成${NC}"
 }
 
-# 创建快捷命令（修复版）
+# 创建快捷命令（增强版）
 create_shortcut_command() {
     echo -e "${CYAN}正在创建快捷命令...${NC}"
     
@@ -797,83 +910,135 @@ create_shortcut_command() {
         # Windows 环境
         echo -e "${YELLOW}检测到 Windows 环境，创建批处理快捷命令...${NC}"
         
+        local script_path=$(get_actual_script_path)
+        if [[ -z "$script_path" ]]; then
+            script_path="$SCRIPT_DIR/singbox-install.sh"
+        fi
+        
         # 创建批处理文件
         local batch_file="/c/Windows/System32/sb.bat"
         cat > "$batch_file" << EOF
 @echo off
 cd /d "%~dp0"
-bash "$SCRIPT_DIR/singbox-install.sh" %*
+bash "$script_path" %*
 EOF
         
-        echo -e "${GREEN}Windows 快捷命令已创建${NC}"
+        confirm_operation "Windows 快捷命令创建" "批处理文件: $batch_file"
         echo -e "${YELLOW}使用方法: 在 CMD 中输入 'sb'${NC}"
-    else
-        # Linux/Unix 环境
-        local shortcut_path="/usr/local/bin/sb"
+        return 0
+    fi
+    
+    # Linux/Unix 环境
+    # 获取脚本的真实路径
+    local script_path=$(get_actual_script_path)
+    
+    # 如果无法自动检测，提供交互式选择
+    if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
+        echo -e "${YELLOW}无法自动检测脚本路径${NC}"
         
-        # 获取脚本的绝对路径 - 修复版本
-        local script_path
+        # 尝试查找可能的脚本位置
+        local found_scripts=()
+        while IFS= read -r -d '' script; do
+            found_scripts+=("$script")
+        done < <(find /root /tmp /home /opt -name "singbox-install.sh" -type f 2>/dev/null | head -5 | tr '\n' '\0')
         
-        # 首先尝试使用 SCRIPT_DIR 变量（在脚本开头定义）
-        if [[ -n "$SCRIPT_DIR" ]] && [[ -f "$SCRIPT_DIR/$(basename "$0")" ]]; then
-            script_path="$SCRIPT_DIR/$(basename "$0")"
-        # 如果 $0 是绝对路径且文件存在
-        elif [[ "$0" == /* ]] && [[ -f "$0" ]] && [[ "$0" != "/dev/fd/"* ]]; then
-            script_path="$0"
-        # 如果 $0 是相对路径
-        elif [[ "$0" != "/dev/fd/"* ]] && [[ -f "$(pwd)/$0" ]]; then
-            script_path="$(pwd)/$0"
-        # 尝试通过 readlink 获取真实路径
-        elif command -v readlink >/dev/null 2>&1 && [[ -f "$0" ]]; then
-            script_path="$(readlink -f "$0" 2>/dev/null)"
-        # 最后的备选方案：在常见位置查找脚本
-        else
-            local possible_paths=(
-                "$SCRIPT_DIR/singbox-install.sh"
-                "/root/singbox-install.sh"
-                "/tmp/singbox-install.sh"
-                "$(pwd)/singbox-install.sh"
-            )
-            
-            for path in "${possible_paths[@]}"; do
-                if [[ -f "$path" ]]; then
-                    script_path="$path"
-                    break
-                fi
+        if [[ ${#found_scripts[@]} -gt 0 ]]; then
+            echo -e "${CYAN}找到以下可能的脚本位置:${NC}"
+            for i in "${!found_scripts[@]}"; do
+                echo -e "  $((i+1)). ${found_scripts[i]}"
             done
+            echo -e "  0. 手动输入路径"
+            
+            read -p "请选择脚本位置 [1-${#found_scripts[@]}/0]: " choice
+            
+            if [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [[ "$choice" -le "${#found_scripts[@]}" ]]; then
+                script_path="${found_scripts[$((choice-1))]}"
+            elif [[ "$choice" == "0" ]]; then
+                read -p "请输入脚本的完整路径: " script_path
+            else
+                handle_error "SC001" "无效选择" "跳过快捷命令创建"
+                return 1
+            fi
+        else
+            read -p "请输入脚本的完整路径 (留空跳过): " script_path
         fi
         
-        # 检查是否找到了有效的脚本路径
-        if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
-            echo -e "${YELLOW}警告: 无法确定脚本路径，跳过快捷命令创建${NC}"
-            echo -e "${YELLOW}手动创建快捷命令: ln -sf /path/to/singbox-install.sh $shortcut_path${NC}"
-            return 0
+        if [[ -z "$script_path" ]]; then
+            echo -e "${YELLOW}跳过快捷命令创建${NC}"
+            return 1
+        fi
+        
+        if [[ ! -f "$script_path" ]]; then
+            handle_error "SC002" "指定的路径无效: $script_path" "请检查文件是否存在"
+            return 1
+        fi
+    fi
+    
+    echo -e "${GREEN}使用脚本路径: $script_path${NC}"
+    
+    # 检查PATH环境变量
+    check_path_environment
+    
+    # 尝试多个可能的快捷命令位置
+    local shortcut_locations=(
+        "/usr/local/bin/sb"
+        "/usr/bin/sb"
+        "$HOME/.local/bin/sb"
+    )
+    
+    local success=false
+    local created_location=""
+    
+    for location in "${shortcut_locations[@]}"; do
+        local dir=$(dirname "$location")
+        
+        # 确保目录存在
+        if [[ ! -d "$dir" ]]; then
+            if mkdir -p "$dir" 2>/dev/null || sudo mkdir -p "$dir" 2>/dev/null; then
+                echo -e "${GREEN}创建目录: $dir${NC}"
+            else
+                echo -e "${YELLOW}无法创建目录: $dir，尝试下一个位置${NC}"
+                continue
+            fi
         fi
         
         # 删除已存在的符号链接（包括损坏的）
-        if [[ -L "$shortcut_path" ]] || [[ -f "$shortcut_path" ]]; then
-            rm -f "$shortcut_path" 2>/dev/null || sudo rm -f "$shortcut_path" 2>/dev/null
+        if [[ -L "$location" ]] || [[ -f "$location" ]]; then
+            rm -f "$location" 2>/dev/null || sudo rm -f "$location" 2>/dev/null
         fi
         
-        # 创建新的符号链接
-        if ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
-            chmod +x "$shortcut_path" 2>/dev/null
-            echo -e "${GREEN}快捷命令已创建: $shortcut_path -> $script_path${NC}"
-        elif command -v sudo >/dev/null 2>&1; then
-            # 使用sudo重试
-            if sudo ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
-                sudo chmod +x "$shortcut_path" 2>/dev/null
-                echo -e "${GREEN}快捷命令已创建: $shortcut_path -> $script_path${NC}"
-            else
-                echo -e "${YELLOW}警告: 无法创建快捷命令${NC}"
-                echo -e "${YELLOW}手动创建: sudo ln -sf \"$script_path\" $shortcut_path${NC}"
-            fi
+        # 创建符号链接
+        if ln -sf "$script_path" "$location" 2>/dev/null; then
+            chmod +x "$location" 2>/dev/null
+            success=true
+            created_location="$location"
+            break
+        elif command -v sudo >/dev/null 2>&1 && sudo ln -sf "$script_path" "$location" 2>/dev/null; then
+            sudo chmod +x "$location" 2>/dev/null
+            success=true
+            created_location="$location"
+            break
         else
-            echo -e "${YELLOW}警告: 权限不足，无法创建快捷命令${NC}"
-            echo -e "${YELLOW}手动创建: ln -sf \"$script_path\" $shortcut_path${NC}"
+            echo -e "${YELLOW}无法在 $location 创建快捷命令，尝试下一个位置${NC}"
+        fi
+    done
+    
+    if [[ "$success" == "true" ]]; then
+        confirm_operation "快捷命令创建" "$created_location -> $script_path"
+        
+        # 验证快捷命令是否可用
+        if command -v sb >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ 快捷命令 'sb' 验证成功${NC}"
+        else
+            echo -e "${YELLOW}⚠ 快捷命令已创建但可能需要重新加载 shell 或重新登录${NC}"
+            echo -e "${YELLOW}或者运行: export PATH=\"$(dirname "$created_location"):\$PATH\"${NC}"
         fi
         
         echo -e "${CYAN}使用方法: 输入 'sb' 命令${NC}"
+        return 0
+    else
+        handle_error "SC003" "快捷命令创建失败" "请手动创建: sudo ln -sf \"$script_path\" /usr/local/bin/sb"
+        return 1
     fi
 }
 
@@ -899,6 +1064,215 @@ create_directories() {
     chmod 644 "$LOG_FILE"
     
     echo -e "${GREEN}工作目录创建完成${NC}"
+}
+
+# 手动修复快捷命令
+manual_fix_shortcut() {
+    echo -e "${CYAN}=== 手动修复快捷命令 ===${NC}"
+    
+    # 获取脚本路径
+    local script_path=$(get_actual_script_path)
+    if [[ -z "$script_path" ]] || [[ ! -f "$script_path" ]]; then
+        echo -e "${RED}无法确定脚本路径，请手动操作${NC}"
+        echo -e "${YELLOW}手动创建步骤:${NC}"
+        echo -e "${CYAN}1. 找到此脚本的完整路径${NC}"
+        echo -e "${CYAN}2. 运行: sudo ln -sf /path/to/script /usr/local/bin/sb${NC}"
+        echo -e "${CYAN}3. 运行: sudo chmod +x /usr/local/bin/sb${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}找到脚本路径: $script_path${NC}"
+    
+    # 尝试创建到不同位置
+    local target_dirs=("/usr/local/bin" "/usr/bin" "$HOME/.local/bin")
+    local success=false
+    
+    for target_dir in "${target_dirs[@]}"; do
+        if [[ -d "$target_dir" ]] || mkdir -p "$target_dir" 2>/dev/null; then
+            local target_path="$target_dir/sb"
+            
+            if ln -sf "$script_path" "$target_path" 2>/dev/null && chmod +x "$target_path" 2>/dev/null; then
+                echo -e "${GREEN}✓ 成功创建快捷命令: $target_path${NC}"
+                success=true
+                
+                # 检查是否在PATH中
+                if [[ ":$PATH:" == *":$target_dir:"* ]]; then
+                    echo -e "${GREEN}✓ $target_dir 已在 PATH 中${NC}"
+                else
+                    echo -e "${YELLOW}⚠ $target_dir 不在 PATH 中${NC}"
+                    echo -e "${CYAN}建议添加到 ~/.bashrc 或 ~/.profile:${NC}"
+                    echo -e "${CYAN}export PATH=\"$target_dir:\$PATH\"${NC}"
+                fi
+                break
+            else
+                echo -e "${RED}✗ 无法创建到 $target_path${NC}"
+            fi
+        else
+            echo -e "${RED}✗ 无法访问目录 $target_dir${NC}"
+        fi
+    done
+    
+    if [[ "$success" == "true" ]]; then
+        echo -e "${GREEN}快捷命令修复完成！${NC}"
+        echo -e "${CYAN}测试命令: sb --help${NC}"
+        
+        # 重新加载命令缓存
+        hash -r 2>/dev/null || true
+        
+        # 测试命令
+        if command -v sb >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ 'sb' 命令现在可用${NC}"
+        else
+            echo -e "${YELLOW}⚠ 'sb' 命令仍不可用，可能需要重新加载 shell${NC}"
+            echo -e "${CYAN}尝试运行: source ~/.bashrc 或重新打开终端${NC}"
+        fi
+    else
+        echo -e "${RED}快捷命令修复失败${NC}"
+        echo -e "${YELLOW}请手动创建或联系管理员${NC}"
+        return 1
+    fi
+}
+
+# 安装后验证功能
+verify_installation() {
+    echo -e "${CYAN}=== 安装验证 ===${NC}"
+    
+    local issues=()
+    local warnings=()
+    
+    # 检查二进制文件
+    if [[ -f "$SINGBOX_BINARY" ]] && [[ -x "$SINGBOX_BINARY" ]]; then
+        local version=$($SINGBOX_BINARY version 2>/dev/null | head -1 || echo "未知版本")
+        confirm_operation "Sing-box 二进制文件检查" "路径: $SINGBOX_BINARY, 版本: $version"
+    else
+        echo -e "${RED}✗ Sing-box 二进制文件异常${NC}"
+        issues+=("binary")
+    fi
+    
+    # 检查系统服务
+    if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
+        if systemctl is-enabled sing-box >/dev/null 2>&1; then
+            confirm_operation "系统服务检查" "已安装并启用"
+        else
+            echo -e "${YELLOW}⚠ 系统服务已安装但未启用${NC}"
+            warnings+=("service_disabled")
+        fi
+    else
+        echo -e "${RED}✗ 系统服务未安装${NC}"
+        issues+=("service")
+    fi
+    
+    # 检查快捷命令
+    if command -v sb >/dev/null 2>&1; then
+        local sb_path=$(which sb 2>/dev/null)
+        confirm_operation "快捷命令检查" "路径: $sb_path"
+    else
+        echo -e "${YELLOW}⚠ 快捷命令 'sb' 不可用${NC}"
+        warnings+=("shortcut")
+    fi
+    
+    # 检查配置目录
+    if [[ -d "$WORK_DIR" ]]; then
+        local dir_size=$(du -sh "$WORK_DIR" 2>/dev/null | cut -f1 || echo "未知")
+        confirm_operation "工作目录检查" "路径: $WORK_DIR, 大小: $dir_size"
+    else
+        echo -e "${RED}✗ 工作目录不存在${NC}"
+        issues+=("workdir")
+    fi
+    
+    # 检查日志文件
+    if [[ -f "$LOG_FILE" ]]; then
+        echo -e "${GREEN}✓ 日志文件存在: $LOG_FILE${NC}"
+    else
+        echo -e "${YELLOW}⚠ 日志文件不存在${NC}"
+        warnings+=("logfile")
+    fi
+    
+    # 检查网络连接（可选）
+    if command -v curl >/dev/null 2>&1; then
+        if curl -s --max-time 5 --connect-timeout 3 https://www.google.com >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ 网络连接正常${NC}"
+        else
+            echo -e "${YELLOW}⚠ 网络连接可能有问题${NC}"
+            warnings+=("network")
+        fi
+    fi
+    
+    echo ""
+    
+    # 提供修复建议
+    if [[ ${#issues[@]} -gt 0 ]]; then
+        echo -e "${RED}发现 ${#issues[@]} 个严重问题:${NC}"
+        for issue in "${issues[@]}"; do
+            case "$issue" in
+                "binary")
+                    echo -e "${RED}  • 二进制文件问题${NC}"
+                    echo -e "${YELLOW}    修复: 重新运行安装或手动下载二进制文件${NC}"
+                    ;;
+                "service")
+                    echo -e "${RED}  • 系统服务问题${NC}"
+                    echo -e "${YELLOW}    修复: sudo systemctl enable sing-box${NC}"
+                    ;;
+                "workdir")
+                    echo -e "${RED}  • 工作目录问题${NC}"
+                    echo -e "${YELLOW}    修复: sudo mkdir -p $WORK_DIR${NC}"
+                    ;;
+            esac
+        done
+        echo ""
+    fi
+    
+    if [[ ${#warnings[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}发现 ${#warnings[@]} 个警告:${NC}"
+        for warning in "${warnings[@]}"; do
+            case "$warning" in
+                 "shortcut")
+                     echo -e "${YELLOW}  • 快捷命令不可用${NC}"
+                     echo -e "${CYAN}    建议: 重新加载 shell 或运行 'hash -r'${NC}"
+                     echo -e "${CYAN}    或者: 运行手动修复功能${NC}"
+                     ;;
+                "service_disabled")
+                    echo -e "${YELLOW}  • 服务未启用${NC}"
+                    echo -e "${CYAN}    建议: sudo systemctl enable sing-box${NC}"
+                    ;;
+                "logfile")
+                    echo -e "${YELLOW}  • 日志文件缺失${NC}"
+                    echo -e "${CYAN}    建议: sudo touch $LOG_FILE${NC}"
+                    ;;
+                "network")
+                    echo -e "${YELLOW}  • 网络连接异常${NC}"
+                    echo -e "${CYAN}    建议: 检查网络设置和防火墙${NC}"
+                    ;;
+            esac
+        done
+        echo ""
+    fi
+    
+    if [[ ${#issues[@]} -eq 0 ]] && [[ ${#warnings[@]} -eq 0 ]]; then
+        echo -e "${GREEN}🎉 所有组件安装正常！${NC}"
+        echo -e "${CYAN}可以开始配置和使用 Sing-box 了${NC}"
+    elif [[ ${#issues[@]} -eq 0 ]]; then
+        echo -e "${GREEN}✅ 核心组件安装正常${NC}"
+        echo -e "${YELLOW}建议处理上述警告以获得最佳体验${NC}"
+        
+        # 检查是否有快捷命令问题，提供自动修复选项
+        for warning in "${warnings[@]}"; do
+            if [[ "$warning" == "shortcut" ]]; then
+                echo ""
+                read -p "是否要尝试自动修复快捷命令？[y/N]: " fix_shortcut
+                if [[ "$fix_shortcut" =~ ^[Yy]$ ]]; then
+                    echo ""
+                    manual_fix_shortcut
+                fi
+                break
+            fi
+        done
+    else
+        echo -e "${RED}❌ 安装存在问题，建议修复后再使用${NC}"
+        return 1
+    fi
+    
+    return 0
 }
 
 # 清理临时文件
@@ -970,6 +1344,10 @@ case "${1:-}" in
         check_root
         uninstall_singbox
         ;;
+    --verify)
+        check_root
+        verify_installation
+        ;;
     --help|-h)
         echo -e "${CYAN}$SCRIPT_NAME $SCRIPT_VERSION${NC}"
         echo ""
@@ -977,6 +1355,7 @@ case "${1:-}" in
         echo -e "  $0                # 启动交互式菜单"
         echo -e "  $0 --install      # 直接安装"
         echo -e "  $0 --uninstall    # 一键完全卸载"
+        echo -e "  $0 --verify       # 验证安装状态"
         echo -e "  $0 --help         # 显示帮助"
         echo ""
         echo -e "${YELLOW}快捷命令:${NC}"
