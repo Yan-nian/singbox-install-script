@@ -361,10 +361,43 @@ perform_installation() {
         log_info "开始安装Sing-box" "系统: $OS_TYPE"
     fi
     
+    # 检查是否为覆盖安装
+    local is_reinstall=false
+    if [[ -f "$SINGBOX_BINARY" ]] || systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
+        is_reinstall=true
+        echo -e "${YELLOW}检测到现有安装，执行覆盖安装...${NC}"
+        
+        # 停止现有服务
+        if systemctl is-active sing-box >/dev/null 2>&1; then
+            echo -e "${YELLOW}停止现有 Sing-box 服务...${NC}"
+            systemctl stop sing-box
+        fi
+        
+        # 备份现有配置
+        if [[ -f "$CONFIG_FILE" ]]; then
+            local backup_file="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+            cp "$CONFIG_FILE" "$backup_file"
+            echo -e "${GREEN}配置已备份到: $backup_file${NC}"
+        fi
+    fi
+    
     install_dependencies
     install_singbox
     create_service
     ln -sf "$SCRIPT_DIR/singbox-install.sh" /usr/local/bin/sb
+    
+    # 如果是覆盖安装，尝试恢复配置
+    if [[ "$is_reinstall" == "true" ]] && [[ -f "$CONFIG_FILE" ]]; then
+        echo -e "${CYAN}检测到现有配置，尝试重启服务...${NC}"
+        if systemctl is-enabled sing-box >/dev/null 2>&1; then
+            systemctl start sing-box
+            if systemctl is-active sing-box >/dev/null 2>&1; then
+                echo -e "${GREEN}服务已重启并运行正常${NC}"
+            else
+                echo -e "${YELLOW}服务重启失败，可能需要重新配置${NC}"
+            fi
+        fi
+    fi
     
     # 记录安装完成
     if command -v log_info >/dev/null 2>&1; then
