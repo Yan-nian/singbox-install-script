@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+﻿#!/bin/sh
 
 # Sing-box 全能一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
@@ -6,27 +6,21 @@
 # 更新时间: 2025-01-16
 # 特点: 无需外部模块，所有功能集成在一个文件中
 
-# 确保使用bash运行
-if [ -z "$BASH_VERSION" ]; then
-    echo "错误: 此脚本需要bash运行，请使用: bash $0" >&2
-    exit 1
-fi
-
-# 检查bash版本（需要4.0+）
-if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
-    echo "错误: 需要bash 4.0或更高版本，当前版本: $BASH_VERSION" >&2
+# 确保使用POSIX shell运行
+if [ -z "$0" ]; then
+    echo "错误: 无法确定脚本路径" >&2
     exit 1
 fi
 
 # 设置错误处理
-set -euo pipefail
+set -eu
 
 # ==================== 系统兼容性检�?====================
 
 # 检查操作系统兼容性
 check_os_compatibility() {
     # 检查是否为Linux系统
-    if [[ "$(uname -s)" != "Linux" ]]; then
+    if [ "$(uname -s)" != "Linux" ]; then
         echo -e "\033[0;31m错误: 此脚本仅支持 Linux 系统\033[0m"
         echo -e "\033[1;33m检测到的系�? $(uname -s)\033[0m"
         echo ""
@@ -54,7 +48,7 @@ check_os_compatibility() {
     
     # 检查基本命令
     local missing_commands=""
-    for cmd in bash curl tar grep sed awk; do
+    for cmd in sh curl tar grep sed awk; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             if [ -z "$missing_commands" ]; then
                 missing_commands="$cmd"
@@ -169,7 +163,7 @@ generate_simple_qr() {
     echo ""
     
     # 创建简单的ASCII二维码框架
-    echo "$(printf '%.0s' $(seq 1 $((size*2))))"
+    echo "$(printf '%.0s' $(seq 1 $[ $[ $((size*2)) ] ]))"
     # 生成伪随机模式（基于文本内容）
     
     # 生成文本的简单哈希
@@ -179,11 +173,11 @@ generate_simple_qr() {
         echo -n "█"
         for j in $(seq 1 $size); do
             # 基于位置和哈希生成模式
-            local pos=$((i * size + j))
-            local char_pos=$((pos % ${#hash}))
+            local pos=$[ $[ $((i * size + j)) ] ]
+            local char_pos=$[ $[ $((pos % ${#hash})) ] ]
             local char_val=$(printf "%d" "'${hash:$char_pos:1}" 2>/dev/null || echo "65")
             
-            if [ $((char_val % 3)) -eq 0 ]; then
+            if [ $[ $[ $((char_val % 3)) ] ] -eq 0 ]; then
                 echo -n "██"
             else
                 echo -n "  "
@@ -192,7 +186,7 @@ generate_simple_qr() {
         echo "█"
     done
     
-    echo "$(printf '%.0s' $(seq 1 $((size*2))))"
+    echo "$(printf '%.0s' $(seq 1 $[ $[ $((size*2)) ] ]))"
     echo ""
     echo -e "${YELLOW}注意: 这是装饰性二维码，请使用下方的文本链接${NC}"
     echo ""
@@ -241,7 +235,7 @@ show_protocol_qr() {
     
     case "$protocol" in
         "vless")
-            if [[ -n "$VLESS_UUID" ]]; then
+            if [ -n "$VLESS_UUID" ]; then
                 local share_link=$(generate_vless_share_link)
                 generate_qr_code "$share_link" "VLESS Reality"
                 echo -e "${GREEN}分享链接:${NC}"
@@ -251,7 +245,7 @@ show_protocol_qr() {
             fi
             ;;
         "vmess")
-            if [[ -n "$VMESS_UUID" ]]; then
+            if [ -n "$VMESS_UUID" ]; then
                 local share_link=$(generate_vmess_share_link)
                 generate_qr_code "$share_link" "VMess WebSocket"
                 echo -e "${GREEN}分享链接:${NC}"
@@ -261,7 +255,7 @@ show_protocol_qr() {
             fi
             ;;
         "hysteria2")
-            if [[ -n "$HY2_PASSWORD" ]]; then
+            if [ -n "$HY2_PASSWORD" ]; then
                 local share_link=$(generate_hysteria2_share_link)
                 generate_qr_code "$share_link" "Hysteria2"
                 echo -e "${GREEN}分享链接:${NC}"
@@ -291,7 +285,7 @@ show_all_qr_codes() {
     local has_config=false
     
     # VLESS Reality
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         show_protocol_qr "vless"
         has_config=true
         echo -e "${YELLOW}$(printf '=%.0s' {1..60})${NC}"
@@ -299,7 +293,7 @@ show_all_qr_codes() {
     fi
     
     # VMess WebSocket
-    if [[ -n "$VMESS_UUID" ]]; then
+    if [ -n "$VMESS_UUID" ]; then
         show_protocol_qr "vmess"
         has_config=true
         echo -e "${YELLOW}$(printf '=%.0s' {1..60})${NC}"
@@ -307,12 +301,12 @@ show_all_qr_codes() {
     fi
     
     # Hysteria2
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    if [ -n "$HY2_PASSWORD" ]; then
         show_protocol_qr "hysteria2"
         has_config=true
     fi
     
-    if [[ "$has_config" == "false" ]]; then
+    if [ "$has_config" == "false" ]; then
         echo -e "${YELLOW}暂无已配置的协议${NC}"
         echo -e "${YELLOW}请先配置协议后再生成二维码${NC}"
     fi
@@ -333,27 +327,27 @@ show_qr_menu() {
         local option=1
         
         # 显示可用的协议选项
-        if [[ -n "$VLESS_UUID" ]]; then
+        if [ -n "$VLESS_UUID" ]; then
             echo -e "  ${GREEN}$option.${NC} VLESS Reality (端口: $VLESS_PORT)"
-            ((option++))
+            [ $[ $((option++)) ] ]
         fi
         
-        if [[ -n "$VMESS_UUID" ]]; then
+        if [ -n "$VMESS_UUID" ]; then
             echo -e "  ${GREEN}$option.${NC} VMess WebSocket (端口: $VMESS_PORT)"
-            ((option++))
+            [ $[ $((option++)) ] ]
         fi
         
-        if [[ -n "$HY2_PASSWORD" ]]; then
+        if [ -n "$HY2_PASSWORD" ]; then
             echo -e "  ${GREEN}$option.${NC} Hysteria2 (端口: $HY2_PORT)"
-            ((option++))
+            [ $[ $((option++)) ] ]
         fi
         
         echo -e "  ${GREEN}$option.${NC} 显示所有协议二维码"
-        ((option++))
+        [ $[ $((option++)) ] ]
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
-        if [[ $option -eq 1 ]]; then
+        if [ "$1" -eq "1" ]; then
             echo -e "${YELLOW}暂无已配置的协议，请先配置协议${NC}"
             echo ""
             wait_for_input
@@ -361,7 +355,7 @@ show_qr_menu() {
         fi
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-$((option-1))]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-$[ $[ $((option-1)) ] ]]: ${NC}"
         read -r choice
         
         case "$choice" in
@@ -369,34 +363,34 @@ show_qr_menu() {
             *)
                 local current_option=1
                 
-                if [[ -n "$VLESS_UUID" ]]; then
-                    if [[ "$choice" == "$current_option" ]]; then
+                if [ -n "$VLESS_UUID" ]; then
+                    if [ "$choice" == "$current_option" ]; then
                         show_protocol_qr "vless"
                         wait_for_input
                         continue
                     fi
-                    ((current_option++))
+                    [ $[ $((current_option++)) ] ]
                 fi
                 
-                if [[ -n "$VMESS_UUID" ]]; then
-                    if [[ "$choice" == "$current_option" ]]; then
+                if [ -n "$VMESS_UUID" ]; then
+                    if [ "$choice" == "$current_option" ]; then
                         show_protocol_qr "vmess"
                         wait_for_input
                         continue
                     fi
-                    ((current_option++))
+                    [ $[ $((current_option++)) ] ]
                 fi
                 
-                if [[ -n "$HY2_PASSWORD" ]]; then
-                    if [[ "$choice" == "$current_option" ]]; then
+                if [ -n "$HY2_PASSWORD" ]; then
+                    if [ "$choice" == "$current_option" ]; then
                         show_protocol_qr "hysteria2"
                         wait_for_input
                         continue
                     fi
-                    ((current_option++))
+                    [ $[ $((current_option++)) ] ]
                 fi
                 
-                if [[ "$choice" == "$current_option" ]]; then
+                if [ "$choice" == "$current_option" ]; then
                     show_all_qr_codes
                     continue
                 fi
@@ -432,7 +426,7 @@ log_message() {
             echo -e "${GREEN}[信息] $message${NC}"
             ;;
         "DEBUG")
-            if [[ "$DEBUG" == "true" ]]; then
+            if [ "$DEBUG" == "true" ]; then
                 echo -e "${CYAN}[调试] $message${NC}"
             fi
             ;;
@@ -452,7 +446,7 @@ handle_error() {
     
     # 记录调用栈
      log_message "DEBUG" "调用栈"
-    for ((i=1; i<${#FUNCNAME[@]}; i++)); do
+    for ((i=1; i<$(echo "${1}" | wc -w); i++)); do
         log_message "DEBUG" "  $i: ${FUNCNAME[i]} (${BASH_SOURCE[i]}:${BASH_LINENO[i-1]})"
     done
     
@@ -482,7 +476,7 @@ log_info() {
     local details="${2:-}"
     echo -e "${GREEN}[INFO] $message${NC}"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $message" >> "$LOG_FILE" 2>/dev/null || true
-    if [[ -n "$details" ]]; then
+    if [ -n "$details" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Details: $details" >> "$LOG_FILE" 2>/dev/null || true
     fi
 }
@@ -502,7 +496,7 @@ log_error() {
     local details="${2:-}"
     echo -e "${RED}[ERROR] $message${NC}"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $message" >> "$LOG_FILE" 2>/dev/null || true
-    if [[ -n "$details" ]]; then
+    if [ -n "$details" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Details: $details" >> "$LOG_FILE" 2>/dev/null || true
     fi
 }
@@ -518,7 +512,7 @@ generate_random_string() {
     local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local result=''
     
-    for ((i=0; i<length; i++)); do
+    for [ $[ $((i=0; i<length; i++)) ] ]; do
         result+="${chars:RANDOM%${#chars}:1}"
     done
     
@@ -529,7 +523,7 @@ generate_random_string() {
 generate_uuid() {
     if command_exists uuidgen; then
         uuidgen
-    elif [[ -r /proc/sys/kernel/random/uuid ]]; then
+    elif [ -r /proc/sys/kernel/random/uuid ]; then
         cat /proc/sys/kernel/random/uuid
     else
         # 使用 openssl 生成
@@ -550,7 +544,7 @@ check_port() {
 get_random_port() {
     local port
     while true; do
-        port=$((RANDOM % 55535 + 10000))
+        port=$[ $[ $((RANDOM % 55535 + 10000)) ] ]
         if ! check_port "$port"; then
             echo "$port"
             break
@@ -566,7 +560,7 @@ get_public_ip() {
          curl -s --max-time 10 ip.sb 2>/dev/null || 
          echo "")
     
-    if [[ -n "$ip" ]]; then
+    if [ -n "$ip" ]; then
         echo "$ip"
     else
         log_warn "无法获取公网 IP"
@@ -577,7 +571,7 @@ get_public_ip() {
 # 验证端口范围
 validate_port() {
     local port="$1"
-    if [[ "$port" =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)); then
+    if echo "$port" | grep -E '^[0-9]+$' >/dev/null && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
         return 0
     else
         return 1
@@ -631,31 +625,31 @@ get_service_status_description() {
 }
 
 # 检查安装状�?check_installation_status() {
-    local issues=()
+    local issues=""
     
     # 检查二进制文件
-    if [[ ! -f "$SINGBOX_BINARY" ]]; then
-        issues+=("Sing-box 二进制文件未安装")
-    elif [[ ! -x "$SINGBOX_BINARY" ]]; then
-        issues+=("Sing-box 二进制文件无执行权限")
+    if [ ! -f "$SINGBOX_BINARY" ]; then
+        issues="$issues Sing-box 二进制文件未安装"
+    elif [ ! -x "$SINGBOX_BINARY" ]; then
+        issues="$issues Sing-box 二进制文件无执行权限"
     fi
     
     # 检查服务文�?    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$SERVICE_NAME.service"; then
-        issues+=("systemd 服务文件未创�?)
+        issues="$issues systemd 服务文件未创建"
     fi
     
-    # 检查工作目�?    if [[ ! -d "$WORK_DIR" ]]; then
-        issues+=("工作目录不存�?)
+    # 检查工作目�?    if [ ! -d "$WORK_DIR" ]; then
+        issues="$issues 工作目录不存在"
     fi
     
-    # 检查配置文�?    if [[ ! -f "$CONFIG_FILE" ]]; then
-        issues+=("配置文件不存�?)
+    # 检查配置文�?    if [ ! -f "$CONFIG_FILE" ]; then
+        issues="$issues 配置文件不存在"
     fi
     
-    if [[ ${#issues[@]} -gt 0 ]]; then
+    if [ -n "$issues" ]; then
         echo -e "${RED}发现安装问题:${NC}"
-        for issue in "${issues[@]}"; do
-            echo -e "  ${RED}�?{NC} $issue"
+        for issue in $issues; do
+            echo -e "  ${RED}✗${NC} $issue"
         done
         echo ""
         echo -e "${YELLOW}建议: 请先完成 Sing-box 的完整安�?{NC}"
@@ -677,7 +671,7 @@ start_service() {
     fi
     
     # 验证配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         if ! "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
             log_error "配置文件验证失败: $CONFIG_FILE"
             log_error "请检查配置文件语法或重新生成配置"
@@ -749,7 +743,7 @@ show_service_diagnostics() {
     fi
     
     # 检查配置文�?    echo -e "${CYAN}配置文件检�?${NC}"
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         echo "�?配置文件存在: $CONFIG_FILE"
         if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
             echo "�?配置文件语法正确"
@@ -765,7 +759,7 @@ show_service_diagnostics() {
     
     # 检查二进制文件
     echo -e "${CYAN}二进制文件检�?${NC}"
-    if [[ -f "$SINGBOX_BINARY" ]]; then
+    if [ -f "$SINGBOX_BINARY" ]; then
         echo "�?Sing-box 二进制文件存�? $SINGBOX_BINARY"
         if "$SINGBOX_BINARY" version >/dev/null 2>&1; then
             local version=$("$SINGBOX_BINARY" version 2>/dev/null | head -n1 || echo "未知版本")
@@ -782,12 +776,12 @@ show_service_diagnostics() {
     
     # 检查端口占�?    echo -e "${CYAN}端口占用检�?${NC}"
     local ports_to_check=()
-    [[ -n "$VLESS_PORT" ]] && ports_to_check+=("$VLESS_PORT")
-    [[ -n "$VMESS_PORT" ]] && ports_to_check+=("$VMESS_PORT")
-    [[ -n "$HY2_PORT" ]] && ports_to_check+=("$HY2_PORT")
+    [ -n "$VLESS_PORT" ] && ports_to_check="$1 $VLESS_PORT"
+    [ -n "$VMESS_PORT" ] && ports_to_check="$1 $VMESS_PORT"
+    [ -n "$HY2_PORT" ] && ports_to_check="$1 $HY2_PORT"
     
-    if [[ ${#ports_to_check[@]} -gt 0 ]]; then
-        for port in "${ports_to_check[@]}"; do
+    if [ $(echo "${1}" | wc -w) -gt 0 ]; then
+        for port in "$1"; do
             if check_port "$port"; then
                 echo "�?端口 $port 被占�?
                 echo "  占用进程: $(ss -tulpn | grep ":$port " | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 || echo '未知')"
@@ -814,17 +808,17 @@ show_service_diagnostics() {
     echo -n -e "${YELLOW}是否尝试自动修复常见问题? [y/N]: ${NC}"
     read -r auto_fix
     
-    if [[ "$auto_fix" =~ ^[Yy]$ ]]; then
+    if echo "$auto_fix" | grep -E '^[Yy]$' >/dev/null; then
         echo ""
         echo -e "${CYAN}正在尝试自动修复...${NC}"
         
         # 1. 检查并修复配置文件权限
-        if [[ -f "$CONFIG_FILE" ]]; then
+        if [ -f "$CONFIG_FILE" ]; then
             chmod 644 "$CONFIG_FILE"
             echo "�?已修复配置文件权�?
         fi
         
-        # 2. 检查并修复二进制文件权�?        if [[ -f "$SINGBOX_BINARY" ]]; then
+        # 2. 检查并修复二进制文件权�?        if [ -f "$SINGBOX_BINARY" ]; then
             chmod +x "$SINGBOX_BINARY"
             echo "�?已修复二进制文件权限"
         fi
@@ -852,7 +846,7 @@ restart_service() {
     log_message "INFO" "开始重启服�? $service"
     
     # 验证配置文件
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         log_message "DEBUG" "正在验证配置文件"
         if ! "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
             handle_error 1 "配置文件验证失败"
@@ -884,7 +878,7 @@ restart_service() {
     # 检查服务状�?    local max_attempts=10
     local attempt=1
     
-    while [[ $attempt -le $max_attempts ]]; do
+    while [ $attempt -le $max_attempts ]; do
         if systemctl is-active "$service" >/dev/null 2>&1; then
             log_message "INFO" "服务 $service 重启成功"
             return 0
@@ -892,7 +886,7 @@ restart_service() {
         
         log_message "DEBUG" "等待服务启动 (尝试 $attempt/$max_attempts)"
         sleep 2
-        ((attempt++))
+        [ $[ $((attempt++)) ] ]
     done
     
     # 服务启动失败，获取详细错误信�?    local service_status
@@ -915,7 +909,7 @@ wait_for_input() {
 
 # 检�?root 权限
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
+    if [ $EUID -ne 0 ]; then
         echo -e "${RED}错误: 此脚本需�?root 权限运行${NC}"
         echo -e "${YELLOW}请使�?sudo 或切换到 root 用户${NC}"
         exit 1
@@ -923,10 +917,10 @@ check_root() {
 }
 
 # 检测系统信�?detect_system() {
-    # 检测操作系�?    if [[ -f /etc/os-release ]]; then
+    # 检测操作系�?    if [ -f /etc/os-release ]; then
         source /etc/os-release
         OS="$ID"
-    elif [[ -f /etc/redhat-release ]]; then
+    elif [ -f /etc/redhat-release ]; then
         OS="centos"
     else
         echo -e "${RED}错误: 不支持的操作系统${NC}"
@@ -961,24 +955,24 @@ install_dependencies() {
     local missing_deps=()
     
     if ! command -v curl >/dev/null 2>&1; then
-        missing_deps+=("curl")
+        missing_deps="$1 curl"
     fi
     
     if ! command -v tar >/dev/null 2>&1; then
-        missing_deps+=("tar")
+        missing_deps="$1 tar"
     fi
     
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+    if [ $(echo "${1}" | wc -w) -gt 0 ]; then
         echo -e "${YELLOW}正在安装缺失的依�? ${missing_deps[*]}${NC}"
         
         # 根据系统类型安装依赖
         if command -v apt-get >/dev/null 2>&1; then
             apt-get update >/dev/null 2>&1
-            apt-get install -y "${missing_deps[@]}" >/dev/null 2>&1
+            apt-get install -y "$1" >/dev/null 2>&1
         elif command -v yum >/dev/null 2>&1; then
-            yum install -y "${missing_deps[@]}" >/dev/null 2>&1
+            yum install -y "$1" >/dev/null 2>&1
         elif command -v dnf >/dev/null 2>&1; then
-            dnf install -y "${missing_deps[@]}" >/dev/null 2>&1
+            dnf install -y "$1" >/dev/null 2>&1
         else
             echo -e "${RED}错误: 无法自动安装依赖，请手动安装: ${missing_deps[*]}${NC}"
             exit 1
@@ -1009,7 +1003,7 @@ create_directories() {
 download_and_install_singbox() {
     log_message "INFO" "开始下载和安装 Sing-box"
     
-    # 检查系统架�?    if [[ -z "$ARCH" ]]; then
+    # 检查系统架�?    if [ -z "$ARCH" ]; then
         handle_error 1 "系统架构未检�?
         return 1
     fi
@@ -1022,7 +1016,7 @@ download_and_install_singbox() {
         return 1
     fi
     
-    if [[ -z "$latest_version" ]]; then
+    if [ -z "$latest_version" ]; then
         handle_error 1 "无法解析最新版本信�?
         return 1
     fi
@@ -1041,7 +1035,7 @@ download_and_install_singbox() {
         return 1
     fi
     
-    # 验证下载的文�?    if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
+    # 验证下载的文�?    if [ ! -f "$temp_file" ] || [ ! -s "$temp_file" ]; then
         handle_error 1 "下载的文件无效或为空"
         rm -f "$temp_file"
         return 1
@@ -1062,7 +1056,7 @@ download_and_install_singbox() {
     fi
     
     # 验证解压的二进制文件
-    if [[ ! -f "$extract_dir/sing-box" ]]; then
+    if [ ! -f "$extract_dir/sing-box" ]; then
         handle_error 1 "解压后未找到 sing-box 二进制文�?
         rm -rf "$temp_file" "$extract_dir"
         return 1
@@ -1129,19 +1123,19 @@ EOF
 # 生成 Reality 密钥�?generate_reality_keypair() {
     local keypair
     
-    # 检�?sing-box 二进制文件是否存�?    if [[ ! -f "$SINGBOX_BINARY" ]]; then
+    # 检�?sing-box 二进制文件是否存�?    if [ ! -f "$SINGBOX_BINARY" ]; then
         log_error "Sing-box 二进制文件不存在: $SINGBOX_BINARY"
         return 1
     fi
     
     keypair=$($SINGBOX_BINARY generate reality-keypair 2>/dev/null)
     
-    if [[ -n "$keypair" ]]; then
+    if [ -n "$keypair" ]; then
         VLESS_PRIVATE_KEY=$(echo "$keypair" | grep "PrivateKey" | awk '{print $2}')
         VLESS_PUBLIC_KEY=$(echo "$keypair" | grep "PublicKey" | awk '{print $2}')
         
         # 验证密钥格式
-        if [[ -n "$VLESS_PRIVATE_KEY" ]] && [[ -n "$VLESS_PUBLIC_KEY" ]]; then
+        if [ -n "$VLESS_PRIVATE_KEY" ] && [ -n "$VLESS_PUBLIC_KEY" ]; then
             log_success "Reality 密钥对生成成�?
         else
             log_error "密钥对格式验证失�?
@@ -1186,8 +1180,8 @@ detect_reality_target() {
     fi
     
     # 如果优先目标不可用，测试其他目标
-    for target in "${targets[@]}"; do
-        [[ "$target" == "$priority_target" ]] && continue
+    for target in "$1"; do
+        [ "$target" == "$priority_target" ] && continue
         host=$(echo "$target" | cut -d':' -f1)
         port=$(echo "$target" | cut -d':' -f2)
         
@@ -1209,7 +1203,7 @@ configure_vless_reality() {
     log_info "配置 VLESS Reality Vision..."
     
     # 生成 UUID
-    if [[ -z "$VLESS_UUID" ]]; then
+    if [ -z "$VLESS_UUID" ]; then
         VLESS_UUID=$(generate_uuid)
         log_info "生成 UUID: $VLESS_UUID"
     fi
@@ -1226,12 +1220,12 @@ configure_vless_reality() {
         log_info "VLESS高端�? $VLESS_PORT"
     fi
     
-    # 生成密钥�?    if [[ -z "$VLESS_PRIVATE_KEY" ]] || [[ -z "$VLESS_PUBLIC_KEY" ]]; then
+    # 生成密钥�?    if [ -z "$VLESS_PRIVATE_KEY" ] || [ -z "$VLESS_PUBLIC_KEY" ]; then
         generate_reality_keypair
     fi
     
     # 生成 Short ID
-    if [[ -z "$VLESS_SHORT_ID" ]]; then
+    if [ -z "$VLESS_SHORT_ID" ]; then
         generate_reality_short_id
     fi
     
@@ -1245,19 +1239,19 @@ configure_vmess_websocket() {
     log_info "配置 VMess WebSocket..."
     
     # 生成 UUID
-    if [[ -z "$VMESS_UUID" ]]; then
+    if [ -z "$VMESS_UUID" ]; then
         VMESS_UUID=$(generate_uuid)
         log_info "生成 UUID: $VMESS_UUID"
     fi
     
     # 生成 WebSocket 路径
-    if [[ -z "$VMESS_WS_PATH" ]]; then
+    if [ -z "$VMESS_WS_PATH" ]; then
         VMESS_WS_PATH="/$(generate_random_string 8)"
         log_info "生成 WebSocket 路径: $VMESS_WS_PATH"
     fi
     
     # 设置 Host
-    if [[ -z "$VMESS_HOST" ]]; then
+    if [ -z "$VMESS_HOST" ]; then
         VMESS_HOST="$PUBLIC_IP"
     fi
     
@@ -1281,19 +1275,19 @@ configure_hysteria2() {
     log_info "配置 Hysteria2..."
     
     # 生成密码
-    if [[ -z "$HY2_PASSWORD" ]]; then
+    if [ -z "$HY2_PASSWORD" ]; then
         HY2_PASSWORD=$(generate_random_string 16)
         log_info "生成密码: $HY2_PASSWORD"
     fi
     
     # 生成混淆密码
-    if [[ -z "$HY2_OBFS_PASSWORD" ]]; then
+    if [ -z "$HY2_OBFS_PASSWORD" ]; then
         HY2_OBFS_PASSWORD=$(generate_random_string 16)
         log_info "生成混淆密码: $HY2_OBFS_PASSWORD"
     fi
     
     # 设置域名
-    if [[ -z "$HY2_DOMAIN" ]]; then
+    if [ -z "$HY2_DOMAIN" ]; then
         HY2_DOMAIN="$PUBLIC_IP"
     fi
     
@@ -1323,7 +1317,7 @@ generate_config() {
     fi
     
     # 备份现有配置
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         local backup_file="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
         if cp "$CONFIG_FILE" "$backup_file"; then
             log_message "INFO" "已备份现有配置到: $backup_file"
@@ -1373,10 +1367,10 @@ EOF
     local first_inbound=true
     
     # VLESS Reality 入站
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         log_message "DEBUG" "添加 VLESS Reality 配置"
-        inbounds+=("vless")
-        if [[ "$first_inbound" != "true" ]]; then
+        inbounds="$1 vless"
+        if [ "$first_inbound" != "true" ]; then
             echo "," >> "$CONFIG_FILE"
         fi
         first_inbound=false
@@ -1417,13 +1411,13 @@ EOF
     fi
     
     # VMess WebSocket 入站
-    if [[ -n "$VMESS_UUID" ]]; then
+    if [ -n "$VMESS_UUID" ]; then
         log_message "DEBUG" "添加 VMess WebSocket 配置"
-        if [[ "$first_inbound" != "true" ]]; then
+        if [ "$first_inbound" != "true" ]; then
             echo "," >> "$CONFIG_FILE"
         fi
         first_inbound=false
-        inbounds+=("vmess")
+        inbounds="$1 vmess"
         if ! cat >> "$CONFIG_FILE" << EOF
     {
       "type": "vmess",
@@ -1456,13 +1450,13 @@ EOF
     fi
     
     # Hysteria2 入站
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    if [ -n "$HY2_PASSWORD" ]; then
         log_message "DEBUG" "添加 Hysteria2 配置"
-        if [[ "$first_inbound" != "true" ]]; then
+        if [ "$first_inbound" != "true" ]; then
             echo "," >> "$CONFIG_FILE"
         fi
         first_inbound=false
-        inbounds+=("hysteria2")
+        inbounds="$1 hysteria2"
         if ! cat >> "$CONFIG_FILE" << EOF
     {
       "type": "hysteria2",
@@ -1500,7 +1494,7 @@ EOF
     fi
     
     # 检查是否至少有一个协议被配置
-    if [[ ${#inbounds[@]} -eq 0 ]]; then
+    if [ $(echo "${1}" | wc -w) -eq 0 ]; then
         handle_error 1 "没有配置任何协议，无法生成配置文�?
         return 1
     fi
@@ -1542,12 +1536,12 @@ EOF
         return 1
     fi
     
-    # 验证生成的配置文�?    if [[ ! -f "$CONFIG_FILE" ]] || [[ ! -s "$CONFIG_FILE" ]]; then
+    # 验证生成的配置文�?    if [ ! -f "$CONFIG_FILE" ] || [ ! -s "$CONFIG_FILE" ]; then
         handle_error 1 "生成的配置文件无效或为空"
         return 1
     fi
     
-    # �?Hysteria2 生成自签名证�?    if [[ -n "$HY2_PASSWORD" ]]; then
+    # �?Hysteria2 生成自签名证�?    if [ -n "$HY2_PASSWORD" ]; then
         if ! generate_hysteria2_cert; then
             handle_error 1 "Hysteria2 证书生成失败"
             return 1
@@ -1562,7 +1556,7 @@ EOF
     log_info "生成 Hysteria2 自签名证�?.."
     
     # 检�?HY2_DOMAIN 是否设置
-    if [[ -z "$HY2_DOMAIN" ]]; then
+    if [ -z "$HY2_DOMAIN" ]; then
         log_error "HY2_DOMAIN 未设置，无法生成证书"
         return 1
     fi
@@ -1588,7 +1582,7 @@ EOF
         # 备用方法：使�?genpkey
         if ! openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8 2>&1 | tee /tmp/openssl_error.log; then
             log_error "备用方法也失败，OpenSSL 错误信息�?
-            if [[ -f /tmp/openssl_error.log ]]; then
+            if [ -f /tmp/openssl_error.log ]; then
                 cat /tmp/openssl_error.log
                 rm -f /tmp/openssl_error.log
             fi
@@ -1597,7 +1591,7 @@ EOF
     fi
     
     # 验证私钥文件
-    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -s "/etc/ssl/private/hysteria.key" ]]; then
+    if [ ! -f "/etc/ssl/private/hysteria.key" ] || [ ! -s "/etc/ssl/private/hysteria.key" ]; then
         log_error "私钥文件生成失败或为�?
         return 1
     fi
@@ -1614,7 +1608,7 @@ EOF
              if ! openssl genrsa 2048 > /etc/ssl/private/hysteria.key 2>/dev/null; then
                  log_error "所有私钥生成方法都失败，显示详细错误信�?
                  openssl req -x509 -newkey rsa:2048 -keyout /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -nodes -subj "/CN=$HY2_DOMAIN" 2>&1 | tee /tmp/cert_error.log
-                 if [[ -f /tmp/cert_error.log ]]; then
+                 if [ -f /tmp/cert_error.log ]; then
                      log_error "OpenSSL 错误信息�?
                      cat /tmp/cert_error.log
                      rm -f /tmp/cert_error.log
@@ -1641,7 +1635,7 @@ EOF
         log_warn "设置证书权限失败"
     fi
     
-    # 验证生成的文�?    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -f "/etc/ssl/private/hysteria.crt" ]]; then
+    # 验证生成的文�?    if [ ! -f "/etc/ssl/private/hysteria.key" ] || [ ! -f "/etc/ssl/private/hysteria.crt" ]; then
         log_error "证书文件生成失败"
         return 1
     fi
@@ -1657,7 +1651,7 @@ generate_vless_share_link() {
     local server_ip="${1:-$PUBLIC_IP}"
     local remark="${2:-VLESS-Reality}"
     
-    if [[ -z "$VLESS_UUID" ]] || [[ -z "$VLESS_PORT" ]]; then
+    if [ -z "$VLESS_UUID" ] || [ -z "$VLESS_PORT" ]; then
         log_error "VLESS 配置信息不完�?
         return 1
     fi
@@ -1682,7 +1676,7 @@ generate_vmess_share_link() {
     local server_ip="${1:-$PUBLIC_IP}"
     local remark="${2:-VMess-WS}"
     
-    if [[ -z "$VMESS_UUID" ]] || [[ -z "$VMESS_PORT" ]]; then
+    if [ -z "$VMESS_UUID" ] || [ -z "$VMESS_PORT" ]; then
         log_error "VMess 配置信息不完�?
         return 1
     fi
@@ -1721,7 +1715,7 @@ generate_hysteria2_share_link() {
     local server_ip="${1:-$PUBLIC_IP}"
     local remark="${2:-Hysteria2}"
     
-    if [[ -z "$HY2_PASSWORD" ]] || [[ -z "$HY2_PORT" ]]; then
+    if [ -z "$HY2_PASSWORD" ] || [ -z "$HY2_PORT" ]; then
         log_error "Hysteria2 配置信息不完�?
         return 1
     fi
@@ -1744,7 +1738,7 @@ generate_hysteria2_share_link() {
     local has_config=false
     
     # VLESS Reality
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         echo -e "${GREEN}VLESS Reality Vision:${NC}"
         local vless_link
         vless_link=$(generate_vless_share_link)
@@ -1754,7 +1748,7 @@ generate_hysteria2_share_link() {
     fi
     
     # VMess WebSocket
-    if [[ -n "$VMESS_UUID" ]]; then
+    if [ -n "$VMESS_UUID" ]; then
         echo -e "${GREEN}VMess WebSocket:${NC}"
         local vmess_link
         vmess_link=$(generate_vmess_share_link)
@@ -1764,7 +1758,7 @@ generate_hysteria2_share_link() {
     fi
     
     # Hysteria2
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    if [ -n "$HY2_PASSWORD" ]; then
         echo -e "${GREEN}Hysteria2:${NC}"
         local hy2_link
         hy2_link=$(generate_hysteria2_share_link)
@@ -1773,7 +1767,7 @@ generate_hysteria2_share_link() {
         has_config=true
     fi
     
-    if [[ "$has_config" == "false" ]]; then
+    if [ "$has_config" == "false" ]; then
         echo -e "${YELLOW}未找到已配置的协�?{NC}"
         echo -e "${YELLOW}请先配置协议后再生成分享链接${NC}"
     fi
@@ -1814,11 +1808,11 @@ show_banner() {
         
         # 显示配置状�?        echo -e "${GREEN}配置状�?${NC}"
         local status_line=""
-        [[ -n "$VLESS_PORT" ]] && status_line+="VLESS(${VLESS_PORT}) "
-        [[ -n "$VMESS_PORT" ]] && status_line+="VMess(${VMESS_PORT}) "
-        [[ -n "$HY2_PORT" ]] && status_line+="Hysteria2(${HY2_PORT}) "
+        [ -n "$VLESS_PORT" ] && status_line+="VLESS(${VLESS_PORT}) "
+        [ -n "$VMESS_PORT" ] && status_line+="VMess(${VMESS_PORT}) "
+        [ -n "$HY2_PORT" ] && status_line+="Hysteria2(${HY2_PORT}) "
         
-        if [[ -n "$status_line" ]]; then
+        if [ -n "$status_line" ]; then
             echo -e "${GREEN}已配�?${NC} $status_line"
         else
             echo -e "${YELLOW}未配置任何协�?{NC}"
@@ -1922,13 +1916,13 @@ show_service_menu() {
         
         # 显示详细的服务状�?        echo -e "${GREEN}当前状�?${NC} $(get_service_status_description "$SERVICE_NAME")"
         
-        # 显示配置文件状�?        if [[ -f "$CONFIG_FILE" ]]; then
+        # 显示配置文件状�?        if [ -f "$CONFIG_FILE" ]; then
             echo -e "${GREEN}配置文件:${NC} ${GREEN}存在${NC}"
         else
             echo -e "${GREEN}配置文件:${NC} ${RED}不存�?{NC}"
         fi
         
-        # 显示二进制文件状�?        if [[ -f "$SINGBOX_BINARY" ]]; then
+        # 显示二进制文件状�?        if [ -f "$SINGBOX_BINARY" ]; then
             echo -e "${GREEN}程序文件:${NC} ${GREEN}已安�?{NC}"
         else
             echo -e "${GREEN}程序文件:${NC} ${RED}未安�?{NC}"
@@ -2004,7 +1998,7 @@ show_config_info() {
     echo ""
     
     # VLESS Reality
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         echo -e "${GREEN}VLESS Reality Vision:${NC}"
         echo -e "  端口: $VLESS_PORT"
         echo -e "  UUID: $VLESS_UUID"
@@ -2016,7 +2010,7 @@ show_config_info() {
     fi
     
     # VMess WebSocket
-    if [[ -n "$VMESS_UUID" ]]; then
+    if [ -n "$VMESS_UUID" ]; then
         echo -e "${GREEN}VMess WebSocket:${NC}"
         echo -e "  端口: $VMESS_PORT"
         echo -e "  UUID: $VMESS_UUID"
@@ -2026,7 +2020,7 @@ show_config_info() {
     fi
     
     # Hysteria2
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    if [ -n "$HY2_PASSWORD" ]; then
         echo -e "${GREEN}Hysteria2:${NC}"
         echo -e "  端口: $HY2_PORT"
         echo -e "  密码: $HY2_PASSWORD"
@@ -2035,7 +2029,7 @@ show_config_info() {
         echo ""
     fi
     
-    if [[ -z "$VLESS_UUID" ]] && [[ -z "$VMESS_UUID" ]] && [[ -z "$HY2_PASSWORD" ]]; then
+    if [ -z "$VLESS_UUID" ] && [ -z "$VMESS_UUID" ] && [ -z "$HY2_PASSWORD" ]; then
         echo -e "${YELLOW}未配置任何协�?{NC}"
     fi
     
@@ -2093,7 +2087,7 @@ troubleshoot_menu() {
     echo ""
     
     echo -e "${GREEN}2. Sing-box 状�?${NC}"
-    if [[ -f "$SINGBOX_BINARY" ]]; then
+    if [ -f "$SINGBOX_BINARY" ]; then
         echo -e "  二进制文�? ${GREEN}存在${NC} ($SINGBOX_BINARY)"
         local version
         version=$("$SINGBOX_BINARY" version 2>/dev/null | head -n1 || echo "无法获取版本")
@@ -2113,7 +2107,7 @@ troubleshoot_menu() {
     echo ""
     
     echo -e "${GREEN}4. 配置文件:${NC}"
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         echo -e "  配置文件: ${GREEN}存在${NC} ($CONFIG_FILE)"
         local size
         size=$(stat -c%s "$CONFIG_FILE" 2>/dev/null || echo "0")
@@ -2132,7 +2126,7 @@ validate_config_file() {
     echo -e "${CYAN}=== 配置文件验证 ===${NC}"
     echo ""
     
-    if [[ ! -f "$CONFIG_FILE" ]]; then
+    if [ ! -f "$CONFIG_FILE" ]; then
         echo -e "${RED}配置文件不存�? $CONFIG_FILE${NC}"
         wait_for_input
         return
@@ -2161,11 +2155,11 @@ validate_config_file() {
     local ports=("$VLESS_PORT" "$VMESS_PORT" "$HY2_PORT")
     local names=("VLESS" "VMess" "Hysteria2")
     
-    for i in "${!ports[@]}"; do
+    for i in "$1"; do
         local port="${ports[$i]}"
         local name="${names[$i]}"
         
-        if [[ -n "$port" ]]; then
+        if [ -n "$port" ]; then
             echo -e "${GREEN}检�?$name 端口 $port:${NC}"
             if check_port "$port"; then
                 echo -e "  状�? ${YELLOW}被占�?{NC}"
@@ -2202,7 +2196,7 @@ test_network_connectivity() {
     echo ""
     
     echo -e "${GREEN}2. 测试 Reality 目标:${NC}"
-    if [[ -n "$VLESS_TARGET" ]]; then
+    if [ -n "$VLESS_TARGET" ]; then
         local host port
         host=$(echo "$VLESS_TARGET" | cut -d':' -f1)
         port=$(echo "$VLESS_TARGET" | cut -d':' -f2)
@@ -2247,7 +2241,7 @@ regenerate_config() {
     echo ""
     
     read -p "确认重新生成配置？[y/N]: " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    if ! echo "$confirm" | grep -E '^[Yy]$' >/dev/null; then
         echo -e "${YELLOW}取消操作${NC}"
         wait_for_input
         return
@@ -2256,7 +2250,7 @@ regenerate_config() {
     echo -e "${YELLOW}正在重新生成配置...${NC}"
     
     # 备份现有配置
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         cp "$CONFIG_FILE" "${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
         echo -e "${GREEN}已备份现有配�?{NC}"
     fi
@@ -2309,7 +2303,7 @@ diagnose_connection_issues() {
     echo ""
     
     # 2. 检查配置文�?    echo -e "${GREEN}2. 检查配置文�?${NC}"
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         echo -e "  �?配置文件存在"
         if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
             echo -e "  �?配置文件语法正确"
@@ -2329,11 +2323,11 @@ diagnose_connection_issues() {
     local ports=("$VLESS_PORT" "$VMESS_PORT" "$HY2_PORT")
     local names=("VLESS" "VMess" "Hysteria2")
     
-    for i in "${!ports[@]}"; do
+    for i in "$1"; do
         local port="${ports[$i]}"
         local name="${names[$i]}"
         
-        if [[ -n "$port" ]]; then
+        if [ -n "$port" ]; then
             if check_port "$port"; then
                 echo -e "  �?$name 端口 $port 正在使用"
             else
@@ -2366,9 +2360,9 @@ diagnose_connection_issues() {
     fi
     echo ""
     
-    # 5. 检查证书文件（Hysteria2�?    if [[ -n "$HY2_PASSWORD" ]]; then
+    # 5. 检查证书文件（Hysteria2�?    if [ -n "$HY2_PASSWORD" ]; then
         echo -e "${GREEN}5. 检�?Hysteria2 证书:${NC}"
-        if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
+        if [ -f "/etc/ssl/private/hysteria.crt" ] && [ -f "/etc/ssl/private/hysteria.key" ]; then
             echo -e "  �?证书文件存在"
         else
             echo -e "  �?证书文件缺失"
@@ -2389,7 +2383,7 @@ diagnose_connection_issues() {
     echo ""
     
     # 总结
-    if [[ "$issues_found" == "true" ]]; then
+    if [ "$issues_found" == "true" ]; then
         echo -e "${RED}发现问题，请根据上述建议进行修复${NC}"
         echo ""
         echo -e "${YELLOW}快速修复选项:${NC}"
@@ -2398,7 +2392,7 @@ diagnose_connection_issues() {
         echo -e "  3. 重新生成证书"
         echo ""
         read -p "是否执行快速修复？[y/N]: " fix_confirm
-        if [[ "$fix_confirm" =~ ^[Yy]$ ]]; then
+        if echo "$fix_confirm" | grep -E '^[Yy]$' >/dev/null; then
             echo -e "${CYAN}正在执行快速修�?..${NC}"
             
             # 重新生成配置
@@ -2437,7 +2431,7 @@ diagnose_connection_issues() {
     echo ""
     
     # 1. 检查配置文件是否存�?    echo -e "${GREEN}1. 检查配置文�?${NC}"
-    if [[ ! -f "$CONFIG_FILE" ]]; then
+    if [ ! -f "$CONFIG_FILE" ]; then
         echo -e "  �?配置文件不存�?
         config_issues=true
         echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
@@ -2457,22 +2451,22 @@ diagnose_connection_issues() {
     # 2. 检查协议配�?    echo -e "${GREEN}2. 检查协议配�?${NC}"
     local protocols_configured=false
     
-    if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
+    if [ -n "$VLESS_UUID" ] && [ -n "$VLESS_PORT" ]; then
         echo -e "  �?VLESS Reality 已配�?(端口: $VLESS_PORT)"
         protocols_configured=true
     fi
     
-    if [[ -n "$VMESS_UUID" ]] && [[ -n "$VMESS_PORT" ]]; then
+    if [ -n "$VMESS_UUID" ] && [ -n "$VMESS_PORT" ]; then
         echo -e "  �?VMess WebSocket 已配�?(端口: $VMESS_PORT)"
         protocols_configured=true
     fi
     
-    if [[ -n "$HY2_PASSWORD" ]] && [[ -n "$HY2_PORT" ]]; then
+    if [ -n "$HY2_PASSWORD" ] && [ -n "$HY2_PORT" ]; then
         echo -e "  �?Hysteria2 已配�?(端口: $HY2_PORT)"
         protocols_configured=true
     fi
     
-    if [[ "$protocols_configured" == "false" ]]; then
+    if [ "$protocols_configured" == "false" ]; then
         echo -e "  �?未配置任何协�?
         config_issues=true
         echo -e "  ${YELLOW}建议: 配置至少一个协�?{NC}"
@@ -2483,12 +2477,12 @@ diagnose_connection_issues() {
     local port_conflicts=false
     
     # 检查端口是否重�?    local ports=()
-    [[ -n "$VLESS_PORT" ]] && ports+=("$VLESS_PORT")
-    [[ -n "$VMESS_PORT" ]] && ports+=("$VMESS_PORT")
-    [[ -n "$HY2_PORT" ]] && ports+=("$HY2_PORT")
+    [ -n "$VLESS_PORT" ] && ports="$1 $VLESS_PORT"
+    [ -n "$VMESS_PORT" ] && ports="$1 $VMESS_PORT"
+    [ -n "$HY2_PORT" ] && ports="$1 $HY2_PORT"
     
-    # 检查重复端�?    local unique_ports=($(printf '%s\n' "${ports[@]}" | sort -u))
-    if [[ ${#ports[@]} -ne ${#unique_ports[@]} ]]; then
+    # 检查重复端�?    local unique_ports=($(printf '%s\n' "$1" | sort -u))
+    if [ $(echo "${1}" | wc -w) -ne $(echo "${1}" | wc -w) ]; then
         echo -e "  �?发现端口冲突"
         port_conflicts=true
         config_issues=true
@@ -2498,8 +2492,8 @@ diagnose_connection_issues() {
     fi
     
     # 检查端口是否被其他进程占用
-    for port in "${ports[@]}"; do
-        if [[ -n "$port" ]]; then
+    for port in "$1"; do
+        if [ -n "$port" ]; then
             if ss -tuln | grep -q ":$port " && ! pgrep -f "sing-box" >/dev/null; then
                 echo -e "  �?端口 $port 被其他进程占�?
                 port_conflicts=true
@@ -2508,14 +2502,14 @@ diagnose_connection_issues() {
         fi
     done
     
-    if [[ "$port_conflicts" == "false" ]] && [[ ${#ports[@]} -gt 0 ]]; then
+    if [ "$port_conflicts" == "false" ] && [ $(echo "${1}" | wc -w) -gt 0 ]; then
         echo -e "  �?端口状态正�?
     fi
     echo ""
     
-    # 4. 检查证书文�?    if [[ -n "$HY2_PASSWORD" ]]; then
+    # 4. 检查证书文�?    if [ -n "$HY2_PASSWORD" ]; then
         echo -e "${GREEN}4. 检�?Hysteria2 证书:${NC}"
-        if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
+        if [ -f "/etc/ssl/private/hysteria.crt" ] && [ -f "/etc/ssl/private/hysteria.key" ]; then
             echo -e "  �?证书文件存在"
             
             # 检查证书有效�?            if openssl x509 -in "/etc/ssl/private/hysteria.crt" -noout -checkend 86400 2>/dev/null; then
@@ -2534,9 +2528,9 @@ diagnose_connection_issues() {
     fi
     
     # 5. 检�?Reality 配置
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         echo -e "${GREEN}5. 检�?VLESS Reality 配置:${NC}"
-        if [[ -n "$REALITY_PRIVATE_KEY" ]] && [[ -n "$REALITY_PUBLIC_KEY" ]]; then
+        if [ -n "$REALITY_PRIVATE_KEY" ] && [ -n "$REALITY_PUBLIC_KEY" ]; then
             echo -e "  �?Reality 密钥对已生成"
         else
             echo -e "  �?Reality 密钥对缺�?
@@ -2544,7 +2538,7 @@ diagnose_connection_issues() {
             echo -e "  ${YELLOW}建议: 重新生成 Reality 配置${NC}"
         fi
         
-        if [[ -n "$REALITY_TARGET" ]]; then
+        if [ -n "$REALITY_TARGET" ]; then
             echo -e "  �?Reality 目标已设�? $REALITY_TARGET"
         else
             echo -e "  �?Reality 目标未设�?
@@ -2555,7 +2549,7 @@ diagnose_connection_issues() {
     fi
     
     # 总结和修复选项
-    if [[ "$config_issues" == "true" ]]; then
+    if [ "$config_issues" == "true" ]; then
         echo -e "${RED}发现配置问题，需要修�?{NC}"
         echo ""
         echo -e "${YELLOW}自动修复选项:${NC}"
@@ -2566,15 +2560,15 @@ diagnose_connection_issues() {
         echo ""
         
         read -p "是否执行自动修复？[y/N]: " fix_confirm
-        if [[ "$fix_confirm" =~ ^[Yy]$ ]]; then
+        if echo "$fix_confirm" | grep -E '^[Yy]$' >/dev/null; then
             echo -e "${CYAN}正在执行自动修复...${NC}"
             echo ""
             
-            # 重新分配端口（如果有冲突�?            if [[ "$port_conflicts" == "true" ]]; then
+            # 重新分配端口（如果有冲突�?            if [ "$port_conflicts" == "true" ]; then
                 echo -e "${CYAN}重新分配端口...${NC}"
-                [[ -n "$VLESS_PORT" ]] && VLESS_PORT=$(get_random_port)
-                [[ -n "$VMESS_PORT" ]] && VMESS_PORT=$(get_random_port)
-                [[ -n "$HY2_PORT" ]] && HY2_PORT=$(get_random_port)
+                [ -n "$VLESS_PORT" ] && VLESS_PORT=$(get_random_port)
+                [ -n "$VMESS_PORT" ] && VMESS_PORT=$(get_random_port)
+                [ -n "$HY2_PORT" ] && HY2_PORT=$(get_random_port)
                 echo -e "${GREEN}�?端口重新分配完成${NC}"
             fi
             
@@ -2606,7 +2600,7 @@ diagnose_connection_issues() {
     echo -e "${CYAN}=== 客户端配置生�?===${NC}"
     echo ""
     
-    if [[ ! -f "$CONFIG_FILE" ]]; then
+    if [ ! -f "$CONFIG_FILE" ]; then
         echo -e "${RED}配置文件不存在，请先配置服务�?{NC}"
         wait_for_input
         return
@@ -2669,8 +2663,8 @@ EOF
     # 添加配置的协议出�?    local outbounds_added=false
     
     # VLESS Reality
-    if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
-        if [[ "$outbounds_added" == "true" ]]; then
+    if [ -n "$VLESS_UUID" ] && [ -n "$VLESS_PORT" ]; then
+        if [ "$outbounds_added" == "true" ]; then
             echo "," >> "$client_config"
         fi
         cat >> "$client_config" << EOF
@@ -2699,8 +2693,8 @@ EOF
     fi
     
     # VMess WebSocket
-    if [[ -n "$VMESS_UUID" ]] && [[ -n "$VMESS_PORT" ]]; then
-        if [[ "$outbounds_added" == "true" ]]; then
+    if [ -n "$VMESS_UUID" ] && [ -n "$VMESS_PORT" ]; then
+        if [ "$outbounds_added" == "true" ]; then
             echo "," >> "$client_config"
         fi
         cat >> "$client_config" << EOF
@@ -2723,8 +2717,8 @@ EOF
     fi
     
     # Hysteria2
-    if [[ -n "$HY2_PASSWORD" ]] && [[ -n "$HY2_PORT" ]]; then
-        if [[ "$outbounds_added" == "true" ]]; then
+    if [ -n "$HY2_PASSWORD" ] && [ -n "$HY2_PORT" ]; then
+        if [ "$outbounds_added" == "true" ]; then
             echo "," >> "$client_config"
         fi
         cat >> "$client_config" << EOF
@@ -2748,7 +2742,7 @@ EOF
     fi
     
     # 添加直连和DNS出站
-    if [[ "$outbounds_added" == "true" ]]; then
+    if [ "$outbounds_added" == "true" ]; then
         echo "," >> "$client_config"
     fi
     
@@ -2822,15 +2816,15 @@ EOF
 ## 协议说明
 EOF
     
-    if [[ -n "$VLESS_UUID" ]]; then
+    if [ -n "$VLESS_UUID" ]; then
         echo "- VLESS Reality: 高性能，推荐使�? >> "$readme_file"
     fi
     
-    if [[ -n "$VMESS_UUID" ]]; then
+    if [ -n "$VMESS_UUID" ]; then
         echo "- VMess WebSocket: 兼容性好，适合受限网络" >> "$readme_file"
     fi
     
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    if [ -n "$HY2_PASSWORD" ]; then
         echo "- Hysteria2: 高速传输，适合高带宽需�? >> "$readme_file"
     fi
     
@@ -2914,7 +2908,7 @@ uninstall_singbox() {
     echo ""
     
     read -p "确认卸载？[y/N]: " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    if ! echo "$confirm" | grep -E '^[Yy]$' >/dev/null; then
         echo -e "${YELLOW}取消卸载${NC}"
         return
     fi
@@ -2969,7 +2963,7 @@ show_installation_menu() {
 
 # 加载现有配置
 load_existing_config() {
-    if [[ -f "$CONFIG_FILE" ]]; then
+    if [ -f "$CONFIG_FILE" ]; then
         log_info "检测到现有配置文件，尝试加载配置信�?.."
         
         # 从配置文件中提取端口信息
