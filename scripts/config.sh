@@ -62,7 +62,7 @@ generate_base_config() {
         "server": "google"
       }
     ],
-    "final": "google",
+    "final": "direct",
     "strategy": "prefer_ipv4",
     "disable_cache": false,
     "disable_expire": false

@@ -92,7 +92,7 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 
 # 工作目录
 WorkingDirectory=$WORK_DIR
-ReadWritePaths=$WORK_DIR $CONFIG_DIR /var/log/sing-box
+ReadWritePaths=$WORK_DIR $CONFIG_DIR $SINGBOX_LOG_DIR
 
 [Install]
 WantedBy=multi-user.target

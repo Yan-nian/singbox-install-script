@@ -163,7 +163,7 @@ Documentation=https://sing-box.sagernet.org
 After=network.target nss-lookup.target
 
 [Service]
-User=root
+User=sing-box
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 ExecStart=$SINGBOX_BINARY run -c $SINGBOX_CONFIG

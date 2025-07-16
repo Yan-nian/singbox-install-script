@@ -31,8 +31,17 @@ curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/mai
 
 ## 部署说明
 
-### 1. 上传脚本到服务器
-将 `one-click-install.sh` 文件上传到您的 Web 服务器，确保可以通过 HTTPS 访问。
+### 1. 构建脚本
+
+在发布之前，开发者需要先在项目根目录运行构建脚本，生成 `one-click-install.sh` 文件：
+
+```bash
+bash scripts/build.sh
+```
+
+### 2. 发布脚本
+
+构建成功后，将生成的 `one-click-install.sh` 文件上传到您的 Web 服务器或代码托管平台（如 GitHub Release），并确保可以通过一个稳定的 URL 公开访问。
 
 ### 2. GitHub Raw 地址
 使用 GitHub Raw 地址：`https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh`

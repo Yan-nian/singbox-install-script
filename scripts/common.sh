@@ -120,7 +120,7 @@ get_public_ip() {
     for service in "curl -s https://ipv4.icanhazip.com" \
                    "curl -s https://api.ipify.org" \
                    "curl -s https://checkip.amazonaws.com" \
-                   "wget -qO- https://ipv4.icanhazip.com"; do
+                   "curl -s https://ip.sb"; do
         ip=$(eval "$service" 2>/dev/null | tr -d '\n\r')
         if validate_ip "$ip"; then
             echo "$ip"

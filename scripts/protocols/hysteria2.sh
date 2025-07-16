@@ -39,6 +39,11 @@ detect_bandwidth() {
         
         local speedtest_result
         speedtest_result=$(speedtest-cli --simple 2>/dev/null | grep -E "Download|Upload")
+    elif command_exists ooklaserver;
+        log_info "使用 ooklaserver 检测带宽..."
+
+        local speedtest_result
+        speedtest_result=$(ooklaserver --simple 2>/dev/null | grep -E "Download|Upload")
         
         if [[ -n "$speedtest_result" ]]; then
             local download_speed

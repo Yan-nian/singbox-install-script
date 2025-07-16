@@ -1,389 +1,301 @@
-# Sing-box 一键安装脚本
+# Sing-box 精简安装脚本 v3.0
 
-一个功能完整的 Sing-box 服务器端一键搭建脚本，支持多种主流代理协议的快速部署和管理。
-
-> **⚠️ 重要说明**: 本项目中的 GitHub URL（如 `your-repo/singbox-install`）为占位符，请根据实际情况替换为您的仓库地址。脚本已优化为本地使用模式，无需网络下载。
+一个精简、高效的 Sing-box 一键安装和配置脚本，专注于核心功能和易用性。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-v1.1.0-blue.svg)](#)
+[![Version](https://img.shields.io/badge/version-v3.0.0--beta1-blue.svg)](#)
 [![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](#)
 
 ## ✨ 特性
 
-- 🚀 **一键安装**: 自动检测系统环境，一键完成 Sing-box 的下载、安装和配置
-- 🔧 **多协议支持**: 支持 VLESS Reality Vision、VMess WebSocket、Hysteria2 等主流协议
-- 🎯 **智能配置**: 自动生成最优配置文件，无需手动编辑复杂的 JSON 配置
-- 🛡️ **安全可靠**: 内置安全最佳实践，自动配置防火墙和 TLS 证书
-- 📱 **客户端支持**: 自动生成客户端配置文件和分享链接
-- 🔄 **服务管理**: 完整的服务启停、重启、状态查看功能
-- 📊 **实时监控**: 支持流量统计、连接状态监控
-- 🌐 **多系统支持**: 支持 Ubuntu、Debian、CentOS、RHEL 等主流 Linux 发行版
-- 🎨 **友好界面**: 彩色交互式菜单，操作简单直观
-- 🔐 **自动化配置**: UUID、密钥、证书自动生成
-- 🌍 **多语言**: 支持中文界面
-- 📋 **二维码生成**: 自动生成客户端配置二维码
+- 🚀 **一键安装** - 自动检测系统环境，快速部署
+- 🔧 **三大协议** - 支持 VLESS Reality、VMess WebSocket、Hysteria2
+- 📱 **客户端支持** - 自动生成配置文件、分享链接和二维码
+- 🛡️ **安全优先** - 自动配置防火墙和安全参数
+- 📊 **服务管理** - 完整的 systemd 服务集成
+- 🔄 **配置管理** - 支持备份、验证和热重载
 
-## 🖥️ 系统要求
+## 🎯 设计理念
 
-### 支持的操作系统
-- Ubuntu 18.04+
-- Debian 9+
-- CentOS 7+
-- RHEL 7+
-- Rocky Linux 8+
-- AlmaLinux 8+
-- Fedora 30+
+**精简重构版本**专注于：
+- **简单优先** - 减少复杂配置，提供开箱即用体验
+- **易于维护** - 模块化架构，清晰的代码结构
+- **快速部署** - 最小化依赖，快速安装配置
+- **稳定可靠** - 经过优化的核心功能
 
-### 系统架构
-- x86_64 (amd64)
-- ARM64 (aarch64)
-- ARMv7
+## 📋 系统要求
 
-### 最低配置要求
-- **内存**: 512MB RAM
-- **存储**: 1GB 可用空间
+- **操作系统**: Ubuntu 20.04+, Debian 11+, CentOS 8+, RHEL 8+
+- **架构**: x86_64, ARM64
+- **内存**: 最少 512MB RAM
+- **存储**: 最少 1GB 可用空间
 - **网络**: 公网 IP 地址
-- **权限**: Root 权限
-- **端口**: 确保所需端口未被占用
 
-## 🚀 快速安装
+## 🚀 快速开始
 
-### 方法一：在线一键安装（推荐）⭐
-
-**真正的一键安装，无需下载任何文件！**
+### 在线安装
 
 ```bash
-# 使用 curl（推荐）
-curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash
-
-# 或使用 wget
-wget -qO- https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash
+bash <(curl -fsSL https://raw.githubusercontent.com/yourusername/singbox/main/singbox-install.sh)
 ```
 
-**直接安装特定协议：**
+### 离线安装
 
 ```bash
-# 直接安装 VLESS Reality Vision
-curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vless
+# 下载脚本
+wget https://raw.githubusercontent.com/yourusername/singbox/main/singbox-install.sh
 
-# 直接安装 VMess WebSocket
-curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --vmess
+# 添加执行权限
+chmod +x singbox-install.sh
 
-# 直接安装 Hysteria2
-curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/one-click-install.sh | sudo bash -s -- --hysteria2
+# 运行脚本
+./singbox-install.sh
 ```
 
-> 📖 详细说明请查看：[在线安装文档](ONLINE_INSTALL.md)
+## 📖 使用指南
 
-### 方法二：快速安装
-
-```bash
-# 1. 下载完整项目
-git clone https://github.com/Yan-nian/singbox-install-script.git
-cd singbox-install-script
-
-# 2. 运行快速安装脚本
-sudo bash quick-install.sh
-```
-
-### 方法三：手动安装
-
-```bash
-# 1. 下载脚本
-git clone https://github.com/Yan-nian/singbox-install-script.git
-cd singbox-install-script
-
-# 2. 添加执行权限
-chmod +x install.sh
-
-# 3. 运行安装脚本
-sudo ./install.sh
-```
-
-### 方法四：仅下载主脚本
-
-```bash
-# 下载项目并使用主脚本
-git clone https://github.com/Yan-nian/singbox-install-script.git
-cd singbox-install-script
-chmod +x install.sh
-sudo ./install.sh
-```
-
-## 📖 使用说明
-
-### 交互式安装
-
-运行脚本后，按照提示选择要安装的协议：
-
-```bash
-sudo ./install.sh
-```
-
-### 命令行安装
+### 命令行参数
 
 ```bash
 # 显示帮助信息
-./install.sh --help
+./singbox-install.sh --help
 
 # 显示版本信息
-./install.sh --version
+./singbox-install.sh --version
 
-# 直接安装 Sing-box
-sudo ./install.sh --install
+# 静默安装
+./singbox-install.sh --silent
 
-# 配置 VLESS Reality Vision
-sudo ./install.sh --vless
+# 仅安装 Sing-box
+./singbox-install.sh --install-only
 
-# 配置 VMess WebSocket
-sudo ./install.sh --vmess
-
-# 配置 VMess WebSocket + TLS
-sudo ./install.sh --vmess-tls
-
-# 配置 Hysteria2
-sudo ./install.sh --hysteria2
-
-# 配置多协议
-sudo ./install.sh --multi
-
-# 查看服务状态
-sudo ./install.sh --status
-
-# 配置向导模式
-sudo ./install.sh --config
-
-# 卸载 Sing-box
-sudo ./install.sh --uninstall
+# 卸载
+./singbox-install.sh --uninstall
 ```
 
-### 服务管理
+### 交互式菜单
+
+```
+╔══════════════════════════════════════╗
+║         Sing-box 管理脚本 v3.0       ║
+╠══════════════════════════════════════╣
+║  1. 协议配置                         ║
+║  2. 服务管理                         ║
+║  3. 配置管理                         ║
+║  4. 分享链接                         ║
+║  5. 系统工具                         ║
+║  0. 退出脚本                         ║
+╚══════════════════════════════════════╝
+```
+
+## 🔧 服务管理
 
 ```bash
-# 启动服务
-sudo systemctl start sing-box
+# 服务控制
+systemctl start sing-box      # 启动
+systemctl stop sing-box       # 停止
+systemctl restart sing-box    # 重启
+systemctl status sing-box     # 状态
 
-# 停止服务
-sudo systemctl stop sing-box
+# 开机自启
+systemctl enable sing-box     # 启用
+systemctl disable sing-box    # 禁用
 
-# 重启服务
-sudo systemctl restart sing-box
-
-# 重载配置
-sudo systemctl reload sing-box
-
-# 查看状态
-sudo systemctl status sing-box
-
-# 启用开机自启
-sudo systemctl enable sing-box
-
-# 禁用开机自启
-sudo systemctl disable sing-box
-
-# 查看日志
-sudo journalctl -u sing-box -f
-
-# 查看最近日志
-sudo journalctl -u sing-box --since "1 hour ago"
+# 日志查看
+journalctl -u sing-box -f     # 实时日志
+journalctl -u sing-box --since "1 hour ago"  # 最近1小时
 ```
 
 ## 🔧 支持的协议
 
 ### VLESS Reality Vision
-- ✅ 最新的伪装技术，抗检测能力极强
-- ✅ 无需额外域名和证书
-- ✅ 性能优异，延迟低
-- ✅ 配置简单，一键生成
-- ✅ 支持多种目标网站伪装
+- **特点**: 无特征流量，抗检测能力强
+- **适用**: 网络环境严格的地区
+- **配置**: 自动检测最佳 Reality 目标
 
 ### VMess WebSocket
-- ✅ 成熟稳定的协议
-- ✅ 兼容性好，客户端支持广泛
-- ✅ 支持 CDN 加速
-- ✅ 可选 TLS 加密
-- ✅ 自定义 WebSocket 路径
-
-### VMess WebSocket + TLS
-- ✅ 在 VMess WebSocket 基础上增加 TLS 加密
-- ✅ 更高的安全性
-- ✅ 支持自签名证书
-- ✅ 支持域名证书
+- **特点**: 成熟稳定，兼容性好
+- **适用**: 一般网络环境
+- **配置**: 支持 TLS 和非 TLS 模式
 
 ### Hysteria2
-- ✅ 基于 QUIC 协议，性能卓越
-- ✅ 低延迟高吞吐量
-- ✅ 网络自适应，智能拥塞控制
-- ✅ 抗丢包能力强
-- ✅ 支持带宽检测和优化
-- ✅ 支持端口跳跃
+- **特点**: 基于 UDP，速度快
+- **适用**: 对速度要求高的场景
+- **配置**: 自动带宽检测和优化
 
 ## 📁 项目结构
 
 ```
-sing-box/
-├── install.sh              # 主安装脚本
-├── quick-install.sh        # 快速安装脚本
-├── one-click-install.sh    # 在线一键安装脚本 ⭐
-├── scripts/                # 功能模块
-│   ├── common.sh          # 公共函数库
-│   ├── system.sh          # 系统检测模块
-│   ├── singbox.sh         # Sing-box 管理模块
-│   ├── config.sh          # 配置文件生成模块
-│   ├── service.sh         # 服务管理模块
-│   ├── menu.sh            # 用户界面模块
-│   └── protocols/         # 协议配置模块
-│       ├── vless.sh       # VLESS Reality Vision
-│       ├── vmess.sh       # VMess WebSocket
-│       └── hysteria2.sh   # Hysteria2
-├── templates/             # 配置模板
-│   ├── config-base.json   # 基础配置模板
-│   ├── vless-reality.json # VLESS Reality 模板
-│   ├── vmess-ws.json      # VMess WebSocket 模板
-│   ├── vmess-ws-tls.json  # VMess WebSocket TLS 模板
-│   ├── hysteria2.json     # Hysteria2 模板
-│   └── client-base.json   # 客户端基础模板
-├── docs/                  # 文档目录
-│   ├── usage.md           # 使用说明
-│   └── protocols.md       # 协议说明
-├── README.md              # 项目说明
-├── ONLINE_INSTALL.md      # 在线安装说明 ⭐
-├── LICENSE                # 许可证
-├── VERSION                # 版本信息
-├── CHANGELOG.md           # 更新日志
-└── .gitignore            # Git 忽略文件
+singbox/
+├── singbox-install.sh          # 主安装脚本
+├── lib/                         # 核心模块
+│   ├── common.sh               # 通用函数库
+│   ├── protocols.sh            # 协议配置模块
+│   ├── menu.sh                 # 菜单模块
+│   └── subscription.sh         # 订阅生成模块
+├── templates/                   # 配置模板
+│   ├── config.json             # 基础配置模板
+│   └── sing-box.service        # 系统服务模板
+└── issues/                      # 项目文档
+    └── 精简重构计划-v1.0.md     # 重构计划
 ```
 
-## 🎯 功能特性
+## 🛠️ 配置管理
 
-### 自动化功能
-- 🔍 **系统检测**: 自动检测操作系统、架构、网络环境
-- 📦 **依赖安装**: 自动安装所需依赖包
-- 🔑 **密钥生成**: 自动生成 UUID、Reality 密钥对、随机密码
-- 🌐 **IP 检测**: 自动获取公网 IP 地址
-- 🔥 **防火墙配置**: 自动配置防火墙规则
-- 📜 **证书管理**: 自动生成和管理 TLS 证书
+### 配置文件位置
 
-### 配置管理
-- 📝 **配置生成**: 智能生成 Sing-box 配置文件
-- 💾 **配置备份**: 自动备份配置文件
-- 🔄 **配置恢复**: 支持配置文件恢复
-- ✅ **配置验证**: 自动验证配置文件正确性
-- 📊 **配置查看**: 美观的配置信息显示
+```
+/etc/sing-box/
+├── config.json              # 主配置文件
+├── geoip.db                # GeoIP 数据库
+└── geosite.db              # GeoSite 数据库
 
-### 客户端支持
-- 📱 **多平台配置**: 生成适用于各平台的客户端配置
-- 🔗 **分享链接**: 自动生成分享链接
-- 📋 **二维码**: 生成配置二维码，手机扫码导入
-- 📄 **配置文件**: 导出标准 JSON 配置文件
+/opt/sing-box/
+├── clients/                # 客户端配置
+├── qrcodes/               # 二维码文件
+├── subscription/          # 订阅文件
+└── certs/                 # 证书文件
+```
 
-### 监控和管理
-- 📈 **状态监控**: 实时查看服务运行状态
-- 📊 **流量统计**: 查看流量使用情况
-- 🔍 **日志查看**: 方便的日志查看功能
-- 🔧 **服务管理**: 完整的服务启停控制
-- 🛠️ **故障诊断**: 自动诊断常见问题
+### 配置操作
 
-## 🔍 版本历史
+```bash
+# 验证配置
+sing-box check -c /etc/sing-box/config.json
 
-### v1.1.0 (2024-01-01)
-- 🚀 **新增在线一键安装功能**
-- ✨ 添加 `one-click-install.sh` 自包含安装脚本
-- 🌐 支持通过 curl/wget 直接安装，无需 git clone
-- 📖 新增 `ONLINE_INSTALL.md` 在线安装文档
-- 🎯 支持命令行参数直接安装特定协议
-- 🔧 优化安装流程，提升用户体验
-- 📦 自动检测和安装系统依赖
-- 🛡️ 增强安全性和错误处理
+# 重载配置
+systemctl reload sing-box
 
-### v1.0.0 (2024-01-01)
-- 🎉 初始版本发布
-- ✨ 支持 VLESS Reality Vision 协议
-- ✨ 支持 VMess WebSocket 协议
-- ✨ 支持 VMess WebSocket + TLS 协议
-- ✨ 支持 Hysteria2 协议
-- ✨ 完整的服务管理功能
-- ✨ 自动配置生成
-- ✨ 客户端配置导出
-- ✨ 交互式菜单界面
-- ✨ 命令行参数支持
-- ✨ 模块化架构设计
+# 备份配置
+cp /etc/sing-box/config.json /opt/sing-box/config.json.backup
+```
 
-查看完整更新日志：[CHANGELOG.md](CHANGELOG.md)
+## 🔗 客户端配置
 
-## 📚 文档
+### 获取配置方式
 
-- [使用说明](docs/usage.md) - 详细的使用指南
-- [协议说明](docs/protocols.md) - 各协议的详细配置说明
-- [更新日志](CHANGELOG.md) - 版本更新记录
-- [许可证](LICENSE) - 项目许可证
+1. **分享链接** - 复制粘贴到客户端
+2. **二维码** - 扫码导入
+3. **配置文件** - 下载 JSON 配置
+4. **订阅链接** - 支持批量更新
 
-## 🤝 贡献
+### 支持的客户端
+
+- **Windows**: v2rayN, Clash for Windows, sing-box
+- **macOS**: ClashX Pro, sing-box
+- **iOS**: Shadowrocket, Quantumult X
+- **Android**: v2rayNG, ClashForAndroid
+- **Linux**: sing-box, Clash
+
+## 🐛 故障排除
+
+### 常见问题
+
+#### 服务启动失败
+```bash
+# 检查配置语法
+sing-box check -c /etc/sing-box/config.json
+
+# 查看错误日志
+journalctl -u sing-box --no-pager
+```
+
+#### 端口冲突
+```bash
+# 检查端口占用
+ss -tlnp | grep :443
+
+# 修改配置中的端口
+vim /etc/sing-box/config.json
+```
+
+#### 防火墙问题
+```bash
+# Ubuntu/Debian
+ufw allow 443/tcp
+
+# CentOS/RHEL
+firewall-cmd --permanent --add-port=443/tcp
+firewall-cmd --reload
+```
+
+## 📈 性能优化
+
+### 系统优化
+```bash
+# 增加文件描述符限制
+echo "* soft nofile 65535" >> /etc/security/limits.conf
+echo "* hard nofile 65535" >> /etc/security/limits.conf
+
+# 网络参数优化
+echo "net.core.rmem_max = 134217728" >> /etc/sysctl.conf
+echo "net.core.wmem_max = 134217728" >> /etc/sysctl.conf
+sysctl -p
+```
+
+## 🔒 安全建议
+
+1. **定期更新** - 保持系统和 Sing-box 最新版本
+2. **防火墙配置** - 只开放必要端口
+3. **密钥管理** - 定期更换 UUID 和密钥
+4. **日志监控** - 定期检查异常访问
+5. **配置备份** - 定期备份重要配置
+
+## 📝 更新日志
+
+### v3.0.0-beta1 (2024-01-20)
+- 🔄 **重大重构** - 精简架构，提升性能
+- 📦 **模块化设计** - 清晰的代码结构
+- 🚀 **安装优化** - 更快的部署速度
+- 🔧 **功能整合** - 核心功能集中管理
+- 📱 **客户端增强** - 更好的配置生成
+
+### v2.1.0 (2024-01-15)
+- 新增 Hysteria2 协议支持
+- 优化配置生成逻辑
+- 改进错误处理机制
+
+
+
+## 🤝 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
 
-### 贡献指南
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 开发环境
-
+### 开发流程
 ```bash
-# 克隆项目
-git clone https://github.com/your-repo/singbox-install.git
-cd singbox-install
+# 克隆仓库
+git clone https://github.com/yourusername/singbox.git
+cd singbox
 
-# 安装开发依赖
-sudo apt-get install shellcheck
+# 创建功能分支
+git checkout -b feature/your-feature
 
-# 运行测试
-bash -n install.sh  # 语法检查
-shellcheck install.sh  # 代码质量检查
+# 提交更改
+git commit -am "Add your feature"
+git push origin feature/your-feature
 ```
 
-## 🐛 问题反馈
+### 代码规范
+- 使用 4 个空格缩进
+- 函数名使用下划线命名
+- 添加适当的注释
+- 遵循 Shell 最佳实践
 
-如果你遇到任何问题，请通过以下方式反馈：
 
-1. [GitHub Issues](https://github.com/your-repo/singbox-install/issues) - 推荐
-2. 邮箱：support@example.com
-3. Telegram：@your_telegram
-
-### 反馈时请提供
-
-- 操作系统版本
-- 脚本版本
-- 错误信息截图
-- 详细的操作步骤
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 📞 联系方式
+
+- **GitHub Issues**: [提交问题](https://github.com/yourusername/singbox/issues)
+- **讨论区**: [GitHub Discussions](https://github.com/yourusername/singbox/discussions)
 
 ## ⚠️ 免责声明
 
-本脚本仅供学习和研究使用，请遵守当地法律法规。使用本脚本所产生的任何后果由使用者自行承担。
-
-## 🙏 致谢
-
-感谢以下项目和贡献者：
-
-- [sing-box](https://github.com/SagerNet/sing-box) - 优秀的代理工具
-- 所有贡献者和用户的支持
-
-## 📞 支持
-
-- 📧 邮箱：support@example.com
-- 💬 Telegram：@your_telegram
-- 🐛 问题反馈：[GitHub Issues](https://github.com/your-repo/singbox-install/issues)
-- 📖 文档：[项目文档](https://github.com/your-repo/singbox-install/wiki)
+本项目仅供学习和研究使用，请遵守当地法律法规。使用本脚本产生的任何后果由用户自行承担。
 
 ---
 
-⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！
-
-[![Star History Chart](https://api.star-history.com/svg?repos=your-repo/singbox-install&type=Date)](https://star-history.com/#your-repo/singbox-install&Date)
+**Sing-box 精简安装脚本 v3.0** - 让部署更简单，让使用更便捷！

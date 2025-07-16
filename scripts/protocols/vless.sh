@@ -70,10 +70,12 @@ detect_reality_targets() {
         "www.apple.com:443"
         "www.cloudflare.com:443"
         "www.amazon.com:443"
-        "www.google.com:443"
-        "github.com:443"
-        "www.tesla.com:443"
-        "www.nvidia.com:443"
+        "www.google.com:443",
+        "github.com:443",
+        "www.tesla.com:443",
+        "www.nvidia.com:443",
+        "www.bing.com:443",
+        "www.yahoo.com:443"
     )
     
     local available_targets=()
