@@ -1,12 +1,25 @@
 ﻿#!/bin/bash
 
-# Sing-box 全能一键安装脚�?# 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v3.0.0 (All-in-One)
+# Sing-box 全能一键安装脚本
+# 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
+# 版本: v3.0.1 (All-in-One)
 # 更新时间: 2025-01-16
 # 特点: 无需外部模块，所有功能集成在一个文件中
 
+# 确保使用bash运行
+if [ -z "$BASH_VERSION" ]; then
+    echo "错误: 此脚本需要bash运行，请使用: bash $0" >&2
+    exit 1
+fi
+
+# 检查bash版本（需要4.0+）
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+    echo "错误: 需要bash 4.0或更高版本，当前版本: $BASH_VERSION" >&2
+    exit 1
+fi
+
 # 设置错误处理
-set -e
+set -euo pipefail
 
 # ==================== 系统兼容性检�?====================
 
@@ -38,18 +51,22 @@ set -e
         exit 1
     fi
     
-    # 检查基本命�?    local missing_commands=()
+    # 检查基本命�?    local missing_commands=""
     for cmd in bash curl tar grep sed awk; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
-            missing_commands+=("$cmd")
+            if [ -z "$missing_commands" ]; then
+                missing_commands="$cmd"
+            else
+                missing_commands="$missing_commands $cmd"
+            fi
         fi
     done
     
-    if [[ ${#missing_commands[@]} -gt 0 ]]; then
-        echo -e "\033[0;31m错误: 缺少必要的系统命令\033[0m"
-        echo -e "\033[1;33m缺少的命�? ${missing_commands[*]}\033[0m"
-        echo ""
-        echo "请安装缺少的命令后重�?
+    if [ -n "$missing_commands" ]; then
+        echo -e "\033[0;31m错误: 缺少必要的系统命令\033[0m" >&2
+        echo -e "\033[1;33m缺少的命令: $missing_commands\033[0m" >&2
+        echo "" >&2
+        echo "请安装缺少的命令后重试" >&2
         exit 1
     fi
 }
@@ -58,7 +75,7 @@ set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 全能一键安装脚�?
-SCRIPT_VERSION="v3.0.0"
+SCRIPT_VERSION="v3.0.1"
 
 # 颜色定义
 RED='\033[0;31m'
