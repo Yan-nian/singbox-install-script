@@ -108,10 +108,14 @@ show_add_menu() {
     print_banner
     echo -e "${GREEN}选择要添加的协议：${NC}"
     echo
-    echo -e "${YELLOW}  [1]${NC} VLESS Reality (推荐)"
-    echo -e "${YELLOW}  [2]${NC} VMess"
-    echo -e "${YELLOW}  [3]${NC} Hysteria2"
-    echo -e "${YELLOW}  [4]${NC} Shadowsocks"
+    echo -e "${CYAN}  [快速配置]${NC}"
+    echo -e "${YELLOW}  [1]${NC} 🚀 快速配置 (只需要节点名称)"
+    echo
+    echo -e "${CYAN}  [详细配置]${NC}"
+    echo -e "${YELLOW}  [2]${NC} VLESS Reality (推荐)"
+    echo -e "${YELLOW}  [3]${NC} VMess"
+    echo -e "${YELLOW}  [4]${NC} Hysteria2"
+    echo -e "${YELLOW}  [5]${NC} Shadowsocks"
     echo -e "${YELLOW}  [0]${NC} 返回主菜单"
     echo
     print_sub_separator
@@ -319,6 +323,22 @@ get_public_ip() {
     echo $ip
 }
 
+# 获取服务器IP（别名）
+get_server_ip() {
+    get_public_ip
+}
+
+# 生成随机字符串
+generate_random_string() {
+    local length=${1:-8}
+    openssl rand -base64 32 | tr -d "=+/" | cut -c1-$length
+}
+
+# 生成短ID
+get_short_id() {
+    generate_random_string 8
+}
+
 generate_reality_keys() {
     /usr/local/bin/sing-box generate reality-keypair
 }
@@ -414,7 +434,8 @@ generate_vless_reality_config() {
         "server_port": 443
       },
       "private_key": "$private_key",
-      "short_id": ["$short_id"]
+      "short_id": ["$short_id"],
+      "max_time_difference": "1m"
     }
   },
   "sniff": true,
@@ -477,6 +498,28 @@ generate_hy2_config() {
   "tag": "$name",
   "listen": "::",
   "listen_port": $port,
+  "users": [
+    {
+      "password": "$password"
+    }
+  ],
+  "tls": {
+    "enabled": true,
+    "server_name": "$domain",
+    "certificate_path": "$CERT_FILE",
+    "key_path": "$KEY_FILE"
+  },
+  "sniff": true,
+  "sniff_override_destination": false,
+  "domain_strategy": "prefer_ipv4"
+}
+EOF
+}
+
+# Hysteria2 配置模板（别名）
+generate_hysteria2_config() {
+    generate_hy2_config "$1" "$2" "$3" "$4"
+}
   "users": [
     {
       "password": "$password"
@@ -573,12 +616,12 @@ update_main_config() {
     "servers": [
       {
         "address": "https://1.1.1.1/dns-query",
-        "detour": "direct",
+        "detour": "🚀 节点选择",
         "tag": "remote"
       },
       {
         "address": "https://223.5.5.5/dns-query",
-        "detour": "direct",
+        "detour": "⚡ 直连",
         "tag": "local"
       },
       {
@@ -597,7 +640,7 @@ update_main_config() {
       "external_controller": "127.0.0.1:9090",
       "external_ui": "ui",
       "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip",
-      "external_ui_download_detour": "direct",
+      "external_ui_download_detour": "⚡ 直连",
       "default_mode": "Rule"
     }
   },
@@ -628,28 +671,66 @@ update_main_config() {
     {
       "type": "selector",
       "tag": "🚀 节点选择",
-      "outbounds": ["♻️ 自动选择", "🎯 故障转移", "⚡ 直连"],
-      "default": "♻️ 自动选择"
+      "outbounds": ["⚙️ 手动切换", "�️ 自动选择", "🔄 直连入口", "🔗 中继节点"],
+      "default": "🎚️ 自动选择"
+    },
+    {
+      "type": "selector",
+      "tag": "⚙️ 手动切换",
+      "outbounds": [],
+      "default": "⚡ 直连"
     },
     {
       "type": "urltest",
-      "tag": "♻️ 自动选择",
+      "tag": "🎚️ 自动选择",
       "outbounds": [],
       "url": "https://www.gstatic.com/generate_204",
       "interval": "10m",
       "tolerance": 50
     },
     {
-      "type": "urltest",
-      "tag": "🎯 故障转移",
-      "outbounds": [],
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": "10m",
-      "tolerance": 50
+      "type": "selector",
+      "tag": "🔗 中继节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
+    },
+    {
+      "type": "selector",
+      "tag": "�🇰 香港节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
+    },
+    {
+      "type": "selector",
+      "tag": "🇹🇼 台湾节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
+    },
+    {
+      "type": "selector",
+      "tag": "🇯🇵 日本节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
+    },
+    {
+      "type": "selector",
+      "tag": "🇺🇸 美国节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
+    },
+    {
+      "type": "selector",
+      "tag": "🇸🇬 新加坡节点",
+      "outbounds": ["🔄 直连入口"],
+      "default": "🔄 直连入口"
     },
     {
       "type": "direct",
       "tag": "⚡ 直连"
+    },
+    {
+      "type": "direct",
+      "tag": "🔄 直连入口"
     },
     {
       "type": "block",
@@ -722,44 +803,292 @@ update_main_config() {
 }
 EOF
 
-    # 更新自动选择和故障转移的出站列表
-    update_selector_outbounds
+    # 更新分组节点列表
+    update_group_outbounds
 }
 
-# 更新选择器出站列表
-update_selector_outbounds() {
+# 更新分组节点列表
+update_group_outbounds() {
     if [[ ! -f "$CONFIG_FILE" ]]; then
         return
     fi
     
     # 获取所有配置的标签
-    local outbound_tags=()
+    local all_tags=()
+    local terminal_tags=()
+    
     if [[ -f "$DB_FILE" ]]; then
         while IFS='|' read -r name type port _; do
             if [[ -n "$name" ]]; then
-                outbound_tags+=("\"$name\"")
+                all_tags+=("\"$name\"")
+                # 假设所有节点都是终端节点（非中继）
+                terminal_tags+=("\"$name\"")
             fi
         done < "$DB_FILE"
     fi
     
-    # 如果没有配置，添加直连
-    if [[ ${#outbound_tags[@]} -eq 0 ]]; then
-        outbound_tags=("\"⚡ 直连\"")
+    # 如果没有配置，使用默认值
+    if [[ ${#all_tags[@]} -eq 0 ]]; then
+        all_tags=("\"🔄 直连入口\"")
+        terminal_tags=("\"🔄 直连入口\"")
     fi
     
-    local outbound_list=$(printf '%s,' "${outbound_tags[@]}")
-    outbound_list="[${outbound_list%,}]"
+    # 地区节点分组规则
+    local regions=(
+        "🇭🇰 香港节点:香港|HK|Hong\s?Kong"
+        "🇹🇼 台湾节点:台湾|台|Tai\s?Wan|TW|TWN"
+        "🇯🇵 日本节点:日本|JP|JPN|Japan|Tokyo"
+        "🇺🇸 美国节点:美国|US|USA|United\s?States|America"
+        "🇸🇬 新加坡节点:新加坡|SG|SIN|Singapore"
+    )
     
-    # 使用 jq 更新配置（如果可用）
+    # 准备节点列表
+    local all_list=$(printf '%s,' "${all_tags[@]}")
+    all_list="[${all_list%,}]"
+    
+    local terminal_list=$(printf '%s,' "${terminal_tags[@]}")
+    terminal_list="[${terminal_list%,}]"
+    
+    # 使用临时文件进行更新
+    local temp_file="$CONFIG_FILE.tmp"
+    
     if command -v jq >/dev/null 2>&1; then
-        jq --argjson outbounds "$outbound_list" '
-            .outbounds[1].outbounds = $outbounds |
-            .outbounds[2].outbounds = $outbounds
-        ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+        # 使用 jq 进行精确更新
+        jq --argjson all_tags "$all_list" --argjson terminal_tags "$terminal_list" '
+            # 更新手动切换分组
+            (.outbounds[] | select(.tag == "⚙️ 手动切换") | .outbounds) = $all_tags |
+            # 更新自动选择分组
+            (.outbounds[] | select(.tag == "🎚️ 自动选择") | .outbounds) = $all_tags |
+            # 更新中继节点分组（仅终端节点）
+            (.outbounds[] | select(.tag == "🔗 中继节点") | .outbounds) = (["🔄 直连入口"] + $terminal_tags)
+        ' "$CONFIG_FILE" > "$temp_file"
+        
+        # 地区分组更新
+        for region in "${regions[@]}"; do
+            local group_name="${region%%:*}"
+            local pattern="${region##*:}"
+            
+            # 匹配地区节点
+            local region_tags=()
+            for tag in "${all_tags[@]}"; do
+                local clean_tag="${tag//\"/}"
+                if echo "$clean_tag" | grep -qE "$pattern"; then
+                    region_tags+=("$tag")
+                fi
+            done
+            
+            # 如果有匹配的节点，更新分组；否则保持默认
+            if [[ ${#region_tags[@]} -gt 0 ]]; then
+                local region_list=$(printf '%s,' "${region_tags[@]}")
+                region_list="[${region_list%,}]"
+                
+                jq --argjson region_tags "$region_list" --arg group_name "$group_name" '
+                    (.outbounds[] | select(.tag == $group_name) | .outbounds) = $region_tags
+                ' "$temp_file" > "$temp_file.2" && mv "$temp_file.2" "$temp_file"
+            fi
+        done
+        
+        mv "$temp_file" "$CONFIG_FILE"
     else
         # 如果没有 jq，使用 sed 进行基本替换
-        sed -i.bak "s/\"outbounds\": \[\]/\"outbounds\": $outbound_list/g" "$CONFIG_FILE"
-        rm -f "$CONFIG_FILE.bak"
+        cp "$CONFIG_FILE" "$temp_file"
+        
+        # 简单替换（不够精确，但基本可用）
+        sed -i.bak -E "s/\"outbounds\": \[\]/\"outbounds\": $all_list/g" "$temp_file"
+        
+        mv "$temp_file" "$CONFIG_FILE"
+        rm -f "$temp_file.bak"
+    fi
+}
+
+# 兼容性别名（保持向后兼容）
+update_selector_outbounds() {
+    update_group_outbounds
+}
+
+# 自动生成配置函数 - 只需要节点名称
+generate_auto_config() {
+    local config_name="$1"
+    local protocol="$2"
+    
+    if [[ -z "$config_name" ]]; then
+        error "请提供配置名称"
+        return 1
+    fi
+    
+    # 检查配置是否已存在
+    if [[ -n $(get_config_from_db "$config_name") ]]; then
+        error "配置 '$config_name' 已存在"
+        return 1
+    fi
+    
+    # 自动生成参数
+    local port=$(get_random_port)
+    local server_ip=$(get_server_ip)
+    
+    case "$protocol" in
+        "vless" | "vless-reality")
+            local uuid=$(generate_uuid)
+            local keys=$(generate_reality_keys)
+            local private_key=$(echo "$keys" | grep "PrivateKey:" | awk '{print $2}')
+            local public_key=$(echo "$keys" | grep "PublicKey:" | awk '{print $2}')
+            local short_id=$(get_short_id)
+            local sni="www.google.com"
+            
+            # 生成配置
+            local config_content=$(generate_vless_reality_config "$config_name" "$port" "$uuid" "$private_key" "$public_key" "$short_id" "$sni")
+            echo "$config_content" > "$CONFIG_DIR/configs/$config_name.json"
+            
+            # 更新数据库
+            add_config_to_db "$config_name" "vless-reality" "$port" "$uuid" "$private_key|$public_key|$short_id|$sni"
+            
+            success "VLESS Reality 配置 '$config_name' 创建完成"
+            echo "  端口: $port"
+            echo "  UUID: $uuid"
+            echo "  SNI: $sni"
+            echo "  Public Key: $public_key"
+            ;;
+            
+        "vmess")
+            local uuid=$(generate_uuid)
+            local domain="www.google.com"
+            local path="/$(generate_random_string 8)"
+            
+            # 生成配置
+            local config_content=$(generate_vmess_config "$config_name" "$port" "$uuid" "$domain" "$path")
+            echo "$config_content" > "$CONFIG_DIR/configs/$config_name.json"
+            
+            # 更新数据库
+            add_config_to_db "$config_name" "vmess" "$port" "$uuid" "$domain|$path"
+            
+            success "VMess 配置 '$config_name' 创建完成"
+            echo "  端口: $port"
+            echo "  UUID: $uuid"
+            echo "  域名: $domain"
+            echo "  路径: $path"
+            ;;
+            
+        "hysteria2")
+            local password=$(generate_password)
+            local domain="www.google.com"
+            
+            # 生成配置
+            local config_content=$(generate_hysteria2_config "$config_name" "$port" "$domain" "$password")
+            echo "$config_content" > "$CONFIG_DIR/configs/$config_name.json"
+            
+            # 更新数据库
+            add_config_to_db "$config_name" "hysteria2" "$port" "$password" "$domain"
+            
+            success "Hysteria2 配置 '$config_name' 创建完成"
+            echo "  端口: $port"
+            echo "  密码: $password"
+            echo "  域名: $domain"
+            ;;
+            
+        "shadowsocks")
+            local password=$(generate_password)
+            local method="2022-blake3-chacha20-poly1305"
+            
+            # 生成配置
+            local config_content=$(generate_shadowsocks_config "$config_name" "$port" "$method" "$password")
+            echo "$config_content" > "$CONFIG_DIR/configs/$config_name.json"
+            
+            # 更新数据库
+            add_config_to_db "$config_name" "shadowsocks" "$port" "$password" "$method"
+            
+            success "Shadowsocks 配置 '$config_name' 创建完成"
+            echo "  端口: $port"
+            echo "  方法: $method"
+            echo "  密码: $password"
+            ;;
+            
+        *)
+            error "不支持的协议: $protocol"
+            return 1
+            ;;
+    esac
+    
+    # 更新主配置
+    update_main_config
+    
+    # 重启服务
+    if systemctl is-active --quiet sing-box; then
+        systemctl restart sing-box
+    fi
+    
+    echo ""
+    highlight "=== 分享链接 ==="
+    case "$protocol" in
+        "vless" | "vless-reality")
+            generate_vless_url "$config_name"
+            ;;
+        "vmess")
+            generate_vmess_url "$config_name"
+            ;;
+        "hysteria2")
+            generate_hy2_url "$config_name"
+            ;;
+        "shadowsocks")
+            generate_ss_url "$config_name"
+            ;;
+    esac
+}
+
+# 简化的交互式配置添加
+interactive_add_simple_config() {
+    clear
+    print_banner
+    echo -e "${GREEN}简化配置添加 - 只需要节点名称${NC}"
+    print_sub_separator
+    
+    echo -e "${YELLOW}选择协议类型：${NC}"
+    echo "  [1] VLESS Reality (推荐)"
+    echo "  [2] VMess"
+    echo "  [3] Hysteria2"
+    echo "  [4] Shadowsocks"
+    echo "  [0] 返回主菜单"
+    
+    local choice
+    while true; do
+        read -p "请选择协议 [1-4]: " choice
+        case $choice in
+            1) protocol="vless-reality"; break ;;
+            2) protocol="vmess"; break ;;
+            3) protocol="hysteria2"; break ;;
+            4) protocol="shadowsocks"; break ;;
+            0) return ;;
+            *) warn "无效选择，请重新输入" ;;
+        esac
+    done
+    
+    # 获取配置名称
+    local name
+    while true; do
+        name=$(read_input "请输入配置名称" "${protocol}-$(date +%s)")
+        if [[ -z $(get_config_from_db "$name") ]]; then
+            break
+        else
+            warn "配置名称 '$name' 已存在，请使用其他名称"
+        fi
+    done
+    
+    # 确认配置
+    echo
+    print_sub_separator
+    echo -e "${YELLOW}配置预览：${NC}"
+    echo "  名称: $name"
+    echo "  协议: $protocol"
+    echo "  其他参数: 将自动生成"
+    print_sub_separator
+    
+    if confirm "确认添加此配置吗？"; then
+        echo
+        info "正在创建配置..."
+        generate_auto_config "$name" "$protocol"
+        wait_for_input
+    else
+        warn "配置添加已取消"
+        wait_for_input
     fi
 }
 
@@ -2886,10 +3215,11 @@ interactive_main() {
                     add_choice=$(read_input "请选择协议" "0")
                     
                     case "$add_choice" in
-                        "1") interactive_add_vless_reality ;;
-                        "2") interactive_add_vmess ;;
-                        "3") interactive_add_hysteria2 ;;
-                        "4") interactive_add_shadowsocks ;;
+                        "1") interactive_add_simple_config ;;
+                        "2") interactive_add_vless_reality ;;
+                        "3") interactive_add_vmess ;;
+                        "4") interactive_add_hysteria2 ;;
+                        "5") interactive_add_shadowsocks ;;
                         "0") break ;;
                         *) warn "请输入有效的选项"; sleep 1 ;;
                     esac
