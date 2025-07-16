@@ -5,7 +5,7 @@
 
 # 协议变量
 VLESS_UUID=""
-VLESS_PORT="443"
+VLESS_PORT="10443"
 # VLESS_FLOW="xtls-rprx-vision"  # Reality模式不支持flow字段
 VLESS_PRIVATE_KEY=""
 VLESS_PUBLIC_KEY=""
@@ -14,7 +14,7 @@ VLESS_TARGET="www.yahoo.com:443"
 VLESS_SERVER_NAME="www.yahoo.com"
 
 VMESS_UUID=""
-VMESS_PORT="80"
+VMESS_PORT="10080"
 VMESS_WS_PATH=""
 VMESS_HOST=""
 
@@ -128,6 +128,13 @@ configure_vless_reality() {
         log_info "使用随机端口: $VLESS_PORT"
     fi
     
+    # 确保使用高端口
+    if [ "$VLESS_PORT" -lt 10000 ]; then
+        log_warn "VLESS端口 $VLESS_PORT 低于10000，重新分配高端口"
+        VLESS_PORT=$(get_random_port)
+        log_info "VLESS高端口: $VLESS_PORT"
+    fi
+    
     # 生成密钥对
     if [[ -z "$VLESS_PRIVATE_KEY" ]] || [[ -z "$VLESS_PUBLIC_KEY" ]]; then
         generate_reality_keypair
@@ -197,6 +204,13 @@ configure_vmess_websocket() {
         log_warn "端口 $VMESS_PORT 已被占用"
         VMESS_PORT=$(get_random_port)
         log_info "使用随机端口: $VMESS_PORT"
+    fi
+    
+    # 确保使用高端口
+    if [ "$VMESS_PORT" -lt 10000 ]; then
+        log_warn "VMess端口 $VMESS_PORT 低于10000，重新分配高端口"
+        VMESS_PORT=$(get_random_port)
+        log_info "VMess高端口: $VMESS_PORT"
     fi
     
     # 设置 Host
@@ -283,6 +297,13 @@ configure_hysteria2() {
         log_warn "端口 $HY2_PORT 已被占用"
         HY2_PORT=$(get_random_port)
         log_info "使用随机端口: $HY2_PORT"
+    fi
+    
+    # 确保使用高端口
+    if [ "$HY2_PORT" -lt 10000 ]; then
+        log_warn "Hysteria2端口 $HY2_PORT 低于10000，重新分配高端口"
+        HY2_PORT=$(get_random_port)
+        log_info "Hysteria2高端口: $HY2_PORT"
     fi
     
     # 设置域名和证书

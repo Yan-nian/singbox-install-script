@@ -1348,6 +1348,31 @@ case "${1:-}" in
         check_root
         verify_installation
         ;;
+    --quick-setup)
+        check_root
+        echo -e "${CYAN}=== 一键安装并配置三协议 ===${NC}"
+        echo ""
+        
+        # 先安装 Sing-box
+        if ! command -v sing-box &> /dev/null; then
+            echo -e "${YELLOW}正在安装 Sing-box...${NC}"
+            perform_installation
+        else
+            echo -e "${GREEN}Sing-box 已安装${NC}"
+        fi
+        
+        # 加载库文件
+        load_modules
+        
+        # 执行一键配置
+        echo -e "${YELLOW}正在进行一键配置三协议...${NC}"
+        if command -v quick_setup_all_protocols >/dev/null 2>&1; then
+            quick_setup_all_protocols
+        else
+            echo -e "${RED}一键配置功能不可用，请使用交互式菜单${NC}"
+        fi
+        exit 0
+        ;;
     --help|-h)
         echo -e "${CYAN}$SCRIPT_NAME $SCRIPT_VERSION${NC}"
         echo ""
@@ -1356,10 +1381,17 @@ case "${1:-}" in
         echo -e "  $0 --install      # 直接安装"
         echo -e "  $0 --uninstall    # 一键完全卸载"
         echo -e "  $0 --verify       # 验证安装状态"
+        echo -e "  $0 --quick-setup  # 一键安装并配置三协议"
         echo -e "  $0 --help         # 显示帮助"
         echo ""
         echo -e "${YELLOW}快捷命令:${NC}"
         echo -e "  sb                # 等同于 $0"
+        echo ""
+        echo -e "${CYAN}一键安装特点:${NC}"
+        echo -e "  ${GREEN}✓${NC} 自动安装 Sing-box"
+        echo -e "  ${GREEN}✓${NC} 配置三种协议 (VLESS Reality + VMess WebSocket + Hysteria2)"
+        echo -e "  ${GREEN}✓${NC} 自动分配高端口 (10000+)"
+        echo -e "  ${GREEN}✓${NC} 生成连接信息和二维码"
         ;;
     *)
         main

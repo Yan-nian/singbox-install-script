@@ -47,27 +47,29 @@ show_main_menu() {
         # 菜单选项
         echo -e "${YELLOW}请选择操作:${NC}"
         echo ""
-        echo -e "  ${GREEN}1.${NC} 配置协议"
-        echo -e "  ${GREEN}2.${NC} 管理服务"
-        echo -e "  ${GREEN}3.${NC} 查看配置"
-        echo -e "  ${GREEN}4.${NC} 生成分享"
-        echo -e "  ${GREEN}5.${NC} 端口管理"
-        echo -e "  ${GREEN}6.${NC} 系统工具"
+        echo -e "  ${GREEN}1.${NC} 一键配置三协议"
+        echo -e "  ${GREEN}2.${NC} 配置协议"
+        echo -e "  ${GREEN}3.${NC} 管理服务"
+        echo -e "  ${GREEN}4.${NC} 查看配置"
+        echo -e "  ${GREEN}5.${NC} 生成分享"
+        echo -e "  ${GREEN}6.${NC} 端口管理"
+        echo -e "  ${GREEN}7.${NC} 系统工具"
         echo -e "  ${GREEN}0.${NC} 退出"
         echo ""
         echo -e "${CYAN}================================================================${NC}"
         
         local choice
-        echo -n -e "${YELLOW}请输入选择 [0-6]: ${NC}"
+        echo -n -e "${YELLOW}请输入选择 [0-7]: ${NC}"
         read -r choice
         
         case "$choice" in
-            1) show_protocol_menu ;;
-            2) show_service_menu ;;
-            3) show_config_menu ;;
-            4) show_share_menu ;;
-            5) show_port_menu ;;
-            6) show_system_menu ;;
+            1) quick_setup_all_protocols ;;
+            2) show_protocol_menu ;;
+            3) show_service_menu ;;
+            4) show_config_menu ;;
+            5) show_share_menu ;;
+            6) show_port_menu ;;
+            7) show_system_menu ;;
             0) 
                 echo -e "${GREEN}感谢使用！${NC}"
                 exit 0
@@ -344,6 +346,86 @@ configure_single_protocol() {
         fi
     else
         echo -e "${RED}配置生成失败！${NC}"
+    fi
+    
+    wait_for_input
+}
+
+# 一键配置三协议（优化版）
+quick_setup_all_protocols() {
+    echo -e "${CYAN}=== 一键配置三协议 ===${NC}"
+    echo ""
+    echo -e "${YELLOW}将自动配置以下三种协议并使用高端口:${NC}"
+    echo ""
+    echo -e "  ${GREEN}•${NC} VLESS Reality Vision (自动分配 10000+ 端口)"
+    echo -e "  ${GREEN}•${NC} VMess WebSocket (自动分配 10000+ 端口)"
+    echo -e "  ${GREEN}•${NC} Hysteria2 (自动分配 10000+ 端口)"
+    echo ""
+    echo -e "${CYAN}特点:${NC}"
+    echo -e "  ${GREEN}✓${NC} 自动端口分配，避免冲突"
+    echo -e "  ${GREEN}✓${NC} 使用高端口号 (10000-65535)"
+    echo -e "  ${GREEN}✓${NC} 自动生成安全配置"
+    echo -e "  ${GREEN}✓${NC} 一键完成所有设置"
+    echo ""
+    
+    if confirm_action "是否继续一键配置三协议?"; then
+        echo -e "${CYAN}正在进行一键配置...${NC}"
+        echo ""
+        
+        # 强制使用高端口
+        echo -e "${CYAN}[1/4] 分配高端口号...${NC}"
+        VLESS_PORT=$(get_random_port)
+        VMESS_PORT=$(get_random_port)
+        HY2_PORT=$(get_random_port)
+        
+        echo -e "${GREEN}  ✓ VLESS Reality: $VLESS_PORT${NC}"
+        echo -e "${GREEN}  ✓ VMess WebSocket: $VMESS_PORT${NC}"
+        echo -e "${GREEN}  ✓ Hysteria2: $HY2_PORT${NC}"
+        echo ""
+        
+        # 配置协议
+        echo -e "${CYAN}[2/4] 配置协议参数...${NC}"
+        local protocols=("vless" "vmess" "hysteria2")
+        
+        if generate_config "${protocols[@]}"; then
+            echo -e "${GREEN}  ✓ 三协议配置生成成功${NC}"
+            echo ""
+            
+            # 保存配置
+            echo -e "${CYAN}[3/4] 保存配置...${NC}"
+            save_config
+            echo -e "${GREEN}  ✓ 配置已保存${NC}"
+            echo ""
+            
+            # 显示配置信息
+            echo -e "${CYAN}[4/4] 配置完成，显示连接信息...${NC}"
+            echo ""
+            
+            for protocol in "${protocols[@]}"; do
+                case "$protocol" in
+                    "vless") show_protocol_info "VLESS Reality" ;;
+                    "vmess") show_protocol_info "VMess WebSocket" ;;
+                    "hysteria2") show_protocol_info "Hysteria2" ;;
+                esac
+            done
+            
+            echo -e "${GREEN}🎉 一键配置三协议完成！${NC}"
+            echo ""
+            
+            # 询问是否启动服务
+            if confirm_action "是否立即启动 Sing-box 服务?"; then
+                restart_service "$SERVICE_NAME"
+                echo ""
+                echo -e "${GREEN}✅ 服务已启动，可以开始使用了！${NC}"
+            else
+                echo -e "${YELLOW}配置已完成，可稍后手动启动服务${NC}"
+                echo -e "${CYAN}启动命令: sudo systemctl start sing-box${NC}"
+            fi
+        else
+            echo -e "${RED}❌ 配置生成失败！${NC}"
+        fi
+    else
+        echo -e "${YELLOW}已取消一键配置${NC}"
     fi
     
     wait_for_input
@@ -806,19 +888,58 @@ change_single_port() {
             echo -e "${GREEN}生成随机端口: $new_port${NC}"
             ;;
         2)
-            echo -n -e "${YELLOW}请输入新端口 (1-65535): ${NC}"
+            echo -e "${CYAN}端口建议:${NC}"
+            echo -e "  ${GREEN}•${NC} 推荐使用 10000-65535 范围的端口"
+            echo -e "  ${GREEN}•${NC} 输入 'r' 自动分配随机高端口"
+            echo -e "  ${GREEN}•${NC} 输入 'h' 获取推荐的高端口"
+            echo ""
+            echo -n -e "${YELLOW}请输入新端口 (1-65535) 或选项 [r/h]: ${NC}"
             read -r new_port
             
-            if ! validate_port "$new_port"; then
+            if [[ "$new_port" == "r" ]] || [[ "$new_port" == "R" ]]; then
+                new_port=$(get_random_port)
+                echo -e "${GREEN}随机分配高端口: $new_port${NC}"
+            elif [[ "$new_port" == "h" ]] || [[ "$new_port" == "H" ]]; then
+                # 提供几个推荐的高端口
+                local suggested_ports=("10443" "10080" "10800" "11080" "12080")
+                echo -e "${CYAN}推荐端口:${NC}"
+                for i in "${!suggested_ports[@]}"; do
+                    local port="${suggested_ports[$i]}"
+                    if check_port "$port"; then
+                        echo -e "  ${RED}$((i+1)). $port (被占用)${NC}"
+                    else
+                        echo -e "  ${GREEN}$((i+1)). $port (可用)${NC}"
+                    fi
+                done
+                echo -n -e "${YELLOW}请选择端口 (1-${#suggested_ports[@]}) 或输入自定义端口: ${NC}"
+                read -r choice
+                if [[ "$choice" =~ ^[1-${#suggested_ports[@]}]$ ]]; then
+                    new_port="${suggested_ports[$((choice-1))]}"
+                    if check_port "$new_port"; then
+                        echo -e "${RED}端口 $new_port 被占用，自动分配随机端口${NC}"
+                        new_port=$(get_random_port)
+                    fi
+                elif [[ "$choice" =~ ^[0-9]+$ ]]; then
+                    new_port="$choice"
+                else
+                    echo -e "${RED}无效选择！${NC}"
+                    sleep 2
+                    return
+                fi
+            elif ! validate_port "$new_port"; then
                 echo -e "${RED}端口格式无效${NC}"
                 sleep 2
                 return
             fi
             
             if [[ "$new_port" -lt 10000 ]]; then
-                echo -e "${YELLOW}警告: 建议使用10000以上的端口${NC}"
-                if ! confirm_action "是否继续使用端口 $new_port?"; then
-                    return
+                echo -e "${YELLOW}警告: 端口 $new_port 小于 10000，建议使用高端口避免冲突${NC}"
+                echo -n -e "${YELLOW}是否继续使用此端口? [y/N]: ${NC}"
+                read -r confirm
+                if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                    echo -e "${CYAN}为您分配高端口...${NC}"
+                    new_port=$(get_random_port)
+                    echo -e "${GREEN}新端口: $new_port${NC}"
                 fi
             fi
             
