@@ -34,7 +34,13 @@ PUBLIC_IP=""
 
 # 基础日志函数
 log_info() {
-    echo -e "${GREEN}[INFO] $*${NC}"
+    local message="$1"
+    local details="${2:-}"
+    echo -e "${GREEN}[INFO] $message${NC}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $message" >> "$LOG_FILE" 2>/dev/null || true
+    if [[ -n "$details" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Details: $details" >> "$LOG_FILE" 2>/dev/null || true
+    fi
 }
 
 log_warn() {
@@ -42,7 +48,13 @@ log_warn() {
 }
 
 log_error() {
-    echo -e "${RED}[ERROR] $*${NC}"
+    local message="$1"
+    local details="${2:-}"
+    echo -e "${RED}[ERROR] $message${NC}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $message" >> "$LOG_FILE" 2>/dev/null || true
+    if [[ -n "$details" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Details: $details" >> "$LOG_FILE" 2>/dev/null || true
+    fi
 }
 
 # 基础验证函数
@@ -144,6 +156,93 @@ show_installation_menu() {
     esac
 }
 
+# 下载和安装 Sing-box
+download_and_install_singbox() {
+    echo -e "${CYAN}正在下载和安装 Sing-box...${NC}"
+    
+    # 检查系统架构
+    if [[ -z "$ARCH" ]]; then
+        echo -e "${RED}错误: 系统架构未检测${NC}"
+        return 1
+    fi
+    
+    # 获取最新版本
+    local latest_version
+    latest_version=$(curl -fsSL "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//')
+    
+    if [[ -z "$latest_version" ]]; then
+        echo -e "${RED}错误: 无法获取最新版本信息${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}最新版本: $latest_version${NC}"
+    
+    # 构建下载URL
+    local download_url="https://github.com/SagerNet/sing-box/releases/download/v${latest_version}/sing-box-${latest_version}-linux-${ARCH}.tar.gz"
+    local temp_file="/tmp/sing-box-${latest_version}.tar.gz"
+    
+    # 下载文件
+    echo -e "${CYAN}正在下载 Sing-box...${NC}"
+    if ! curl -fsSL "$download_url" -o "$temp_file"; then
+        echo -e "${RED}错误: 下载失败${NC}"
+        return 1
+    fi
+    
+    # 解压和安装
+    local extract_dir="/tmp/sing-box-extract"
+    mkdir -p "$extract_dir"
+    
+    if tar -xzf "$temp_file" -C "$extract_dir" --strip-components=1; then
+        if [[ -f "$extract_dir/sing-box" ]]; then
+            cp "$extract_dir/sing-box" "$SINGBOX_BINARY"
+            chmod +x "$SINGBOX_BINARY"
+            echo -e "${GREEN}Sing-box 安装成功${NC}"
+        else
+            echo -e "${RED}错误: 解压后未找到二进制文件${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}错误: 解压失败${NC}"
+        return 1
+    fi
+    
+    # 清理临时文件
+    rm -rf "$temp_file" "$extract_dir"
+    return 0
+}
+
+# 创建系统服务
+create_systemd_service() {
+    echo -e "${CYAN}正在创建系统服务...${NC}"
+    
+    # 创建服务文件
+    cat > "/etc/systemd/system/sing-box.service" << EOF
+[Unit]
+Description=sing-box service
+Documentation=https://sing-box.sagernet.org
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+ExecStart=$SINGBOX_BINARY run -c $CONFIG_FILE
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+RestartSec=10s
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    systemctl daemon-reload
+    systemctl enable sing-box
+    
+    echo -e "${GREEN}系统服务创建完成${NC}"
+}
+
 # 简化的安装函数
 perform_installation() {
     echo -e "${CYAN}=== 开始安装 Sing-box ===${NC}"
@@ -168,9 +267,50 @@ perform_installation() {
         fi
     fi
     
-    install_dependencies
-    install_singbox
-    create_service
+    # 安装依赖
+    echo -e "${CYAN}检查和安装依赖...${NC}"
+    
+    # 检查必要的命令
+    local missing_deps=()
+    
+    if ! command -v curl >/dev/null 2>&1; then
+        missing_deps+=("curl")
+    fi
+    
+    if ! command -v tar >/dev/null 2>&1; then
+        missing_deps+=("tar")
+    fi
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}正在安装缺失的依赖: ${missing_deps[*]}${NC}"
+        
+        # 根据系统类型安装依赖
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1
+            apt-get install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y "${missing_deps[@]}" >/dev/null 2>&1
+        else
+            echo -e "${RED}错误: 无法自动安装依赖，请手动安装: ${missing_deps[*]}${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}依赖安装完成${NC}"
+    else
+        echo -e "${GREEN}所有依赖已满足${NC}"
+    fi
+    
+    # 使用新的下载安装函数
+    if download_and_install_singbox; then
+        log_info "二进制文件安装成功"
+    else
+        log_error "二进制文件安装失败"
+        exit 1
+    fi
+    
+    create_systemd_service
     create_shortcut_command
     
     # 如果是覆盖安装，尝试恢复配置
@@ -253,8 +393,24 @@ update_singbox() {
         echo -e "${GREEN}配置已备份到: $backup_file${NC}"
     fi
     
-    # 重新安装二进制文件
-    if ! install_singbox; then
+    # 使用新的下载安装函数
+    if download_and_install_singbox; then
+        echo -e "${GREEN}Sing-box 更新成功${NC}"
+        
+        # 重启服务
+        if systemctl is-enabled sing-box >/dev/null 2>&1; then
+            echo -e "${YELLOW}重启 Sing-box 服务...${NC}"
+            systemctl start sing-box
+            
+            if systemctl is-active sing-box >/dev/null 2>&1; then
+                echo -e "${GREEN}Sing-box 更新完成并已重启${NC}"
+            else
+                echo -e "${RED}Sing-box 更新完成但启动失败，请检查配置${NC}"
+            fi
+        else
+            echo -e "${GREEN}Sing-box 更新完成${NC}"
+        fi
+    else
         echo -e "${RED}更新失败: 无法安装新版本${NC}"
         
         # 尝试重启现有服务
@@ -266,20 +422,6 @@ update_singbox() {
         read -p "按回车键返回菜单..." 
         main
         return 1
-    fi
-    
-    # 重启服务
-    if systemctl is-enabled sing-box >/dev/null 2>&1; then
-        echo -e "${YELLOW}重启 Sing-box 服务...${NC}"
-        systemctl start sing-box
-        
-        if systemctl is-active sing-box >/dev/null 2>&1; then
-            echo -e "${GREEN}Sing-box 更新完成并已重启${NC}"
-        else
-            echo -e "${RED}Sing-box 更新完成但启动失败，请检查配置${NC}"
-        fi
-    else
-        echo -e "${GREEN}Sing-box 更新完成${NC}"
     fi
     
     read -p "按回车键返回菜单..." 
@@ -524,220 +666,42 @@ detect_system() {
 
 # 安装依赖
 install_dependencies() {
-    echo -e "${CYAN}正在安装依赖...${NC}"
+    echo -e "${CYAN}检查和安装基础依赖...${NC}"
     
-    case $OS in
-        ubuntu|debian)
-            echo -e "${CYAN}更新软件包列表...${NC}"
-            apt update
-            echo -e "${CYAN}安装必要依赖...${NC}"
-            apt install -y \
-                curl \
-                wget \
-                unzip \
-                tar \
-                gzip \
-                openssl \
-                qrencode \
-                jq \
-                uuid-runtime \
-                coreutils \
-                net-tools \
-                procps \
-                systemd \
-                grep \
-                gawk \
-                sed \
-                util-linux \
-                ca-certificates
-            ;;
-        centos|rhel|fedora)
-            if command -v dnf >/dev/null 2>&1; then
-                echo -e "${CYAN}安装必要依赖...${NC}"
-                dnf install -y \
-                    curl \
-                    wget \
-                    unzip \
-                    tar \
-                    gzip \
-                    openssl \
-                    qrencode \
-                    jq \
-                    util-linux \
-                    coreutils \
-                    net-tools \
-                    procps-ng \
-                    systemd \
-                    grep \
-                    gawk \
-                    sed \
-                    ca-certificates
-            else
-                echo -e "${CYAN}安装必要依赖...${NC}"
-                yum install -y \
-                    curl \
-                    wget \
-                    unzip \
-                    tar \
-                    gzip \
-                    openssl \
-                    qrencode \
-                    jq \
-                    util-linux \
-                    coreutils \
-                    net-tools \
-                    procps \
-                    systemd \
-                    grep \
-                    gawk \
-                    sed \
-                    ca-certificates
-            fi
-            ;;
-        *)
-            echo -e "${YELLOW}警告: 未知系统 ($OS)，尝试安装基础依赖...${NC}"
-            # 尝试使用通用包管理器
-            if command -v apt >/dev/null 2>&1; then
-                apt update && apt install -y curl wget unzip tar openssl jq
-            elif command -v yum >/dev/null 2>&1; then
-                yum install -y curl wget unzip tar openssl jq
-            elif command -v pacman >/dev/null 2>&1; then
-                pacman -Sy --noconfirm curl wget unzip tar openssl jq
-            else
-                echo -e "${RED}错误: 无法识别包管理器，请手动安装以下依赖:${NC}"
-                echo -e "${YELLOW}curl wget unzip tar openssl jq uuid-runtime coreutils net-tools${NC}"
-                read -p "按回车键继续..."
-            fi
-            ;;
-    esac
-    
-    # 验证关键依赖是否安装成功
-    echo -e "${CYAN}验证依赖安装...${NC}"
+    # 检查必要的命令
     local missing_deps=()
-    local required_deps=("curl" "wget" "jq" "openssl" "tar" "unzip")
     
-    for dep in "${required_deps[@]}"; do
-        if ! command -v "$dep" >/dev/null 2>&1; then
-            missing_deps+=("$dep")
-        fi
-    done
+    if ! command -v curl >/dev/null 2>&1; then
+        missing_deps+=("curl")
+    fi
+    
+    if ! command -v tar >/dev/null 2>&1; then
+        missing_deps+=("tar")
+    fi
     
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        echo -e "${RED}错误: 以下依赖安装失败: ${missing_deps[*]}${NC}"
-        echo -e "${YELLOW}请手动安装这些依赖后重新运行脚本${NC}"
-        exit 1
+        echo -e "${YELLOW}正在安装缺失的依赖: ${missing_deps[*]}${NC}"
+        
+        # 根据系统类型安装依赖
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1
+            apt-get install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y "${missing_deps[@]}" >/dev/null 2>&1
+        else
+            echo -e "${RED}错误: 无法自动安装依赖，请手动安装: ${missing_deps[*]}${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}依赖安装完成${NC}"
+    else
+        echo -e "${GREEN}所有依赖已满足${NC}"
     fi
-    
-    echo -e "${GREEN}所有依赖安装完成${NC}"
 }
 
-# 下载并安装 Sing-box
-install_singbox() {
-    echo -e "${CYAN}正在安装 Sing-box...${NC}"
-    
-    # 验证前置条件
-    if [[ -z "$ARCH" ]]; then
-        echo -e "${RED}错误: 系统架构未检测，请先运行系统检测${NC}"
-        return 1
-    fi
-    
-    echo -e "${GREEN}目标架构: $ARCH${NC}"
-    
-    # 获取最新版本（增加重试机制）
-    local latest_version
-    local retry_count=0
-    local max_retries=3
-    
-    echo -e "${CYAN}正在获取最新版本信息...${NC}"
-    while [[ $retry_count -lt $max_retries ]]; do
-        latest_version=$(curl -s --max-time 30 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/v//')
-        
-        if [[ -n "$latest_version" ]]; then
-            break
-        fi
-        
-        retry_count=$((retry_count + 1))
-        echo -e "${YELLOW}获取版本信息失败，重试 $retry_count/$max_retries...${NC}"
-        sleep 2
-    done
-    
-    if [[ -z "$latest_version" ]]; then
-        echo -e "${RED}错误: 无法获取最新版本信息，请检查网络连接${NC}"
-        return 1
-    fi
-    
-    echo -e "${GREEN}最新版本: v$latest_version${NC}"
-    
-    # 构建下载URL
-    local download_url="https://github.com/SagerNet/sing-box/releases/download/v${latest_version}/sing-box-${latest_version}-linux-${ARCH}.tar.gz"
-    local temp_file="/tmp/sing-box.tar.gz"
-    
-    echo -e "${CYAN}下载URL: $download_url${NC}"
-    echo -e "${CYAN}正在下载 Sing-box...${NC}"
-    
-    # 下载文件（增加重试机制）
-    retry_count=0
-    while [[ $retry_count -lt $max_retries ]]; do
-        if curl -L --max-time 300 -o "$temp_file" "$download_url"; then
-            break
-        fi
-        
-        retry_count=$((retry_count + 1))
-        echo -e "${YELLOW}下载失败，重试 $retry_count/$max_retries...${NC}"
-        sleep 3
-    done
-    
-    if [[ $retry_count -eq $max_retries ]]; then
-        echo -e "${RED}错误: 下载失败，请检查网络连接或URL有效性${NC}"
-        return 1
-    fi
-    
-    # 验证下载文件
-    if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
-        echo -e "${RED}错误: 下载的文件无效${NC}"
-        return 1
-    fi
-    
-    # 解压并安装
-    echo -e "${CYAN}正在解压文件...${NC}"
-    cd /tmp
-    if ! tar -xzf "$temp_file"; then
-        echo -e "${RED}错误: 解压失败${NC}"
-        rm -f "$temp_file"
-        return 1
-    fi
-    
-    local extract_dir="sing-box-${latest_version}-linux-${ARCH}"
-    echo -e "${CYAN}解压目录: $extract_dir${NC}"
-    
-    if [[ -f "$extract_dir/sing-box" ]]; then
-        echo -e "${CYAN}正在安装二进制文件...${NC}"
-        cp "$extract_dir/sing-box" "$SINGBOX_BINARY"
-        chmod +x "$SINGBOX_BINARY"
-        
-        # 验证安装
-        if "$SINGBOX_BINARY" version >/dev/null 2>&1; then
-            local installed_version=$("$SINGBOX_BINARY" version 2>/dev/null | head -1 || echo "版本获取失败")
-            echo -e "${GREEN}安装成功: $installed_version${NC}"
-        else
-            echo -e "${RED}错误: 安装的二进制文件无法运行${NC}"
-            rm -f "$SINGBOX_BINARY"
-            rm -rf "$temp_file" "$extract_dir"
-            return 1
-        fi
-    else
-        echo -e "${RED}错误: 解压后未找到 sing-box 二进制文件${NC}"
-        echo -e "${YELLOW}解压目录内容:${NC}"
-        ls -la "$extract_dir/" 2>/dev/null || echo "目录不存在"
-        rm -rf "$temp_file" "$extract_dir"
-        return 1
-    fi
-    
-    # 清理临时文件
-    rm -rf "$temp_file" "$extract_dir"
-    
-    echo -e "${GREEN}Sing-box 安装完成${NC}"
-}
+
 
 # 创建系统服务
 create_service() {
@@ -770,7 +734,7 @@ EOF
     echo -e "${GREEN}系统服务创建完成${NC}"
 }
 
-# 创建快捷命令（跨平台兼容）
+# 创建快捷命令（修复版）
 create_shortcut_command() {
     echo -e "${CYAN}正在创建快捷命令...${NC}"
     
@@ -787,53 +751,50 @@ cd /d "%~dp0"
 bash "$SCRIPT_DIR/singbox-install.sh" %*
 EOF
         
-        # 创建 PowerShell 脚本
-        local ps_file="/c/Windows/System32/sb.ps1"
-        cat > "$ps_file" << EOF
-param([string[]]\$Arguments)
-\$scriptPath = "$SCRIPT_DIR/singbox-install.sh"
-if (Test-Path \$scriptPath) {
-    & bash \$scriptPath @Arguments
-} else {
-    Write-Host "Error: singbox-install.sh not found" -ForegroundColor Red
-}
-EOF
-        
         echo -e "${GREEN}Windows 快捷命令已创建${NC}"
-        echo -e "${YELLOW}使用方法: 在 PowerShell 中输入 'sb' 或在 CMD 中输入 'sb.bat'${NC}"
+        echo -e "${YELLOW}使用方法: 在 CMD 中输入 'sb'${NC}"
     else
         # Linux/Unix 环境
-        if [[ -d "/usr/local/bin" ]]; then
-            # 确保使用绝对路径
-            local script_path="$(realpath "$0")"
-            
-            # 检查是否有写入权限
-            if [[ -w "/usr/local/bin" ]]; then
-                if ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
-                    chmod +x /usr/local/bin/sb
-                    echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
-                else
-                    echo -e "${RED}快捷命令创建失败${NC}"
-                fi
+        local shortcut_path="/usr/local/bin/sb"
+        
+        # 获取脚本的绝对路径
+        local script_path
+        if [[ "$0" == /* ]]; then
+            script_path="$0"
+        else
+            script_path="$(pwd)/$0"
+        fi
+        
+        # 确保路径存在
+        if [[ ! -f "$script_path" ]]; then
+            echo -e "${RED}错误: 无法找到脚本文件 $script_path${NC}"
+            return 1
+        fi
+        
+        # 删除已存在的符号链接（包括损坏的）
+        if [[ -L "$shortcut_path" ]] || [[ -f "$shortcut_path" ]]; then
+            rm -f "$shortcut_path" 2>/dev/null || sudo rm -f "$shortcut_path" 2>/dev/null
+        fi
+        
+        # 创建新的符号链接
+        if ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
+            chmod +x "$shortcut_path" 2>/dev/null
+            echo -e "${GREEN}快捷命令已创建: $shortcut_path${NC}"
+        elif command -v sudo >/dev/null 2>&1; then
+            # 使用sudo重试
+            if sudo ln -sf "$script_path" "$shortcut_path" 2>/dev/null; then
+                sudo chmod +x "$shortcut_path" 2>/dev/null
+                echo -e "${GREEN}快捷命令已创建: $shortcut_path${NC}"
             else
-                # 尝试使用sudo创建
-                if command -v sudo >/dev/null 2>&1; then
-                    echo -e "${YELLOW}需要管理员权限创建快捷命令...${NC}"
-                    if sudo ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
-                        sudo chmod +x /usr/local/bin/sb
-                        echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
-                    else
-                        echo -e "${YELLOW}警告: 无法创建快捷命令${NC}"
-                        echo -e "${YELLOW}手动创建命令: sudo ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
-                    fi
-                else
-                    echo -e "${YELLOW}警告: 无sudo权限，无法创建快捷命令${NC}"
-                    echo -e "${YELLOW}手动创建命令: ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
-                fi
+                echo -e "${YELLOW}警告: 无法创建快捷命令${NC}"
+                echo -e "${YELLOW}手动创建: sudo ln -sf \"$script_path\" $shortcut_path${NC}"
             fi
         else
-            echo -e "${YELLOW}警告: /usr/local/bin 目录不存在，跳过快捷命令创建${NC}"
+            echo -e "${YELLOW}警告: 权限不足，无法创建快捷命令${NC}"
+            echo -e "${YELLOW}手动创建: ln -sf \"$script_path\" $shortcut_path${NC}"
         fi
+        
+        echo -e "${CYAN}使用方法: 输入 'sb' 命令${NC}"
     fi
 }
 
@@ -924,22 +885,11 @@ case "${1:-}" in
     --install)
         check_root
         detect_system
-        create_directories
-        install_dependencies
-        install_singbox
-        create_service
-        echo -e "${GREEN}Sing-box 安装完成！${NC}"
+        perform_installation
         ;;
     --uninstall)
         check_root
-        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-        systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-        rm -f "/etc/systemd/system/$SERVICE_NAME.service"
-        rm -f "$SINGBOX_BINARY"
-        rm -rf "$WORK_DIR"
-        rm -f /usr/local/bin/sb
-        systemctl daemon-reload
-        echo -e "${GREEN}Sing-box 卸载完成！${NC}"
+        uninstall_singbox
         ;;
     --help|-h)
         echo -e "${CYAN}$SCRIPT_NAME $SCRIPT_VERSION${NC}"
@@ -947,8 +897,11 @@ case "${1:-}" in
         echo -e "${YELLOW}用法:${NC}"
         echo -e "  $0                # 启动交互式菜单"
         echo -e "  $0 --install      # 直接安装"
-        echo -e "  $0 --uninstall    # 卸载"
+        echo -e "  $0 --uninstall    # 一键完全卸载"
         echo -e "  $0 --help         # 显示帮助"
+        echo ""
+        echo -e "${YELLOW}快捷命令:${NC}"
+        echo -e "  sb                # 等同于 $0"
         ;;
     *)
         main
