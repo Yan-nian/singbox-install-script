@@ -6,17 +6,54 @@
 # 功能: 提供完整的配置加载、保存、验证和状态管理功能
 # =============================================================================
 
-# 引入依赖模块
-if [[ -f "$(dirname "${BASH_SOURCE[0]}")/error_handler.sh" ]]; then
-    source "$(dirname "${BASH_SOURCE[0]}")/error_handler.sh"
+# 引入依赖模块 - 增强版
+# 支持多种模块路径查找策略
+load_dependency_module() {
+    local module_name="$1"
+    local search_paths=(
+        "$(dirname "${BASH_SOURCE[0]}")/$module_name"  # 相对路径
+        "/tmp/singbox-modules/$module_name"             # 临时目录
+        "./lib/$module_name"                           # 当前目录下的lib
+        "$(pwd)/lib/$module_name"                      # 绝对路径下的lib
+    )
+    
+    for path in "${search_paths[@]}"; do
+        if [[ -f "$path" ]]; then
+            source "$path"
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# 加载错误处理模块
+if ! load_dependency_module "error_handler.sh"; then
+    echo "警告: 无法加载错误处理模块" >&2
 fi
 
-if [[ -f "$(dirname "${BASH_SOURCE[0]}")/logger.sh" ]]; then
-    source "$(dirname "${BASH_SOURCE[0]}")/logger.sh"
+# 加载日志模块
+if ! load_dependency_module "logger.sh"; then
+    echo "警告: 无法加载日志模块" >&2
+    # 提供基础日志函数
+    log_debug() { echo "[DEBUG] $*" >&2; }
+    log_info() { echo "[INFO] $*" >&2; }
+    log_warn() { echo "[WARN] $*" >&2; }
+    log_error() { echo "[ERROR] $*" >&2; }
 fi
 
-if [[ -f "$(dirname "${BASH_SOURCE[0]}")/validator.sh" ]]; then
-    source "$(dirname "${BASH_SOURCE[0]}")/validator.sh"
+# 加载验证模块
+if ! load_dependency_module "validator.sh"; then
+    echo "警告: 无法加载验证模块" >&2
+    # 提供基础验证函数
+    validate_uuid() {
+        local uuid="$1"
+        [[ "$uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+    }
+    validate_port() {
+        local port="$1"
+        [[ "$port" =~ ^[0-9]+$ ]] && [[ $port -ge 1 ]] && [[ $port -le 65535 ]]
+    }
 fi
 
 # 配置状态缓存文件
