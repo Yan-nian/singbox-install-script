@@ -2,14 +2,14 @@
 
 # Sing-box 精简一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
-# 版本: v2.4.5
+# 版本: v2.4.8
 # 更新时间: 2024-12-19
 
 set -e
 
 # 脚本信息
 SCRIPT_NAME="Sing-box 精简安装脚本"
-SCRIPT_VERSION="v2.4.5"
+SCRIPT_VERSION="v2.4.8"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 颜色定义
@@ -1002,12 +1002,30 @@ EOF
         if [[ -d "/usr/local/bin" ]]; then
             # 确保使用绝对路径
             local script_path="$(realpath "$0")"
-            if ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
-                chmod +x /usr/local/bin/sb
-                echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+            
+            # 检查是否有写入权限
+            if [[ -w "/usr/local/bin" ]]; then
+                if ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
+                    chmod +x /usr/local/bin/sb
+                    echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+                else
+                    echo -e "${RED}快捷命令创建失败${NC}"
+                fi
             else
-                echo -e "${YELLOW}警告: 无法创建快捷命令，可能需要管理员权限${NC}"
-                echo -e "${YELLOW}手动创建命令: sudo ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
+                # 尝试使用sudo创建
+                if command -v sudo >/dev/null 2>&1; then
+                    echo -e "${YELLOW}需要管理员权限创建快捷命令...${NC}"
+                    if sudo ln -sf "$script_path" /usr/local/bin/sb 2>/dev/null; then
+                        sudo chmod +x /usr/local/bin/sb
+                        echo -e "${GREEN}Linux 快捷命令已创建: /usr/local/bin/sb${NC}"
+                    else
+                        echo -e "${YELLOW}警告: 无法创建快捷命令${NC}"
+                        echo -e "${YELLOW}手动创建命令: sudo ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}警告: 无sudo权限，无法创建快捷命令${NC}"
+                    echo -e "${YELLOW}手动创建命令: ln -sf \"$script_path\" /usr/local/bin/sb${NC}"
+                fi
             fi
         else
             echo -e "${YELLOW}警告: /usr/local/bin 目录不存在，跳过快捷命令创建${NC}"

@@ -32,12 +32,28 @@ HY2_KEY_FILE=""
 # 生成 Reality 密钥对
 generate_reality_keypair() {
     local keypair
+    
+    # 检查 sing-box 二进制文件是否存在
+    if [[ ! -f "$SINGBOX_BINARY" ]]; then
+        log_error "Sing-box 二进制文件不存在: $SINGBOX_BINARY"
+        return 1
+    fi
+    
     keypair=$($SINGBOX_BINARY generate reality-keypair 2>/dev/null)
     
     if [[ -n "$keypair" ]]; then
         VLESS_PRIVATE_KEY=$(echo "$keypair" | grep "PrivateKey" | awk '{print $2}')
         VLESS_PUBLIC_KEY=$(echo "$keypair" | grep "PublicKey" | awk '{print $2}')
-        log_success "Reality 密钥对生成成功"
+        
+        # 验证密钥格式
+        if [[ -n "$VLESS_PRIVATE_KEY" ]] && [[ -n "$VLESS_PUBLIC_KEY" ]]; then
+            log_success "Reality 密钥对生成成功"
+            log_debug "Private Key: $VLESS_PRIVATE_KEY"
+            log_debug "Public Key: $VLESS_PUBLIC_KEY"
+        else
+            log_error "密钥对格式验证失败"
+            return 1
+        fi
     else
         log_error "Reality 密钥对生成失败"
         return 1
@@ -63,8 +79,22 @@ detect_reality_target() {
     
     log_info "检测可用的 Reality 目标..."
     
+    # 优先使用 yahoo.com，因为它在大多数地区都可访问
+    local priority_target="www.yahoo.com:443"
+    local host port
+    host=$(echo "$priority_target" | cut -d':' -f1)
+    port=$(echo "$priority_target" | cut -d':' -f2)
+    
+    if timeout 5 bash -c "</dev/tcp/$host/$port" 2>/dev/null; then
+        VLESS_TARGET="$priority_target"
+        VLESS_SERVER_NAME="$host"
+        log_success "选择 Reality 目标: $priority_target"
+        return 0
+    fi
+    
+    # 如果优先目标不可用，测试其他目标
     for target in "${targets[@]}"; do
-        local host port
+        [[ "$target" == "$priority_target" ]] && continue
         host=$(echo "$target" | cut -d':' -f1)
         port=$(echo "$target" | cut -d':' -f2)
         

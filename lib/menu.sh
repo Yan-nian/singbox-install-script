@@ -338,10 +338,18 @@ configure_single_protocol() {
         esac
         
         # 询问是否启动服务
-        echo ""
-        if confirm_action "是否立即启动服务?"; then
-            restart_service "$SERVICE_NAME"
-        fi
+             echo ""
+             if confirm_action "是否立即启动服务?"; then
+                 restart_service "$SERVICE_NAME"
+             fi
+         else
+             echo -e "${RED}多协议配置生成失败！${NC}"
+         fi
+     else
+         echo -e "${YELLOW}已取消多协议配置${NC}"
+     fi
+     
+     wait_for_input
     else
         echo -e "${RED}配置生成失败！${NC}"
     fi
@@ -353,51 +361,33 @@ configure_single_protocol() {
 configure_multi_protocol() {
     echo -e "${CYAN}=== 多协议配置 ===${NC}"
     echo ""
-    echo -e "${YELLOW}请选择要启用的协议 (可多选):${NC}"
+    echo -e "${YELLOW}将自动配置以下三种协议:${NC}"
     echo ""
-    echo -e "  ${GREEN}1.${NC} VLESS Reality Vision"
-    echo -e "  ${GREEN}2.${NC} VMess WebSocket"
-    echo -e "  ${GREEN}3.${NC} Hysteria2"
-    echo ""
-    echo -e "${CYAN}示例: 输入 '1 3' 启用 VLESS 和 Hysteria2${NC}"
+    echo -e "  ${GREEN}•${NC} VLESS Reality Vision"
+    echo -e "  ${GREEN}•${NC} VMess WebSocket"
+    echo -e "  ${GREEN}•${NC} Hysteria2"
     echo ""
     
-    local input
-    echo -n -e "${YELLOW}请输入选择 (用空格分隔): ${NC}"
-    read -r input
-    
-    local protocols=()
-    for choice in $input; do
-        case "$choice" in
-            1) protocols+=("vless") ;;
-            2) protocols+=("vmess") ;;
-            3) protocols+=("hysteria2") ;;
-        esac
-    done
-    
-    if [[ ${#protocols[@]} -eq 0 ]]; then
-        echo -e "${RED}未选择任何协议${NC}"
-        wait_for_input
-        return
-    fi
-    
-    echo -e "${CYAN}正在配置多协议...${NC}"
-    
-    if generate_config "${protocols[@]}"; then
-        echo -e "${GREEN}多协议配置生成成功！${NC}"
+    if confirm_action "是否继续配置多协议?"; then
+        local protocols=("vless" "vmess" "hysteria2")
         
-        # 显示所有协议信息
-        for protocol in "${protocols[@]}"; do
-            case "$protocol" in
-                "vless") show_protocol_info "VLESS Reality" ;;
-                "vmess") show_protocol_info "VMess WebSocket" ;;
-                "hysteria2") show_protocol_info "Hysteria2" ;;
-            esac
-        done
+        echo -e "${CYAN}正在配置多协议...${NC}"
         
-        # 询问是否启动服务
-        echo ""
-        if confirm_action "是否立即启动服务?"; then
+        if generate_config "${protocols[@]}"; then
+            echo -e "${GREEN}多协议配置生成成功！${NC}"
+            
+            # 显示所有协议信息
+            for protocol in "${protocols[@]}"; do
+                case "$protocol" in
+                    "vless") show_protocol_info "VLESS Reality" ;;
+                    "vmess") show_protocol_info "VMess WebSocket" ;;
+                    "hysteria2") show_protocol_info "Hysteria2" ;;
+                esac
+            done
+            
+            # 询问是否启动服务
+            echo ""
+            if confirm_action "是否立即启动服务?"; then
             restart_service "$SERVICE_NAME"
         fi
     else
