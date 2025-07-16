@@ -486,44 +486,58 @@ start_service() {
         return 0
     fi
     
-    # 启动或重启服务
+    # 启动或重启服务（添加超时机制）
     if systemctl is-active --quiet sing-box 2>/dev/null; then
         info "重启 sing-box 服务..."
-        systemctl restart sing-box
+        if timeout 30 systemctl restart sing-box; then
+            info "服务重启命令执行完成"
+        else
+            warn "服务重启超时或失败"
+        fi
     else
         info "启动 sing-box 服务..."
-        systemctl start sing-box
+        if timeout 30 systemctl start sing-box; then
+            info "服务启动命令执行完成"
+        else
+            warn "服务启动超时或失败"
+        fi
     fi
     
     # 检查服务状态
-    sleep 2  # 等待服务启动
-    if systemctl is-active --quiet sing-box; then
+    sleep 3  # 等待服务启动
+    local service_status=$(systemctl is-active sing-box 2>/dev/null)
+    
+    if [[ "$service_status" == "active" ]]; then
         success "服务启动成功"
         
         # 显示服务状态
         info "服务运行状态:"
         systemctl status sing-box --no-pager -l | head -10
     else
-        warn "服务启动失败，请检查配置"
+        warn "服务启动失败，当前状态: $service_status"
         
         # 显示错误日志
-        error_log=$(journalctl -u sing-box --no-pager -l | tail -5)
-        if [[ -n "$error_log" ]]; then
-            warn "最近的错误日志:"
-            echo "$error_log"
-        fi
+        warn "最近的错误日志:"
+        journalctl -u sing-box --no-pager -l --since "5 minutes ago" | tail -10
         
         # 检查配置文件
         if [[ -f "$CONFIG_FILE" ]]; then
-            info "配置文件存在，检查语法..."
+            info "检查配置文件语法..."
             if command -v sing-box >/dev/null 2>&1; then
-                if sing-box check -c "$CONFIG_FILE" 2>&1; then
+                if sing-box check -c "$CONFIG_FILE"; then
                     info "配置文件语法正确"
                 else
                     warn "配置文件语法可能有问题"
                 fi
             fi
         fi
+        
+        # 提供故障排除建议
+        info "故障排除建议:"
+        echo "  1. 检查配置文件: $CONFIG_FILE"
+        echo "  2. 查看详细日志: journalctl -u sing-box -f"
+        echo "  3. 手动启动测试: sing-box run -c $CONFIG_FILE"
+        echo "  4. 检查端口占用: netstat -tuln | grep :端口号"
     fi
 }
 
