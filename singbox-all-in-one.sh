@@ -1083,11 +1083,16 @@ EOF
     fi
 
     local inbounds=()
+    local first_inbound=true
     
     # VLESS Reality 入站
     if [[ -n "$VLESS_UUID" ]]; then
         log_message "DEBUG" "添加 VLESS Reality 配置"
         inbounds+=("vless")
+        if [[ "$first_inbound" != "true" ]]; then
+            echo "," >> "$CONFIG_FILE"
+        fi
+        first_inbound=false
         if ! cat >> "$CONFIG_FILE" << EOF
     {
       "type": "vless",
@@ -1123,7 +1128,10 @@ EOF
     # VMess WebSocket 入站
     if [[ -n "$VMESS_UUID" ]]; then
         log_message "DEBUG" "添加 VMess WebSocket 配置"
-        [[ ${#inbounds[@]} -gt 0 ]] && echo "," >> "$CONFIG_FILE"
+        if [[ "$first_inbound" != "true" ]]; then
+            echo "," >> "$CONFIG_FILE"
+        fi
+        first_inbound=false
         inbounds+=("vmess")
         if ! cat >> "$CONFIG_FILE" << EOF
     {
@@ -1155,7 +1163,10 @@ EOF
     # Hysteria2 入站
     if [[ -n "$HY2_PASSWORD" ]]; then
         log_message "DEBUG" "添加 Hysteria2 配置"
-        [[ ${#inbounds[@]} -gt 0 ]] && echo "," >> "$CONFIG_FILE"
+        if [[ "$first_inbound" != "true" ]]; then
+            echo "," >> "$CONFIG_FILE"
+        fi
+        first_inbound=false
         inbounds+=("hysteria2")
         if ! cat >> "$CONFIG_FILE" << EOF
     {
@@ -1189,6 +1200,12 @@ EOF
             handle_error 1 "无法写入 Hysteria2 配置"
             return 1
         fi
+    fi
+    
+    # 检查是否至少有一个协议被配置
+    if [[ ${#inbounds[@]} -eq 0 ]]; then
+        handle_error 1 "没有配置任何协议，无法生成配置文件"
+        return 1
     fi
     
     # 写入配置文件结尾
@@ -1233,19 +1250,53 @@ EOF
 generate_hysteria2_cert() {
     log_info "生成 Hysteria2 自签名证书..."
     
-    mkdir -p /etc/ssl/private
+    # 检查 HY2_DOMAIN 是否设置
+    if [[ -z "$HY2_DOMAIN" ]]; then
+        log_error "HY2_DOMAIN 未设置，无法生成证书"
+        return 1
+    fi
+    
+    # 创建证书目录
+    if ! mkdir -p /etc/ssl/private; then
+        log_error "无法创建证书目录"
+        return 1
+    fi
+    
+    # 检查 openssl 命令是否存在
+    if ! command_exists openssl; then
+        log_error "openssl 命令不存在，无法生成证书"
+        return 1
+    fi
     
     # 生成私钥
-    openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8
+    if ! openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8 2>/dev/null; then
+        log_error "生成私钥失败"
+        return 1
+    fi
     
     # 生成证书
-    openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN"
+    if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
+        log_error "生成证书失败"
+        return 1
+    fi
     
     # 设置权限
-    chmod 600 /etc/ssl/private/hysteria.key
-    chmod 644 /etc/ssl/private/hysteria.crt
+    if ! chmod 600 /etc/ssl/private/hysteria.key; then
+        log_warn "设置私钥权限失败"
+    fi
+    
+    if ! chmod 644 /etc/ssl/private/hysteria.crt; then
+        log_warn "设置证书权限失败"
+    fi
+    
+    # 验证生成的文件
+    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -f "/etc/ssl/private/hysteria.crt" ]]; then
+        log_error "证书文件生成失败"
+        return 1
+    fi
     
     log_success "Hysteria2 证书生成完成"
+    return 0
 }
 
 # ==================== 分享链接生成 ====================
