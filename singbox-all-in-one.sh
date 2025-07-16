@@ -23,7 +23,8 @@ set -euo pipefail
 
 # ==================== 系统兼容性检�?====================
 
-# 检查操作系统兼容�?check_os_compatibility() {
+# 检查操作系统兼容性
+check_os_compatibility() {
     # 检查是否为Linux系统
     if [[ "$(uname -s)" != "Linux" ]]; then
         echo -e "\033[0;31m错误: 此脚本仅支持 Linux 系统\033[0m"
@@ -51,7 +52,8 @@ set -euo pipefail
         exit 1
     fi
     
-    # 检查基本命�?    local missing_commands=""
+    # 检查基本命令
+    local missing_commands=""
     for cmd in bash curl tar grep sed awk; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             if [ -z "$missing_commands" ]; then
@@ -71,10 +73,11 @@ set -euo pipefail
     fi
 }
 
-# 立即执行系统兼容性检�?check_os_compatibility
+# 立即执行系统兼容性检查
+check_os_compatibility
 
 # 脚本信息
-SCRIPT_NAME="Sing-box 全能一键安装脚�?
+SCRIPT_NAME="Sing-box 全能一键安装脚本"
 SCRIPT_VERSION="v3.0.1"
 
 # 颜色定义
@@ -123,11 +126,12 @@ HY2_DOMAIN=""
 HY2_CERT_FILE=""
 HY2_KEY_FILE=""
 
-# ==================== 通用函数�?====================
+# ==================== 通用函数库 ====================
 
-# ==================== 二维码生成功�?====================
+# ==================== 二维码生成功能 ====================
 
-# 安装 qrencode（如果不存在�?install_qrencode() {
+# 安装 qrencode（如果不存在）
+install_qrencode() {
     if ! command -v qrencode >/dev/null 2>&1; then
         log_message "INFO" "正在安装 qrencode"
         
@@ -161,7 +165,7 @@ generate_simple_qr() {
     local text="$1"
     local size=25
     
-    echo -e "${CYAN}=== 分享链接二维�?===${NC}"
+    echo -e "${CYAN}=== 分享链接二维码 ===${NC}"
     echo ""
     
     # 创建简单的ASCII二维码框架
@@ -204,9 +208,10 @@ generate_qr_code() {
     
     # 尝试使用 qrencode
     if command -v qrencode >/dev/null 2>&1; then
-        log_message "DEBUG" "使用 qrencode 生成二维�?
+        log_message "DEBUG" "使用 qrencode 生成二维码"
         
-        # 生成UTF-8字符二维�?        if qrencode -t UTF8 -s 1 -m 1 "$text" 2>/dev/null; then
+        # 生成UTF-8字符二维码
+        if qrencode -t UTF8 -s 1 -m 1 "$text" 2>/dev/null; then
             echo ""
             return 0
         fi
@@ -224,12 +229,14 @@ generate_qr_code() {
         fi
     fi
     
-    # 如果 qrencode 不可用或失败，使用备用方�?    log_message "DEBUG" "使用备用二维码生成方�?
+    # 如果 qrencode 不可用或失败，使用备用方案
+    log_message "DEBUG" "使用备用二维码生成方案"
     generate_simple_qr "$text"
     return 0
 }
 
-# 显示协议二维�?show_protocol_qr() {
+# 显示协议二维码
+show_protocol_qr() {
     local protocol="$1"
     
     case "$protocol" in
@@ -240,7 +247,7 @@ generate_qr_code() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}VLESS 协议未配�?{NC}"
+                echo -e "${RED}VLESS 协议未配置${NC}"
             fi
             ;;
         "vmess")
@@ -250,7 +257,7 @@ generate_qr_code() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}VMess 协议未配�?{NC}"
+                echo -e "${RED}VMess 协议未配置${NC}"
             fi
             ;;
         "hysteria2")
@@ -260,7 +267,7 @@ generate_qr_code() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}Hysteria2 协议未配�?{NC}"
+                echo -e "${RED}Hysteria2 协议未配置${NC}"
             fi
             ;;
         *)
@@ -272,7 +279,8 @@ generate_qr_code() {
     echo ""
 }
 
-# 显示所有协议的二维�?show_all_qr_codes() {
+# 显示所有协议的二维码
+show_all_qr_codes() {
     clear
     echo -e "${CYAN}=== 所有协议二维码 ===${NC}"
     echo ""
@@ -306,19 +314,20 @@ generate_qr_code() {
     
     if [[ "$has_config" == "false" ]]; then
         echo -e "${YELLOW}暂无已配置的协议${NC}"
-        echo -e "${YELLOW}请先配置协议后再生成二维�?{NC}"
+        echo -e "${YELLOW}请先配置协议后再生成二维码${NC}"
     fi
     
     echo ""
     wait_for_input
 }
 
-# 二维码菜�?show_qr_menu() {
+# 二维码菜单
+show_qr_menu() {
     while true; do
         clear
-        echo -e "${CYAN}=== 二维码生成菜�?===${NC}"
+        echo -e "${CYAN}=== 二维码生成菜单 ===${NC}"
         echo ""
-        echo -e "${YELLOW}请选择要生成二维码的协�?${NC}"
+        echo -e "${YELLOW}请选择要生成二维码的协议${NC}"
         echo ""
         
         local option=1
@@ -341,11 +350,11 @@ generate_qr_code() {
         
         echo -e "  ${GREEN}$option.${NC} 显示所有协议二维码"
         ((option++))
-        echo -e "  ${GREEN}0.${NC} 返回主菜�?
+        echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo ""
         
         if [[ $option -eq 1 ]]; then
-            echo -e "${YELLOW}暂无已配置的协议，请先配置协�?{NC}"
+            echo -e "${YELLOW}暂无已配置的协议，请先配置协议${NC}"
             echo ""
             wait_for_input
             return
@@ -439,9 +448,10 @@ handle_error() {
     local error_message="$2"
     local function_name="${FUNCNAME[1]}"
     
-    log_message "ERROR" "在函�?$function_name 中发生错�?(代码: $error_code): $error_message"
+    log_message "ERROR" "在函数 $function_name 中发生错误(代码: $error_code): $error_message"
     
-    # 记录调用�?    log_message "DEBUG" "调用�?"
+    # 记录调用栈
+     log_message "DEBUG" "调用栈"
     for ((i=1; i<${#FUNCNAME[@]}; i++)); do
         log_message "DEBUG" "  $i: ${FUNCNAME[i]} (${BASH_SOURCE[i]}:${BASH_LINENO[i-1]})"
     done
@@ -449,7 +459,8 @@ handle_error() {
     return "$error_code"
 }
 
-# 检查命令执行结�?check_command() {
+# 检查命令执行结果
+check_command() {
     local command="$1"
     local description="$2"
     
@@ -496,11 +507,13 @@ log_error() {
     fi
 }
 
-# 检查命令是否存�?command_exists() {
+# 检查命令是否存在
+command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# 生成随机字符�?generate_random_string() {
+# 生成随机字符串
+generate_random_string() {
     local length=${1:-16}
     local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local result=''
