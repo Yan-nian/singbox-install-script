@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Sing-box 全能一键安装脚本
-# 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
+# Sing-box 全能一键安装脚�?# 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
 # 版本: v3.0.0 (All-in-One)
 # 更新时间: 2025-01-16
 # 特点: 无需外部模块，所有功能集成在一个文件中
@@ -9,16 +8,15 @@
 # 设置错误处理
 set -e
 
-# ==================== 系统兼容性检查 ====================
+# ==================== 系统兼容性检�?====================
 
-# 检查操作系统兼容性
-check_os_compatibility() {
+# 检查操作系统兼容�?check_os_compatibility() {
     # 检查是否为Linux系统
     if [[ "$(uname -s)" != "Linux" ]]; then
         echo -e "\033[0;31m错误: 此脚本仅支持 Linux 系统\033[0m"
-        echo -e "\033[1;33m检测到的系统: $(uname -s)\033[0m"
+        echo -e "\033[1;33m检测到的系�? $(uname -s)\033[0m"
         echo ""
-        echo "支持的系统:"
+        echo "支持的系�?"
         echo "  - Ubuntu 18.04+"
         echo "  - Debian 10+"
         echo "  - CentOS 7+"
@@ -26,22 +24,21 @@ check_os_compatibility() {
         echo "  - Fedora 30+"
         echo "  - Arch Linux"
         echo ""
-        echo "如果您在 Windows 上，请使用 WSL (Windows Subsystem for Linux)"
-        echo "如果您在 macOS 上，请使用 Docker 或虚拟机运行 Linux"
+        echo "如果您在 Windows 上，请使�?WSL (Windows Subsystem for Linux)"
+        echo "如果您在 macOS 上，请使�?Docker 或虚拟机运行 Linux"
         exit 1
     fi
     
     # 检查是否有systemd支持
     if ! command -v systemctl >/dev/null 2>&1; then
-        echo -e "\033[0;31m错误: 此脚本需要 systemd 支持\033[0m"
-        echo -e "\033[1;33m未找到 systemctl 命令\033[0m"
+        echo -e "\033[0;31m错误: 此脚本需�?systemd 支持\033[0m"
+        echo -e "\033[1;33m未找�?systemctl 命令\033[0m"
         echo ""
-        echo "请确保您的系统支持 systemd 服务管理"
+        echo "请确保您的系统支�?systemd 服务管理"
         exit 1
     fi
     
-    # 检查基本命令
-    local missing_commands=()
+    # 检查基本命�?    local missing_commands=()
     for cmd in bash curl tar grep sed awk; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             missing_commands+=("$cmd")
@@ -50,18 +47,17 @@ check_os_compatibility() {
     
     if [[ ${#missing_commands[@]} -gt 0 ]]; then
         echo -e "\033[0;31m错误: 缺少必要的系统命令\033[0m"
-        echo -e "\033[1;33m缺少的命令: ${missing_commands[*]}\033[0m"
+        echo -e "\033[1;33m缺少的命�? ${missing_commands[*]}\033[0m"
         echo ""
-        echo "请安装缺少的命令后重试"
+        echo "请安装缺少的命令后重�?
         exit 1
     fi
 }
 
-# 立即执行系统兼容性检查
-check_os_compatibility
+# 立即执行系统兼容性检�?check_os_compatibility
 
 # 脚本信息
-SCRIPT_NAME="Sing-box 全能一键安装脚本"
+SCRIPT_NAME="Sing-box 全能一键安装脚�?
 SCRIPT_VERSION="v3.0.0"
 
 # 颜色定义
@@ -110,12 +106,11 @@ HY2_DOMAIN=""
 HY2_CERT_FILE=""
 HY2_KEY_FILE=""
 
-# ==================== 通用函数库 ====================
+# ==================== 通用函数�?====================
 
-# ==================== 二维码生成功能 ====================
+# ==================== 二维码生成功�?====================
 
-# 安装 qrencode（如果不存在）
-install_qrencode() {
+# 安装 qrencode（如果不存在�?install_qrencode() {
     if ! command -v qrencode >/dev/null 2>&1; then
         log_message "INFO" "正在安装 qrencode"
         
@@ -149,20 +144,17 @@ generate_simple_qr() {
     local text="$1"
     local size=25
     
-    echo -e "${CYAN}=== 分享链接二维码 ===${NC}"
+    echo -e "${CYAN}=== 分享链接二维�?===${NC}"
     echo ""
     
-    # 创建简单的ASCII二维码框架
-    echo "┌$(printf '─%.0s' $(seq 1 $((size*2))))┐"
+    # 创建简单的ASCII二维码框�?    echo "�?(printf '─%.0s' $(seq 1 $((size*2))))�?
     
-    # 生成伪随机模式（基于文本内容）
-    local hash=$(echo -n "$text" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "fallback")
+    # 生成伪随机模式（基于文本内容�?    local hash=$(echo -n "$text" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "fallback")
     
     for i in $(seq 1 $size); do
-        echo -n "│"
+        echo -n "�?
         for j in $(seq 1 $size); do
-            # 基于位置和哈希生成模式
-            local pos=$((i * size + j))
+            # 基于位置和哈希生成模�?            local pos=$((i * size + j))
             local char_pos=$((pos % ${#hash}))
             local char_val=$(printf "%d" "'${hash:$char_pos:1}")
             
@@ -172,12 +164,12 @@ generate_simple_qr() {
                 echo -n "  "
             fi
         done
-        echo "│"
+        echo "�?
     done
     
-    echo "└$(printf '─%.0s' $(seq 1 $((size*2))))┘"
+    echo "�?(printf '─%.0s' $(seq 1 $((size*2))))�?
     echo ""
-    echo -e "${YELLOW}注意: 这是装饰性二维码，请使用下方的文本链接${NC}"
+    echo -e "${YELLOW}注意: 这是装饰性二维码，请使用下方的文本链�?{NC}"
     echo ""
 }
 
@@ -186,15 +178,14 @@ generate_qr_code() {
     local text="$1"
     local title="$2"
     
-    echo -e "${CYAN}=== $title 二维码 ===${NC}"
+    echo -e "${CYAN}=== $title 二维�?===${NC}"
     echo ""
     
     # 尝试使用 qrencode
     if command -v qrencode >/dev/null 2>&1; then
-        log_message "DEBUG" "使用 qrencode 生成二维码"
+        log_message "DEBUG" "使用 qrencode 生成二维�?
         
-        # 生成UTF-8字符二维码
-        if qrencode -t UTF8 -s 1 -m 1 "$text" 2>/dev/null; then
+        # 生成UTF-8字符二维�?        if qrencode -t UTF8 -s 1 -m 1 "$text" 2>/dev/null; then
             echo ""
             return 0
         fi
@@ -212,14 +203,12 @@ generate_qr_code() {
         fi
     fi
     
-    # 如果 qrencode 不可用或失败，使用备用方案
-    log_message "DEBUG" "使用备用二维码生成方案"
+    # 如果 qrencode 不可用或失败，使用备用方�?    log_message "DEBUG" "使用备用二维码生成方�?
     generate_simple_qr "$text"
     return 0
 }
 
-# 显示协议二维码
-show_protocol_qr() {
+# 显示协议二维�?show_protocol_qr() {
     local protocol="$1"
     
     case "$protocol" in
@@ -230,7 +219,7 @@ show_protocol_qr() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}VLESS 协议未配置${NC}"
+                echo -e "${RED}VLESS 协议未配�?{NC}"
             fi
             ;;
         "vmess")
@@ -240,7 +229,7 @@ show_protocol_qr() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}VMess 协议未配置${NC}"
+                echo -e "${RED}VMess 协议未配�?{NC}"
             fi
             ;;
         "hysteria2")
@@ -250,7 +239,7 @@ show_protocol_qr() {
                 echo -e "${GREEN}分享链接:${NC}"
                 echo "$share_link"
             else
-                echo -e "${RED}Hysteria2 协议未配置${NC}"
+                echo -e "${RED}Hysteria2 协议未配�?{NC}"
             fi
             ;;
         *)
@@ -262,8 +251,7 @@ show_protocol_qr() {
     echo ""
 }
 
-# 显示所有协议的二维码
-show_all_qr_codes() {
+# 显示所有协议的二维�?show_all_qr_codes() {
     clear
     echo -e "${CYAN}=== 所有协议二维码 ===${NC}"
     echo ""
@@ -297,20 +285,19 @@ show_all_qr_codes() {
     
     if [[ "$has_config" == "false" ]]; then
         echo -e "${YELLOW}暂无已配置的协议${NC}"
-        echo -e "${YELLOW}请先配置协议后再生成二维码${NC}"
+        echo -e "${YELLOW}请先配置协议后再生成二维�?{NC}"
     fi
     
     echo ""
     wait_for_input
 }
 
-# 二维码菜单
-show_qr_menu() {
+# 二维码菜�?show_qr_menu() {
     while true; do
         clear
-        echo -e "${CYAN}=== 二维码生成菜单 ===${NC}"
+        echo -e "${CYAN}=== 二维码生成菜�?===${NC}"
         echo ""
-        echo -e "${YELLOW}请选择要生成二维码的协议:${NC}"
+        echo -e "${YELLOW}请选择要生成二维码的协�?${NC}"
         echo ""
         
         local option=1
@@ -333,11 +320,11 @@ show_qr_menu() {
         
         echo -e "  ${GREEN}$option.${NC} 显示所有协议二维码"
         ((option++))
-        echo -e "  ${GREEN}0.${NC} 返回主菜单"
+        echo -e "  ${GREEN}0.${NC} 返回主菜�?
         echo ""
         
         if [[ $option -eq 1 ]]; then
-            echo -e "${YELLOW}暂无已配置的协议，请先配置协议${NC}"
+            echo -e "${YELLOW}暂无已配置的协议，请先配置协�?{NC}"
             echo ""
             wait_for_input
             return
@@ -431,10 +418,9 @@ handle_error() {
     local error_message="$2"
     local function_name="${FUNCNAME[1]}"
     
-    log_message "ERROR" "在函数 $function_name 中发生错误 (代码: $error_code): $error_message"
+    log_message "ERROR" "在函�?$function_name 中发生错�?(代码: $error_code): $error_message"
     
-    # 记录调用栈
-    log_message "DEBUG" "调用栈:"
+    # 记录调用�?    log_message "DEBUG" "调用�?"
     for ((i=1; i<${#FUNCNAME[@]}; i++)); do
         log_message "DEBUG" "  $i: ${FUNCNAME[i]} (${BASH_SOURCE[i]}:${BASH_LINENO[i-1]})"
     done
@@ -442,8 +428,7 @@ handle_error() {
     return "$error_code"
 }
 
-# 检查命令执行结果
-check_command() {
+# 检查命令执行结�?check_command() {
     local command="$1"
     local description="$2"
     
@@ -490,13 +475,11 @@ log_error() {
     fi
 }
 
-# 检查命令是否存在
-command_exists() {
+# 检查命令是否存�?command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# 生成随机字符串
-generate_random_string() {
+# 生成随机字符�?generate_random_string() {
     local length=${1:-16}
     local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local result=''
@@ -524,8 +507,7 @@ generate_uuid() {
 check_port() {
     local port="$1"
     if ss -tuln | grep -q ":$port "; then
-        return 0  # 端口被占用
-    else
+        return 0  # 端口被占�?    else
         return 1  # 端口可用
     fi
 }
@@ -568,18 +550,15 @@ validate_port() {
     fi
 }
 
-# 获取服务状态
-get_service_status() {
+# 获取服务状�?get_service_status() {
     local service="$1"
     
-    # 检查服务文件是否存在
-    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$service.service"; then
+    # 检查服务文件是否存�?    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$service.service"; then
         echo "not_installed"
         return
     fi
     
-    # 检查服务是否正在运行
-    if systemctl is-active "$service" >/dev/null 2>&1; then
+    # 检查服务是否正在运�?    if systemctl is-active "$service" >/dev/null 2>&1; then
         echo "running"
     elif systemctl is-failed "$service" >/dev/null 2>&1; then
         echo "failed"
@@ -597,28 +576,27 @@ get_service_status_description() {
     
     case "$status" in
         "running")
-            echo -e "${GREEN}运行中${NC}"
+            echo -e "${GREEN}运行�?{NC}"
             ;;
         "stopped")
-            echo -e "${YELLOW}已停止${NC}"
+            echo -e "${YELLOW}已停�?{NC}"
             ;;
         "failed")
             echo -e "${RED}启动失败${NC}"
             ;;
         "disabled")
-            echo -e "${YELLOW}已禁用${NC}"
+            echo -e "${YELLOW}已禁�?{NC}"
             ;;
         "not_installed")
-            echo -e "${RED}未安装${NC}"
+            echo -e "${RED}未安�?{NC}"
             ;;
         *)
-            echo -e "${RED}未知状态${NC}"
+            echo -e "${RED}未知状�?{NC}"
             ;;
     esac
 }
 
-# 检查安装状态
-check_installation_status() {
+# 检查安装状�?check_installation_status() {
     local issues=()
     
     # 检查二进制文件
@@ -628,28 +606,25 @@ check_installation_status() {
         issues+=("Sing-box 二进制文件无执行权限")
     fi
     
-    # 检查服务文件
-    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$SERVICE_NAME.service"; then
-        issues+=("systemd 服务文件未创建")
+    # 检查服务文�?    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$SERVICE_NAME.service"; then
+        issues+=("systemd 服务文件未创�?)
     fi
     
-    # 检查工作目录
-    if [[ ! -d "$WORK_DIR" ]]; then
-        issues+=("工作目录不存在")
+    # 检查工作目�?    if [[ ! -d "$WORK_DIR" ]]; then
+        issues+=("工作目录不存�?)
     fi
     
-    # 检查配置文件
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        issues+=("配置文件不存在")
+    # 检查配置文�?    if [[ ! -f "$CONFIG_FILE" ]]; then
+        issues+=("配置文件不存�?)
     fi
     
     if [[ ${#issues[@]} -gt 0 ]]; then
         echo -e "${RED}发现安装问题:${NC}"
         for issue in "${issues[@]}"; do
-            echo -e "  ${RED}✗${NC} $issue"
+            echo -e "  ${RED}�?{NC} $issue"
         done
         echo ""
-        echo -e "${YELLOW}建议: 请先完成 Sing-box 的完整安装${NC}"
+        echo -e "${YELLOW}建议: 请先完成 Sing-box 的完整安�?{NC}"
         return 1
     fi
     
@@ -662,8 +637,7 @@ start_service() {
     
     log_info "启动服务: $service"
     
-    # 检查安装状态
-    if ! check_installation_status; then
+    # 检查安装状�?    if ! check_installation_status; then
         log_error "安装状态检查失败，无法启动服务"
         return 1
     fi
@@ -676,7 +650,7 @@ start_service() {
             return 1
         fi
     else
-        log_error "配置文件不存在: $CONFIG_FILE"
+        log_error "配置文件不存�? $CONFIG_FILE"
         log_error "请先配置协议生成配置文件"
         return 1
     fi
@@ -686,12 +660,11 @@ start_service() {
         # 等待服务启动
         sleep 2
         
-        # 验证服务状态
-        if systemctl is-active "$service" >/dev/null 2>&1; then
+        # 验证服务状�?        if systemctl is-active "$service" >/dev/null 2>&1; then
             log_success "服务启动成功: $service"
             return 0
         else
-            log_error "服务启动后状态异常"
+            log_error "服务启动后状态异�?
             show_service_diagnostics "$service"
             return 1
         fi
@@ -724,12 +697,11 @@ show_service_diagnostics() {
     echo -e "${YELLOW}=== 服务诊断信息 ===${NC}"
     echo ""
     
-    # 显示服务状态
-    echo -e "${CYAN}服务状态:${NC}"
+    # 显示服务状�?    echo -e "${CYAN}服务状�?${NC}"
     if systemctl status "$service" --no-pager -l 2>/dev/null; then
         echo ""
     else
-        echo "无法获取服务状态"
+        echo "无法获取服务状�?
         echo ""
     fi
     
@@ -742,41 +714,39 @@ show_service_diagnostics() {
         echo ""
     fi
     
-    # 检查配置文件
-    echo -e "${CYAN}配置文件检查:${NC}"
+    # 检查配置文�?    echo -e "${CYAN}配置文件检�?${NC}"
     if [[ -f "$CONFIG_FILE" ]]; then
-        echo "✓ 配置文件存在: $CONFIG_FILE"
+        echo "�?配置文件存在: $CONFIG_FILE"
         if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
-            echo "✓ 配置文件语法正确"
+            echo "�?配置文件语法正确"
         else
-            echo "✗ 配置文件语法错误"
+            echo "�?配置文件语法错误"
             echo "  建议: 重新生成配置文件"
         fi
     else
-        echo "✗ 配置文件不存在: $CONFIG_FILE"
-        echo "  建议: 先配置协议生成配置文件"
+        echo "�?配置文件不存�? $CONFIG_FILE"
+        echo "  建议: 先配置协议生成配置文�?
     fi
     echo ""
     
     # 检查二进制文件
-    echo -e "${CYAN}二进制文件检查:${NC}"
+    echo -e "${CYAN}二进制文件检�?${NC}"
     if [[ -f "$SINGBOX_BINARY" ]]; then
-        echo "✓ Sing-box 二进制文件存在: $SINGBOX_BINARY"
+        echo "�?Sing-box 二进制文件存�? $SINGBOX_BINARY"
         if "$SINGBOX_BINARY" version >/dev/null 2>&1; then
             local version=$("$SINGBOX_BINARY" version 2>/dev/null | head -n1 || echo "未知版本")
-            echo "✓ 二进制文件可执行: $version"
+            echo "�?二进制文件可执行: $version"
         else
-            echo "✗ 二进制文件无法执行"
+            echo "�?二进制文件无法执�?
             echo "  建议: 重新安装 Sing-box"
         fi
     else
-        echo "✗ Sing-box 二进制文件不存在: $SINGBOX_BINARY"
-        echo "  建议: 先安装 Sing-box"
+        echo "�?Sing-box 二进制文件不存在: $SINGBOX_BINARY"
+        echo "  建议: 先安�?Sing-box"
     fi
     echo ""
     
-    # 检查端口占用
-    echo -e "${CYAN}端口占用检查:${NC}"
+    # 检查端口占�?    echo -e "${CYAN}端口占用检�?${NC}"
     local ports_to_check=()
     [[ -n "$VLESS_PORT" ]] && ports_to_check+=("$VLESS_PORT")
     [[ -n "$VMESS_PORT" ]] && ports_to_check+=("$VMESS_PORT")
@@ -785,20 +755,20 @@ show_service_diagnostics() {
     if [[ ${#ports_to_check[@]} -gt 0 ]]; then
         for port in "${ports_to_check[@]}"; do
             if check_port "$port"; then
-                echo "✗ 端口 $port 被占用"
+                echo "�?端口 $port 被占�?
                 echo "  占用进程: $(ss -tulpn | grep ":$port " | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 || echo '未知')"
             else
-                echo "✓ 端口 $port 可用"
+                echo "�?端口 $port 可用"
             fi
         done
     else
-        echo "未配置端口信息"
+        echo "未配置端口信�?
     fi
     echo ""
     
     # 提供修复建议
     echo -e "${CYAN}修复建议:${NC}"
-    echo "1. 检查配置文件语法: $SINGBOX_BINARY check -c $CONFIG_FILE"
+    echo "1. 检查配置文件语�? $SINGBOX_BINARY check -c $CONFIG_FILE"
     echo "2. 查看详细日志: journalctl -u $service -f"
     echo "3. 重新生成配置: 选择菜单中的协议配置选项"
     echo "4. 重新安装服务: 选择菜单中的安装选项"
@@ -817,18 +787,17 @@ show_service_diagnostics() {
         # 1. 检查并修复配置文件权限
         if [[ -f "$CONFIG_FILE" ]]; then
             chmod 644 "$CONFIG_FILE"
-            echo "✓ 已修复配置文件权限"
+            echo "�?已修复配置文件权�?
         fi
         
-        # 2. 检查并修复二进制文件权限
-        if [[ -f "$SINGBOX_BINARY" ]]; then
+        # 2. 检查并修复二进制文件权�?        if [[ -f "$SINGBOX_BINARY" ]]; then
             chmod +x "$SINGBOX_BINARY"
-            echo "✓ 已修复二进制文件权限"
+            echo "�?已修复二进制文件权限"
         fi
         
         # 3. 重新加载systemd
         if systemctl daemon-reload 2>/dev/null; then
-            echo "✓ 已重新加载systemd配置"
+            echo "�?已重新加载systemd配置"
         fi
         
         # 4. 尝试重启服务
@@ -837,7 +806,7 @@ show_service_diagnostics() {
         if restart_service "$service"; then
             echo -e "${GREEN}自动修复成功！服务已启动${NC}"
         else
-            echo -e "${RED}自动修复失败，请手动检查问题${NC}"
+            echo -e "${RED}自动修复失败，请手动检查问�?{NC}"
         fi
     fi
 }
@@ -846,25 +815,24 @@ show_service_diagnostics() {
 restart_service() {
     local service="$1"
     
-    log_message "INFO" "开始重启服务: $service"
+    log_message "INFO" "开始重启服�? $service"
     
     # 验证配置文件
     if [[ -f "$CONFIG_FILE" ]]; then
         log_message "DEBUG" "正在验证配置文件"
         if ! "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
             handle_error 1 "配置文件验证失败"
-            log_message "ERROR" "请检查配置文件语法: $CONFIG_FILE"
+            log_message "ERROR" "请检查配置文件语�? $CONFIG_FILE"
             return 1
         fi
         log_message "INFO" "配置文件验证通过"
     else
-        handle_error 1 "配置文件不存在: $CONFIG_FILE"
+        handle_error 1 "配置文件不存�? $CONFIG_FILE"
         return 1
     fi
     
-    # 检查服务是否存在
-    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$service.service"; then
-        handle_error 1 "服务 $service 不存在"
+    # 检查服务是否存�?    if ! systemctl list-unit-files 2>/dev/null | grep -q "^$service.service"; then
+        handle_error 1 "服务 $service 不存�?
         return 1
     fi
     
@@ -879,8 +847,7 @@ restart_service() {
     log_message "DEBUG" "等待服务启动"
     sleep 3
     
-    # 检查服务状态
-    local max_attempts=10
+    # 检查服务状�?    local max_attempts=10
     local attempt=1
     
     while [[ $attempt -le $max_attempts ]]; do
@@ -894,12 +861,11 @@ restart_service() {
         ((attempt++))
     done
     
-    # 服务启动失败，获取详细错误信息
-    local service_status
-    service_status=$(systemctl status "$service" --no-pager -l 2>/dev/null || echo "无法获取服务状态")
+    # 服务启动失败，获取详细错误信�?    local service_status
+    service_status=$(systemctl status "$service" --no-pager -l 2>/dev/null || echo "无法获取服务状�?)
     
-    handle_error 1 "服务 $service 启动超时或失败"
-    log_message "ERROR" "服务状态: $service_status"
+    handle_error 1 "服务 $service 启动超时或失�?
+    log_message "ERROR" "服务状�? $service_status"
     log_message "ERROR" "建议查看详细日志: journalctl -u $service -f"
     
     return 1
@@ -913,19 +879,17 @@ wait_for_input() {
 
 # ==================== 系统检查和安装 ====================
 
-# 检查 root 权限
+# 检�?root 权限
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        echo -e "${RED}错误: 此脚本需要 root 权限运行${NC}"
-        echo -e "${YELLOW}请使用 sudo 或切换到 root 用户${NC}"
+        echo -e "${RED}错误: 此脚本需�?root 权限运行${NC}"
+        echo -e "${YELLOW}请使�?sudo 或切换到 root 用户${NC}"
         exit 1
     fi
 }
 
-# 检测系统信息
-detect_system() {
-    # 检测操作系统
-    if [[ -f /etc/os-release ]]; then
+# 检测系统信�?detect_system() {
+    # 检测操作系�?    if [[ -f /etc/os-release ]]; then
         source /etc/os-release
         OS="$ID"
     elif [[ -f /etc/redhat-release ]]; then
@@ -935,8 +899,7 @@ detect_system() {
         exit 1
     fi
     
-    # 检测架构
-    ARCH=$(uname -m)
+    # 检测架�?    ARCH=$(uname -m)
     case $ARCH in
         x86_64) ARCH="amd64" ;;
         aarch64) ARCH="arm64" ;;
@@ -950,7 +913,7 @@ detect_system() {
     # 获取公网 IP
     PUBLIC_IP=$(get_public_ip)
     
-    echo -e "${GREEN}系统检测完成:${NC}"
+    echo -e "${GREEN}系统检测完�?${NC}"
     echo -e "  操作系统: $OS"
     echo -e "  架构: $ARCH"
     echo -e "  公网IP: $PUBLIC_IP"
@@ -972,7 +935,7 @@ install_dependencies() {
     fi
     
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        echo -e "${YELLOW}正在安装缺失的依赖: ${missing_deps[*]}${NC}"
+        echo -e "${YELLOW}正在安装缺失的依�? ${missing_deps[*]}${NC}"
         
         # 根据系统类型安装依赖
         if command -v apt-get >/dev/null 2>&1; then
@@ -1008,31 +971,29 @@ create_directories() {
     echo -e "${GREEN}工作目录创建完成${NC}"
 }
 
-# 下载和安装 Sing-box
+# 下载和安�?Sing-box
 download_and_install_singbox() {
     log_message "INFO" "开始下载和安装 Sing-box"
     
-    # 检查系统架构
-    if [[ -z "$ARCH" ]]; then
-        handle_error 1 "系统架构未检测"
+    # 检查系统架�?    if [[ -z "$ARCH" ]]; then
+        handle_error 1 "系统架构未检�?
         return 1
     fi
     
-    # 获取最新版本
-    local latest_version
-    log_message "DEBUG" "正在获取最新版本信息"
+    # 获取最新版�?    local latest_version
+    log_message "DEBUG" "正在获取最新版本信�?
     
     if ! latest_version=$(curl -fsSL --max-time 30 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//'); then
-        handle_error 1 "无法连接到 GitHub API"
+        handle_error 1 "无法连接�?GitHub API"
         return 1
     fi
     
     if [[ -z "$latest_version" ]]; then
-        handle_error 1 "无法解析最新版本信息"
+        handle_error 1 "无法解析最新版本信�?
         return 1
     fi
     
-    log_message "INFO" "最新版本: $latest_version"
+    log_message "INFO" "最新版�? $latest_version"
     
     # 构建下载URL
     local download_url="https://github.com/SagerNet/sing-box/releases/download/v${latest_version}/sing-box-${latest_version}-linux-${ARCH}.tar.gz"
@@ -1046,15 +1007,13 @@ download_and_install_singbox() {
         return 1
     fi
     
-    # 验证下载的文件
-    if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
+    # 验证下载的文�?    if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
         handle_error 1 "下载的文件无效或为空"
         rm -f "$temp_file"
         return 1
     fi
     
-    # 解压和安装
-    local extract_dir="/tmp/sing-box-extract"
+    # 解压和安�?    local extract_dir="/tmp/sing-box-extract"
     log_message "DEBUG" "创建临时目录: $extract_dir"
     
     if ! mkdir -p "$extract_dir"; then
@@ -1070,13 +1029,12 @@ download_and_install_singbox() {
     
     # 验证解压的二进制文件
     if [[ ! -f "$extract_dir/sing-box" ]]; then
-        handle_error 1 "解压后未找到 sing-box 二进制文件"
+        handle_error 1 "解压后未找到 sing-box 二进制文�?
         rm -rf "$temp_file" "$extract_dir"
         return 1
     fi
     
-    # 复制二进制文件
-    if ! check_command "cp '$extract_dir/sing-box' '$SINGBOX_BINARY'" "安装 Sing-box 二进制文件"; then
+    # 复制二进制文�?    if ! check_command "cp '$extract_dir/sing-box' '$SINGBOX_BINARY'" "安装 Sing-box 二进制文�?; then
         rm -rf "$temp_file" "$extract_dir"
         return 1
     fi
@@ -1134,12 +1092,10 @@ EOF
 
 # ==================== 协议配置模块 ====================
 
-# 生成 Reality 密钥对
-generate_reality_keypair() {
+# 生成 Reality 密钥�?generate_reality_keypair() {
     local keypair
     
-    # 检查 sing-box 二进制文件是否存在
-    if [[ ! -f "$SINGBOX_BINARY" ]]; then
+    # 检�?sing-box 二进制文件是否存�?    if [[ ! -f "$SINGBOX_BINARY" ]]; then
         log_error "Sing-box 二进制文件不存在: $SINGBOX_BINARY"
         return 1
     fi
@@ -1152,13 +1108,13 @@ generate_reality_keypair() {
         
         # 验证密钥格式
         if [[ -n "$VLESS_PRIVATE_KEY" ]] && [[ -n "$VLESS_PUBLIC_KEY" ]]; then
-            log_success "Reality 密钥对生成成功"
+            log_success "Reality 密钥对生成成�?
         else
-            log_error "密钥对格式验证失败"
+            log_error "密钥对格式验证失�?
             return 1
         fi
     else
-        log_error "Reality 密钥对生成失败"
+        log_error "Reality 密钥对生成失�?
         return 1
     fi
 }
@@ -1224,22 +1180,19 @@ configure_vless_reality() {
         log_info "生成 UUID: $VLESS_UUID"
     fi
     
-    # 检查端口
-    if check_port "$VLESS_PORT"; then
+    # 检查端�?    if check_port "$VLESS_PORT"; then
         log_warn "端口 $VLESS_PORT 已被占用"
         VLESS_PORT=$(get_random_port)
         log_info "使用随机端口: $VLESS_PORT"
     fi
     
-    # 确保使用高端口
-    if [ "$VLESS_PORT" -lt 10000 ]; then
+    # 确保使用高端�?    if [ "$VLESS_PORT" -lt 10000 ]; then
         log_warn "VLESS端口 $VLESS_PORT 低于10000，重新分配高端口"
         VLESS_PORT=$(get_random_port)
-        log_info "VLESS高端口: $VLESS_PORT"
+        log_info "VLESS高端�? $VLESS_PORT"
     fi
     
-    # 生成密钥对
-    if [[ -z "$VLESS_PRIVATE_KEY" ]] || [[ -z "$VLESS_PUBLIC_KEY" ]]; then
+    # 生成密钥�?    if [[ -z "$VLESS_PRIVATE_KEY" ]] || [[ -z "$VLESS_PUBLIC_KEY" ]]; then
         generate_reality_keypair
     fi
     
@@ -1248,8 +1201,7 @@ configure_vless_reality() {
         generate_reality_short_id
     fi
     
-    # 检测目标
-    detect_reality_target
+    # 检测目�?    detect_reality_target
     
     log_success "VLESS Reality 配置完成"
 }
@@ -1275,18 +1227,16 @@ configure_vmess_websocket() {
         VMESS_HOST="$PUBLIC_IP"
     fi
     
-    # 检查端口
-    if check_port "$VMESS_PORT"; then
+    # 检查端�?    if check_port "$VMESS_PORT"; then
         log_warn "端口 $VMESS_PORT 已被占用"
         VMESS_PORT=$(get_random_port)
         log_info "使用随机端口: $VMESS_PORT"
     fi
     
-    # 确保使用高端口
-    if [ "$VMESS_PORT" -lt 10000 ]; then
+    # 确保使用高端�?    if [ "$VMESS_PORT" -lt 10000 ]; then
         log_warn "VMess端口 $VMESS_PORT 低于10000，重新分配高端口"
         VMESS_PORT=$(get_random_port)
-        log_info "VMess高端口: $VMESS_PORT"
+        log_info "VMess高端�? $VMESS_PORT"
     fi
     
     log_success "VMess WebSocket 配置完成"
@@ -1313,18 +1263,16 @@ configure_hysteria2() {
         HY2_DOMAIN="$PUBLIC_IP"
     fi
     
-    # 检查端口
-    if check_port "$HY2_PORT"; then
+    # 检查端�?    if check_port "$HY2_PORT"; then
         log_warn "端口 $HY2_PORT 已被占用"
         HY2_PORT=$(get_random_port)
         log_info "使用随机端口: $HY2_PORT"
     fi
     
-    # 确保使用高端口
-    if [ "$HY2_PORT" -lt 10000 ]; then
+    # 确保使用高端�?    if [ "$HY2_PORT" -lt 10000 ]; then
         log_warn "Hysteria2端口 $HY2_PORT 低于10000，重新分配高端口"
         HY2_PORT=$(get_random_port)
-        log_info "Hysteria2高端口: $HY2_PORT"
+        log_info "Hysteria2高端�? $HY2_PORT"
     fi
     
     log_success "Hysteria2 配置完成"
@@ -1332,7 +1280,7 @@ configure_hysteria2() {
 
 # 生成完整配置文件
 generate_config() {
-    log_message "INFO" "开始生成配置文件"
+    log_message "INFO" "开始生成配置文�?
     
     # 确保配置目录存在
     if ! mkdir -p "$(dirname "$CONFIG_FILE")"; then
@@ -1519,7 +1467,7 @@ EOF
     
     # 检查是否至少有一个协议被配置
     if [[ ${#inbounds[@]} -eq 0 ]]; then
-        handle_error 1 "没有配置任何协议，无法生成配置文件"
+        handle_error 1 "没有配置任何协议，无法生成配置文�?
         return 1
     fi
     
@@ -1560,14 +1508,12 @@ EOF
         return 1
     fi
     
-    # 验证生成的配置文件
-    if [[ ! -f "$CONFIG_FILE" ]] || [[ ! -s "$CONFIG_FILE" ]]; then
+    # 验证生成的配置文�?    if [[ ! -f "$CONFIG_FILE" ]] || [[ ! -s "$CONFIG_FILE" ]]; then
         handle_error 1 "生成的配置文件无效或为空"
         return 1
     fi
     
-    # 为 Hysteria2 生成自签名证书
-    if [[ -n "$HY2_PASSWORD" ]]; then
+    # �?Hysteria2 生成自签名证�?    if [[ -n "$HY2_PASSWORD" ]]; then
         if ! generate_hysteria2_cert; then
             handle_error 1 "Hysteria2 证书生成失败"
             return 1
@@ -1578,11 +1524,10 @@ EOF
     return 0
 }
 
-# 生成 Hysteria2 自签名证书
-generate_hysteria2_cert() {
-    log_info "生成 Hysteria2 自签名证书..."
+# 生成 Hysteria2 自签名证�?generate_hysteria2_cert() {
+    log_info "生成 Hysteria2 自签名证�?.."
     
-    # 检查 HY2_DOMAIN 是否设置
+    # 检�?HY2_DOMAIN 是否设置
     if [[ -z "$HY2_DOMAIN" ]]; then
         log_error "HY2_DOMAIN 未设置，无法生成证书"
         return 1
@@ -1594,22 +1539,21 @@ generate_hysteria2_cert() {
         return 1
     fi
     
-    # 检查 openssl 命令是否存在
+    # 检�?openssl 命令是否存在
     if ! command_exists openssl; then
         log_error "openssl 命令不存在，无法生成证书"
         return 1
     fi
     
-    # 检查 openssl 版本和配置
-    log_message "DEBUG" "OpenSSL 版本: $(openssl version 2>/dev/null || echo 'unknown')"
+    # 检�?openssl 版本和配�?    log_message "DEBUG" "OpenSSL 版本: $(openssl version 2>/dev/null || echo 'unknown')"
     
     # 生成私钥 - 使用更兼容的方法
     log_message "DEBUG" "正在生成 RSA 私钥"
     if ! openssl genrsa -out /etc/ssl/private/hysteria.key 2048 2>/dev/null; then
-        log_error "生成私钥失败，尝试备用方法"
-        # 备用方法：使用 genpkey
+        log_error "生成私钥失败，尝试备用方�?
+        # 备用方法：使�?genpkey
         if ! openssl genpkey -algorithm RSA -out /etc/ssl/private/hysteria.key -pkcs8 2>&1 | tee /tmp/openssl_error.log; then
-            log_error "备用方法也失败，OpenSSL 错误信息："
+            log_error "备用方法也失败，OpenSSL 错误信息�?
             if [[ -f /tmp/openssl_error.log ]]; then
                 cat /tmp/openssl_error.log
                 rm -f /tmp/openssl_error.log
@@ -1620,11 +1564,11 @@ generate_hysteria2_cert() {
     
     # 验证私钥文件
     if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -s "/etc/ssl/private/hysteria.key" ]]; then
-        log_error "私钥文件生成失败或为空"
+        log_error "私钥文件生成失败或为�?
         return 1
     fi
     
-    log_message "DEBUG" "正在生成自签名证书"
+    log_message "DEBUG" "正在生成自签名证�?
     # 生成证书
     if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
         log_error "生成证书失败，尝试一体化生成方法"
@@ -1634,10 +1578,10 @@ generate_hysteria2_cert() {
             log_error "一体化生成也失败，尝试最简单的方法"
              # 最后备用方法：使用最基本的openssl命令
              if ! openssl genrsa 2048 > /etc/ssl/private/hysteria.key 2>/dev/null; then
-                 log_error "所有私钥生成方法都失败，显示详细错误信息"
+                 log_error "所有私钥生成方法都失败，显示详细错误信�?
                  openssl req -x509 -newkey rsa:2048 -keyout /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -nodes -subj "/CN=$HY2_DOMAIN" 2>&1 | tee /tmp/cert_error.log
                  if [[ -f /tmp/cert_error.log ]]; then
-                     log_error "OpenSSL 错误信息："
+                     log_error "OpenSSL 错误信息�?
                      cat /tmp/cert_error.log
                      rm -f /tmp/cert_error.log
                  fi
@@ -1645,9 +1589,8 @@ generate_hysteria2_cert() {
                  return 1
              fi
              
-             # 生成对应的证书
-             if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
-                 log_warn "证书生成失败，但私钥已生成"
+             # 生成对应的证�?             if ! openssl req -new -x509 -key /etc/ssl/private/hysteria.key -out /etc/ssl/private/hysteria.crt -days 36500 -subj "/CN=$HY2_DOMAIN" 2>/dev/null; then
+                 log_warn "证书生成失败，但私钥已生�?
                  return 1
              fi
              log_success "使用基础方法成功生成证书"
@@ -1664,8 +1607,7 @@ generate_hysteria2_cert() {
         log_warn "设置证书权限失败"
     fi
     
-    # 验证生成的文件
-    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -f "/etc/ssl/private/hysteria.crt" ]]; then
+    # 验证生成的文�?    if [[ ! -f "/etc/ssl/private/hysteria.key" ]] || [[ ! -f "/etc/ssl/private/hysteria.crt" ]]; then
         log_error "证书文件生成失败"
         return 1
     fi
@@ -1682,7 +1624,7 @@ generate_vless_share_link() {
     local remark="${2:-VLESS-Reality}"
     
     if [[ -z "$VLESS_UUID" ]] || [[ -z "$VLESS_PORT" ]]; then
-        log_error "VLESS 配置信息不完整"
+        log_error "VLESS 配置信息不完�?
         return 1
     fi
     
@@ -1707,7 +1649,7 @@ generate_vmess_share_link() {
     local remark="${2:-VMess-WS}"
     
     if [[ -z "$VMESS_UUID" ]] || [[ -z "$VMESS_PORT" ]]; then
-        log_error "VMess 配置信息不完整"
+        log_error "VMess 配置信息不完�?
         return 1
     fi
     
@@ -1746,7 +1688,7 @@ generate_hysteria2_share_link() {
     local remark="${2:-Hysteria2}"
     
     if [[ -z "$HY2_PASSWORD" ]] || [[ -z "$HY2_PORT" ]]; then
-        log_error "Hysteria2 配置信息不完整"
+        log_error "Hysteria2 配置信息不完�?
         return 1
     fi
     
@@ -1761,8 +1703,7 @@ generate_hysteria2_share_link() {
     echo "$hy2_link"
 }
 
-# 生成所有分享链接
-generate_share_links() {
+# 生成所有分享链�?generate_share_links() {
     echo -e "${CYAN}=== 分享链接 ===${NC}"
     echo ""
     
@@ -1799,7 +1740,7 @@ generate_share_links() {
     fi
     
     if [[ "$has_config" == "false" ]]; then
-        echo -e "${YELLOW}未找到已配置的协议${NC}"
+        echo -e "${YELLOW}未找到已配置的协�?{NC}"
         echo -e "${YELLOW}请先配置协议后再生成分享链接${NC}"
     fi
     
@@ -1816,15 +1757,14 @@ show_banner() {
     echo -e "${CYAN}                      $SCRIPT_VERSION${NC}"
     echo -e "${CYAN}================================================================${NC}"
     echo -e "${GREEN}支持协议:${NC}"
-    echo -e "  ${YELLOW}•${NC} VLESS Reality Vision"
-    echo -e "  ${YELLOW}•${NC} VMess WebSocket"
-    echo -e "  ${YELLOW}•${NC} Hysteria2"
+    echo -e "  ${YELLOW}�?{NC} VLESS Reality Vision"
+    echo -e "  ${YELLOW}�?{NC} VMess WebSocket"
+    echo -e "  ${YELLOW}�?{NC} Hysteria2"
     echo -e "${CYAN}================================================================${NC}"
     echo ""
 }
 
-# 显示主菜单
-show_main_menu() {
+# 显示主菜�?show_main_menu() {
     while true; do
         clear
         echo -e "${CYAN}================================================================${NC}"
@@ -1836,20 +1776,18 @@ show_main_menu() {
         echo -e "${GREEN}系统信息:${NC} $OS ($ARCH)"
         echo -e "${GREEN}公网IP:${NC} $PUBLIC_IP"
         
-        # 显示服务状态
-        echo -e "${GREEN}服务状态:${NC} $(get_service_status_description "$SERVICE_NAME")"
+        # 显示服务状�?        echo -e "${GREEN}服务状�?${NC} $(get_service_status_description "$SERVICE_NAME")"
         
-        # 显示配置状态
-        echo -e "${GREEN}配置状态:${NC}"
+        # 显示配置状�?        echo -e "${GREEN}配置状�?${NC}"
         local status_line=""
         [[ -n "$VLESS_PORT" ]] && status_line+="VLESS(${VLESS_PORT}) "
         [[ -n "$VMESS_PORT" ]] && status_line+="VMess(${VMESS_PORT}) "
         [[ -n "$HY2_PORT" ]] && status_line+="Hysteria2(${HY2_PORT}) "
         
         if [[ -n "$status_line" ]]; then
-            echo -e "${GREEN}已配置:${NC} $status_line"
+            echo -e "${GREEN}已配�?${NC} $status_line"
         else
-            echo -e "${YELLOW}未配置任何协议${NC}"
+            echo -e "${YELLOW}未配置任何协�?{NC}"
         fi
         echo ""
         
@@ -1861,10 +1799,10 @@ show_main_menu() {
         echo -e "  ${GREEN}3.${NC} 管理服务"
         echo -e "  ${GREEN}4.${NC} 查看配置信息"
         echo -e "  ${GREEN}5.${NC} 生成分享链接"
-        echo -e "  ${GREEN}6.${NC} 生成二维码"
+        echo -e "  ${GREEN}6.${NC} 生成二维�?
         echo -e "  ${GREEN}7.${NC} 故障排除"
         echo -e "  ${GREEN}8.${NC} 卸载 Sing-box"
-        echo -e "  ${GREEN}0.${NC} 退出"
+        echo -e "  ${GREEN}0.${NC} 退�?
         echo ""
         echo -e "${CYAN}================================================================${NC}"
         
@@ -1882,7 +1820,7 @@ show_main_menu() {
             7) troubleshoot_menu ;;
             8) uninstall_singbox ;;
             0) 
-                echo -e "${GREEN}感谢使用！${NC}"
+                echo -e "${GREEN}感谢使用�?{NC}"
                 exit 0
                 ;;
             *) 
@@ -1904,7 +1842,7 @@ show_protocol_menu() {
         echo -e "  ${GREEN}1.${NC} VLESS Reality Vision"
         echo -e "  ${GREEN}2.${NC} VMess WebSocket"
         echo -e "  ${GREEN}3.${NC} Hysteria2"
-        echo -e "  ${GREEN}0.${NC} 返回主菜单"
+        echo -e "  ${GREEN}0.${NC} 返回主菜�?
         echo ""
         
         local choice
@@ -1948,21 +1886,18 @@ show_service_menu() {
         echo -e "${CYAN}=== 服务管理菜单 ===${NC}"
         echo ""
         
-        # 显示详细的服务状态
-        echo -e "${GREEN}当前状态:${NC} $(get_service_status_description "$SERVICE_NAME")"
+        # 显示详细的服务状�?        echo -e "${GREEN}当前状�?${NC} $(get_service_status_description "$SERVICE_NAME")"
         
-        # 显示配置文件状态
-        if [[ -f "$CONFIG_FILE" ]]; then
+        # 显示配置文件状�?        if [[ -f "$CONFIG_FILE" ]]; then
             echo -e "${GREEN}配置文件:${NC} ${GREEN}存在${NC}"
         else
-            echo -e "${GREEN}配置文件:${NC} ${RED}不存在${NC}"
+            echo -e "${GREEN}配置文件:${NC} ${RED}不存�?{NC}"
         fi
         
-        # 显示二进制文件状态
-        if [[ -f "$SINGBOX_BINARY" ]]; then
-            echo -e "${GREEN}程序文件:${NC} ${GREEN}已安装${NC}"
+        # 显示二进制文件状�?        if [[ -f "$SINGBOX_BINARY" ]]; then
+            echo -e "${GREEN}程序文件:${NC} ${GREEN}已安�?{NC}"
         else
-            echo -e "${GREEN}程序文件:${NC} ${RED}未安装${NC}"
+            echo -e "${GREEN}程序文件:${NC} ${RED}未安�?{NC}"
         fi
         echo ""
         
@@ -1973,7 +1908,7 @@ show_service_menu() {
         echo -e "  ${GREEN}3.${NC} 重启服务"
         echo -e "  ${GREEN}4.${NC} 查看日志"
         echo -e "  ${GREEN}5.${NC} 服务诊断"
-        echo -e "  ${GREEN}0.${NC} 返回主菜单"
+        echo -e "  ${GREEN}0.${NC} 返回主菜�?
         echo ""
         
         local choice
@@ -2016,13 +1951,13 @@ show_service_logs() {
     clear
     echo -e "${CYAN}=== Sing-box 服务日志 ===${NC}"
     echo ""
-    echo -e "${YELLOW}最近50行日志:${NC}"
+    echo -e "${YELLOW}最�?0行日�?${NC}"
     echo ""
     
     if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
         journalctl -u "$SERVICE_NAME" -n 50 --no-pager
     else
-        echo -e "${RED}服务未运行${NC}"
+        echo -e "${RED}服务未运�?{NC}"
     fi
     
     wait_for_input
@@ -2067,7 +2002,7 @@ show_config_info() {
     fi
     
     if [[ -z "$VLESS_UUID" ]] && [[ -z "$VMESS_UUID" ]] && [[ -z "$HY2_PASSWORD" ]]; then
-        echo -e "${YELLOW}未配置任何协议${NC}"
+        echo -e "${YELLOW}未配置任何协�?{NC}"
     fi
     
     wait_for_input
@@ -2083,13 +2018,13 @@ troubleshoot_menu() {
         echo ""
         echo -e "${YELLOW}请选择诊断项目:${NC}"
         echo ""
-        echo -e "  ${GREEN}1.${NC} 检查系统环境"
+        echo -e "  ${GREEN}1.${NC} 检查系统环�?
         echo -e "  ${GREEN}2.${NC} 验证配置文件"
-        echo -e "  ${GREEN}3.${NC} 检查端口占用"
+        echo -e "  ${GREEN}3.${NC} 检查端口占�?
         echo -e "  ${GREEN}4.${NC} 测试网络连接"
         echo -e "  ${GREEN}5.${NC} 查看详细日志"
         echo -e "  ${GREEN}6.${NC} 重新生成配置"
-        echo -e "  ${GREEN}0.${NC} 返回主菜单"
+        echo -e "  ${GREEN}0.${NC} 返回主菜�?
         echo ""
         
         local choice
@@ -2112,10 +2047,9 @@ troubleshoot_menu() {
     done
 }
 
-# 检查系统环境
-check_system_environment() {
+# 检查系统环�?check_system_environment() {
     clear
-    echo -e "${CYAN}=== 系统环境检查 ===${NC}"
+    echo -e "${CYAN}=== 系统环境检�?===${NC}"
     echo ""
     
     echo -e "${GREEN}1. 基础信息:${NC}"
@@ -2124,23 +2058,23 @@ check_system_environment() {
     echo -e "  公网IP: $PUBLIC_IP"
     echo ""
     
-    echo -e "${GREEN}2. Sing-box 状态:${NC}"
+    echo -e "${GREEN}2. Sing-box 状�?${NC}"
     if [[ -f "$SINGBOX_BINARY" ]]; then
-        echo -e "  二进制文件: ${GREEN}存在${NC} ($SINGBOX_BINARY)"
+        echo -e "  二进制文�? ${GREEN}存在${NC} ($SINGBOX_BINARY)"
         local version
         version=$("$SINGBOX_BINARY" version 2>/dev/null | head -n1 || echo "无法获取版本")
         echo -e "  版本信息: $version"
     else
-        echo -e "  二进制文件: ${RED}不存在${NC}"
+        echo -e "  二进制文�? ${RED}不存�?{NC}"
     fi
     echo ""
     
-    echo -e "${GREEN}3. 服务状态:${NC}"
+    echo -e "${GREEN}3. 服务状�?${NC}"
     local status=$(get_service_status "$SERVICE_NAME")
     case "$status" in
-        "running") echo -e "  服务状态: ${GREEN}运行中${NC}" ;;
-        "stopped") echo -e "  服务状态: ${YELLOW}已停止${NC}" ;;
-        *) echo -e "  服务状态: ${RED}未启用${NC}" ;;
+        "running") echo -e "  服务状�? ${GREEN}运行�?{NC}" ;;
+        "stopped") echo -e "  服务状�? ${YELLOW}已停�?{NC}" ;;
+        *) echo -e "  服务状�? ${RED}未启�?{NC}" ;;
     esac
     echo ""
     
@@ -2151,7 +2085,7 @@ check_system_environment() {
         size=$(stat -c%s "$CONFIG_FILE" 2>/dev/null || echo "0")
         echo -e "  文件大小: ${size} 字节"
     else
-        echo -e "  配置文件: ${RED}不存在${NC}"
+        echo -e "  配置文件: ${RED}不存�?{NC}"
     fi
     echo ""
     
@@ -2165,7 +2099,7 @@ validate_config_file() {
     echo ""
     
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo -e "${RED}配置文件不存在: $CONFIG_FILE${NC}"
+        echo -e "${RED}配置文件不存�? $CONFIG_FILE${NC}"
         wait_for_input
         return
     fi
@@ -2175,20 +2109,19 @@ validate_config_file() {
     
     if "$SINGBOX_BINARY" check -c "$CONFIG_FILE"; then
         echo ""
-        echo -e "${GREEN}配置文件验证通过！${NC}"
+        echo -e "${GREEN}配置文件验证通过�?{NC}"
     else
         echo ""
-        echo -e "${RED}配置文件验证失败！${NC}"
+        echo -e "${RED}配置文件验证失败�?{NC}"
         echo -e "${YELLOW}请检查上述错误信息并修复配置${NC}"
     fi
     
     wait_for_input
 }
 
-# 检查端口占用
-check_port_usage() {
+# 检查端口占�?check_port_usage() {
     clear
-    echo -e "${CYAN}=== 端口占用检查 ===${NC}"
+    echo -e "${CYAN}=== 端口占用检�?===${NC}"
     echo ""
     
     local ports=("$VLESS_PORT" "$VMESS_PORT" "$HY2_PORT")
@@ -2199,13 +2132,13 @@ check_port_usage() {
         local name="${names[$i]}"
         
         if [[ -n "$port" ]]; then
-            echo -e "${GREEN}检查 $name 端口 $port:${NC}"
+            echo -e "${GREEN}检�?$name 端口 $port:${NC}"
             if check_port "$port"; then
-                echo -e "  状态: ${YELLOW}被占用${NC}"
+                echo -e "  状�? ${YELLOW}被占�?{NC}"
                 echo -e "  进程信息:"
                 ss -tulnp | grep ":$port " | head -5
             else
-                echo -e "  状态: ${GREEN}可用${NC}"
+                echo -e "  状�? ${GREEN}可用${NC}"
             fi
             echo ""
         fi
@@ -2246,7 +2179,7 @@ test_network_connectivity() {
             echo -e "  $VLESS_TARGET: ${RED}连接失败${NC}"
         fi
     else
-        echo -e "  ${YELLOW}未配置 Reality 目标${NC}"
+        echo -e "  ${YELLOW}未配�?Reality 目标${NC}"
     fi
     echo ""
     
@@ -2259,13 +2192,13 @@ show_detailed_logs() {
     echo -e "${CYAN}=== 详细日志信息 ===${NC}"
     echo ""
     
-    echo -e "${YELLOW}最近100行系统日志:${NC}"
+    echo -e "${YELLOW}最�?00行系统日�?${NC}"
     echo ""
     
     if systemctl list-unit-files 2>/dev/null | grep -q "sing-box.service"; then
         journalctl -u "$SERVICE_NAME" -n 100 --no-pager
     else
-        echo -e "${RED}服务未安装${NC}"
+        echo -e "${RED}服务未安�?{NC}"
     fi
     
     wait_for_input
@@ -2276,7 +2209,7 @@ regenerate_config() {
     clear
     echo -e "${CYAN}=== 重新生成配置 ===${NC}"
     echo ""
-    echo -e "${RED}警告: 这将重新生成配置文件，现有配置将被覆盖${NC}"
+    echo -e "${RED}警告: 这将重新生成配置文件，现有配置将被覆�?{NC}"
     echo ""
     
     read -p "确认重新生成配置？[y/N]: " confirm
@@ -2291,7 +2224,7 @@ regenerate_config() {
     # 备份现有配置
     if [[ -f "$CONFIG_FILE" ]]; then
         cp "$CONFIG_FILE" "${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-        echo -e "${GREEN}已备份现有配置${NC}"
+        echo -e "${GREEN}已备份现有配�?{NC}"
     fi
     
     # 重新生成配置
@@ -2319,49 +2252,46 @@ diagnose_connection_issues() {
     
     local issues_found=false
     
-    echo -e "${YELLOW}正在检查常见问题...${NC}"
+    echo -e "${YELLOW}正在检查常见问�?..${NC}"
     echo ""
     
-    # 1. 检查服务状态
-    echo -e "${GREEN}1. 检查服务状态:${NC}"
+    # 1. 检查服务状�?    echo -e "${GREEN}1. 检查服务状�?${NC}"
     local status=$(get_service_status "$SERVICE_NAME")
     case "$status" in
         "running") 
-            echo -e "  ✓ 服务正在运行"
+            echo -e "  �?服务正在运行"
             ;;
         "stopped") 
-            echo -e "  ✗ 服务已停止"
+            echo -e "  �?服务已停�?
             issues_found=true
             echo -e "  ${YELLOW}建议: 启动服务 - systemctl start $SERVICE_NAME${NC}"
             ;;
         *) 
-            echo -e "  ✗ 服务未启用"
+            echo -e "  �?服务未启�?
             issues_found=true
-            echo -e "  ${YELLOW}建议: 启用并启动服务${NC}"
+            echo -e "  ${YELLOW}建议: 启用并启动服�?{NC}"
             ;;
     esac
     echo ""
     
-    # 2. 检查配置文件
-    echo -e "${GREEN}2. 检查配置文件:${NC}"
+    # 2. 检查配置文�?    echo -e "${GREEN}2. 检查配置文�?${NC}"
     if [[ -f "$CONFIG_FILE" ]]; then
-        echo -e "  ✓ 配置文件存在"
+        echo -e "  �?配置文件存在"
         if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
-            echo -e "  ✓ 配置文件语法正确"
+            echo -e "  �?配置文件语法正确"
         else
-            echo -e "  ✗ 配置文件语法错误"
+            echo -e "  �?配置文件语法错误"
             issues_found=true
             echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
         fi
     else
-        echo -e "  ✗ 配置文件不存在"
+        echo -e "  �?配置文件不存�?
         issues_found=true
         echo -e "  ${YELLOW}建议: 生成配置文件${NC}"
     fi
     echo ""
     
-    # 3. 检查端口占用
-    echo -e "${GREEN}3. 检查端口状态:${NC}"
+    # 3. 检查端口占�?    echo -e "${GREEN}3. 检查端口状�?${NC}"
     local ports=("$VLESS_PORT" "$VMESS_PORT" "$HY2_PORT")
     local names=("VLESS" "VMess" "Hysteria2")
     
@@ -2371,58 +2301,56 @@ diagnose_connection_issues() {
         
         if [[ -n "$port" ]]; then
             if check_port "$port"; then
-                echo -e "  ✓ $name 端口 $port 正在使用"
+                echo -e "  �?$name 端口 $port 正在使用"
             else
-                echo -e "  ✗ $name 端口 $port 未被使用"
+                echo -e "  �?$name 端口 $port 未被使用"
                 issues_found=true
-                echo -e "  ${YELLOW}建议: 检查服务是否正常启动${NC}"
+                echo -e "  ${YELLOW}建议: 检查服务是否正常启�?{NC}"
             fi
         fi
     done
     echo ""
     
     # 4. 检查防火墙
-    echo -e "${GREEN}4. 检查防火墙状态:${NC}"
+    echo -e "${GREEN}4. 检查防火墙状�?${NC}"
     if command_exists ufw; then
         if ufw status | grep -q "Status: active"; then
             echo -e "  ! UFW 防火墙已启用"
-            echo -e "  ${YELLOW}建议: 确保已开放相关端口${NC}"
+            echo -e "  ${YELLOW}建议: 确保已开放相关端�?{NC}"
         else
-            echo -e "  ✓ UFW 防火墙未启用"
+            echo -e "  �?UFW 防火墙未启用"
         fi
     elif command_exists firewall-cmd; then
         if firewall-cmd --state 2>/dev/null | grep -q "running"; then
             echo -e "  ! Firewalld 防火墙已启用"
-            echo -e "  ${YELLOW}建议: 确保已开放相关端口${NC}"
+            echo -e "  ${YELLOW}建议: 确保已开放相关端�?{NC}"
         else
-            echo -e "  ✓ Firewalld 防火墙未启用"
+            echo -e "  �?Firewalld 防火墙未启用"
         fi
     else
-        echo -e "  ? 无法检测防火墙状态"
+        echo -e "  ? 无法检测防火墙状�?
     fi
     echo ""
     
-    # 5. 检查证书文件（Hysteria2）
-    if [[ -n "$HY2_PASSWORD" ]]; then
-        echo -e "${GREEN}5. 检查 Hysteria2 证书:${NC}"
+    # 5. 检查证书文件（Hysteria2�?    if [[ -n "$HY2_PASSWORD" ]]; then
+        echo -e "${GREEN}5. 检�?Hysteria2 证书:${NC}"
         if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
-            echo -e "  ✓ 证书文件存在"
+            echo -e "  �?证书文件存在"
         else
-            echo -e "  ✗ 证书文件缺失"
+            echo -e "  �?证书文件缺失"
             issues_found=true
             echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
         fi
         echo ""
     fi
     
-    # 6. 检查网络连通性
-    echo -e "${GREEN}6. 检查网络连通性:${NC}"
+    # 6. 检查网络连通�?    echo -e "${GREEN}6. 检查网络连通�?${NC}"
     if curl -s --max-time 5 www.google.com >/dev/null; then
-        echo -e "  ✓ 外网连接正常"
+        echo -e "  �?外网连接正常"
     else
-        echo -e "  ✗ 外网连接异常"
+        echo -e "  �?外网连接异常"
         issues_found=true
-        echo -e "  ${YELLOW}建议: 检查网络设置${NC}"
+        echo -e "  ${YELLOW}建议: 检查网络设�?{NC}"
     fi
     echo ""
     
@@ -2431,44 +2359,42 @@ diagnose_connection_issues() {
         echo -e "${RED}发现问题，请根据上述建议进行修复${NC}"
         echo ""
         echo -e "${YELLOW}快速修复选项:${NC}"
-        echo -e "  1. 重新生成配置并重启服务"
-        echo -e "  2. 配置防火墙规则"
+        echo -e "  1. 重新生成配置并重启服�?
+        echo -e "  2. 配置防火墙规�?
         echo -e "  3. 重新生成证书"
         echo ""
         read -p "是否执行快速修复？[y/N]: " fix_confirm
         if [[ "$fix_confirm" =~ ^[Yy]$ ]]; then
-            echo -e "${CYAN}正在执行快速修复...${NC}"
+            echo -e "${CYAN}正在执行快速修�?..${NC}"
             
             # 重新生成配置
             if generate_config; then
-                echo -e "${GREEN}✓ 配置文件重新生成完成${NC}"
+                echo -e "${GREEN}�?配置文件重新生成完成${NC}"
             fi
             
             # 重启服务
             if restart_service "$SERVICE_NAME"; then
-                echo -e "${GREEN}✓ 服务重启成功${NC}"
+                echo -e "${GREEN}�?服务重启成功${NC}"
             fi
             
-            # 配置防火墙
-            configure_firewall
+            # 配置防火�?            configure_firewall
             
-            echo -e "${GREEN}快速修复完成${NC}"
+            echo -e "${GREEN}快速修复完�?{NC}"
         fi
     else
-        echo -e "${GREEN}未发现明显问题，配置看起来正常${NC}"
-        echo -e "${YELLOW}如果仍然无法连接，请检查:${NC}"
-        echo -e "  • 客户端配置是否正确"
-        echo -e "  • 服务器IP地址是否正确"
-        echo -e "  • 网络环境是否支持相关协议"
+        echo -e "${GREEN}未发现明显问题，配置看起来正�?{NC}"
+        echo -e "${YELLOW}如果仍然无法连接，请检�?${NC}"
+        echo -e "  �?客户端配置是否正�?
+        echo -e "  �?服务器IP地址是否正确"
+        echo -e "  �?网络环境是否支持相关协议"
     fi
     
     wait_for_input
 }
 
-# 配置验证和修复
-validate_and_fix_config() {
+# 配置验证和修�?validate_and_fix_config() {
     clear
-    echo -e "${CYAN}=== 配置验证和修复 ===${NC}"
+    echo -e "${CYAN}=== 配置验证和修�?===${NC}"
     echo ""
     
     local config_issues=false
@@ -2476,78 +2402,72 @@ validate_and_fix_config() {
     echo -e "${YELLOW}正在验证配置...${NC}"
     echo ""
     
-    # 1. 检查配置文件是否存在
-    echo -e "${GREEN}1. 检查配置文件:${NC}"
+    # 1. 检查配置文件是否存�?    echo -e "${GREEN}1. 检查配置文�?${NC}"
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo -e "  ✗ 配置文件不存在"
+        echo -e "  �?配置文件不存�?
         config_issues=true
         echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
     else
-        echo -e "  ✓ 配置文件存在"
+        echo -e "  �?配置文件存在"
         
-        # 检查配置文件语法
-        if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
-            echo -e "  ✓ 配置文件语法正确"
+        # 检查配置文件语�?        if "$SINGBOX_BINARY" check -c "$CONFIG_FILE" 2>/dev/null; then
+            echo -e "  �?配置文件语法正确"
         else
-            echo -e "  ✗ 配置文件语法错误"
+            echo -e "  �?配置文件语法错误"
             config_issues=true
             echo -e "  ${YELLOW}建议: 重新生成配置文件${NC}"
         fi
     fi
     echo ""
     
-    # 2. 检查协议配置
-    echo -e "${GREEN}2. 检查协议配置:${NC}"
+    # 2. 检查协议配�?    echo -e "${GREEN}2. 检查协议配�?${NC}"
     local protocols_configured=false
     
     if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
-        echo -e "  ✓ VLESS Reality 已配置 (端口: $VLESS_PORT)"
+        echo -e "  �?VLESS Reality 已配�?(端口: $VLESS_PORT)"
         protocols_configured=true
     fi
     
     if [[ -n "$VMESS_UUID" ]] && [[ -n "$VMESS_PORT" ]]; then
-        echo -e "  ✓ VMess WebSocket 已配置 (端口: $VMESS_PORT)"
+        echo -e "  �?VMess WebSocket 已配�?(端口: $VMESS_PORT)"
         protocols_configured=true
     fi
     
     if [[ -n "$HY2_PASSWORD" ]] && [[ -n "$HY2_PORT" ]]; then
-        echo -e "  ✓ Hysteria2 已配置 (端口: $HY2_PORT)"
+        echo -e "  �?Hysteria2 已配�?(端口: $HY2_PORT)"
         protocols_configured=true
     fi
     
     if [[ "$protocols_configured" == "false" ]]; then
-        echo -e "  ✗ 未配置任何协议"
+        echo -e "  �?未配置任何协�?
         config_issues=true
-        echo -e "  ${YELLOW}建议: 配置至少一个协议${NC}"
+        echo -e "  ${YELLOW}建议: 配置至少一个协�?{NC}"
     fi
     echo ""
     
-    # 3. 检查端口冲突
-    echo -e "${GREEN}3. 检查端口冲突:${NC}"
+    # 3. 检查端口冲�?    echo -e "${GREEN}3. 检查端口冲�?${NC}"
     local port_conflicts=false
     
-    # 检查端口是否重复
-    local ports=()
+    # 检查端口是否重�?    local ports=()
     [[ -n "$VLESS_PORT" ]] && ports+=("$VLESS_PORT")
     [[ -n "$VMESS_PORT" ]] && ports+=("$VMESS_PORT")
     [[ -n "$HY2_PORT" ]] && ports+=("$HY2_PORT")
     
-    # 检查重复端口
-    local unique_ports=($(printf '%s\n' "${ports[@]}" | sort -u))
+    # 检查重复端�?    local unique_ports=($(printf '%s\n' "${ports[@]}" | sort -u))
     if [[ ${#ports[@]} -ne ${#unique_ports[@]} ]]; then
-        echo -e "  ✗ 发现端口冲突"
+        echo -e "  �?发现端口冲突"
         port_conflicts=true
         config_issues=true
         echo -e "  ${YELLOW}建议: 重新分配端口${NC}"
     else
-        echo -e "  ✓ 无端口冲突"
+        echo -e "  �?无端口冲�?
     fi
     
     # 检查端口是否被其他进程占用
     for port in "${ports[@]}"; do
         if [[ -n "$port" ]]; then
             if ss -tuln | grep -q ":$port " && ! pgrep -f "sing-box" >/dev/null; then
-                echo -e "  ✗ 端口 $port 被其他进程占用"
+                echo -e "  �?端口 $port 被其他进程占�?
                 port_conflicts=true
                 config_issues=true
             fi
@@ -2555,47 +2475,45 @@ validate_and_fix_config() {
     done
     
     if [[ "$port_conflicts" == "false" ]] && [[ ${#ports[@]} -gt 0 ]]; then
-        echo -e "  ✓ 端口状态正常"
+        echo -e "  �?端口状态正�?
     fi
     echo ""
     
-    # 4. 检查证书文件
-    if [[ -n "$HY2_PASSWORD" ]]; then
-        echo -e "${GREEN}4. 检查 Hysteria2 证书:${NC}"
+    # 4. 检查证书文�?    if [[ -n "$HY2_PASSWORD" ]]; then
+        echo -e "${GREEN}4. 检�?Hysteria2 证书:${NC}"
         if [[ -f "/etc/ssl/private/hysteria.crt" ]] && [[ -f "/etc/ssl/private/hysteria.key" ]]; then
-            echo -e "  ✓ 证书文件存在"
+            echo -e "  �?证书文件存在"
             
-            # 检查证书有效性
-            if openssl x509 -in "/etc/ssl/private/hysteria.crt" -noout -checkend 86400 2>/dev/null; then
-                echo -e "  ✓ 证书有效"
+            # 检查证书有效�?            if openssl x509 -in "/etc/ssl/private/hysteria.crt" -noout -checkend 86400 2>/dev/null; then
+                echo -e "  �?证书有效"
             else
-                echo -e "  ✗ 证书已过期或无效"
+                echo -e "  �?证书已过期或无效"
                 config_issues=true
                 echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
             fi
         else
-            echo -e "  ✗ 证书文件缺失"
+            echo -e "  �?证书文件缺失"
             config_issues=true
             echo -e "  ${YELLOW}建议: 重新生成证书${NC}"
         fi
         echo ""
     fi
     
-    # 5. 检查 Reality 配置
+    # 5. 检�?Reality 配置
     if [[ -n "$VLESS_UUID" ]]; then
-        echo -e "${GREEN}5. 检查 VLESS Reality 配置:${NC}"
+        echo -e "${GREEN}5. 检�?VLESS Reality 配置:${NC}"
         if [[ -n "$REALITY_PRIVATE_KEY" ]] && [[ -n "$REALITY_PUBLIC_KEY" ]]; then
-            echo -e "  ✓ Reality 密钥对已生成"
+            echo -e "  �?Reality 密钥对已生成"
         else
-            echo -e "  ✗ Reality 密钥对缺失"
+            echo -e "  �?Reality 密钥对缺�?
             config_issues=true
             echo -e "  ${YELLOW}建议: 重新生成 Reality 配置${NC}"
         fi
         
         if [[ -n "$REALITY_TARGET" ]]; then
-            echo -e "  ✓ Reality 目标已设置: $REALITY_TARGET"
+            echo -e "  �?Reality 目标已设�? $REALITY_TARGET"
         else
-            echo -e "  ✗ Reality 目标未设置"
+            echo -e "  �?Reality 目标未设�?
             config_issues=true
             echo -e "  ${YELLOW}建议: 设置 Reality 目标${NC}"
         fi
@@ -2604,10 +2522,10 @@ validate_and_fix_config() {
     
     # 总结和修复选项
     if [[ "$config_issues" == "true" ]]; then
-        echo -e "${RED}发现配置问题，需要修复${NC}"
+        echo -e "${RED}发现配置问题，需要修�?{NC}"
         echo ""
         echo -e "${YELLOW}自动修复选项:${NC}"
-        echo -e "  1. 重新生成所有配置"
+        echo -e "  1. 重新生成所有配�?
         echo -e "  2. 重新分配端口"
         echo -e "  3. 重新生成证书"
         echo -e "  4. 重新生成 Reality 配置"
@@ -2618,27 +2536,26 @@ validate_and_fix_config() {
             echo -e "${CYAN}正在执行自动修复...${NC}"
             echo ""
             
-            # 重新分配端口（如果有冲突）
-            if [[ "$port_conflicts" == "true" ]]; then
+            # 重新分配端口（如果有冲突�?            if [[ "$port_conflicts" == "true" ]]; then
                 echo -e "${CYAN}重新分配端口...${NC}"
                 [[ -n "$VLESS_PORT" ]] && VLESS_PORT=$(get_random_port)
                 [[ -n "$VMESS_PORT" ]] && VMESS_PORT=$(get_random_port)
                 [[ -n "$HY2_PORT" ]] && HY2_PORT=$(get_random_port)
-                echo -e "${GREEN}✓ 端口重新分配完成${NC}"
+                echo -e "${GREEN}�?端口重新分配完成${NC}"
             fi
             
             # 重新生成配置
             if generate_config; then
-                echo -e "${GREEN}✓ 配置文件重新生成完成${NC}"
+                echo -e "${GREEN}�?配置文件重新生成完成${NC}"
             fi
             
             # 保存配置
             save_config
-            echo -e "${GREEN}✓ 配置已保存${NC}"
+            echo -e "${GREEN}�?配置已保�?{NC}"
             
             # 重启服务
             if restart_service "$SERVICE_NAME"; then
-                echo -e "${GREEN}✓ 服务重启成功${NC}"
+                echo -e "${GREEN}�?服务重启成功${NC}"
             fi
             
             echo -e "${GREEN}自动修复完成${NC}"
@@ -2650,26 +2567,24 @@ validate_and_fix_config() {
     wait_for_input
 }
 
-# 生成客户端配置模板
-generate_client_config_template() {
+# 生成客户端配置模�?generate_client_config_template() {
     clear
-    echo -e "${CYAN}=== 客户端配置生成 ===${NC}"
+    echo -e "${CYAN}=== 客户端配置生�?===${NC}"
     echo ""
     
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo -e "${RED}配置文件不存在，请先配置服务器${NC}"
+        echo -e "${RED}配置文件不存在，请先配置服务�?{NC}"
         wait_for_input
         return
     fi
     
-    echo -e "${YELLOW}正在生成客户端配置模板...${NC}"
+    echo -e "${YELLOW}正在生成客户端配置模�?..${NC}"
     echo ""
     
     local client_config_dir="$WORK_DIR/client-configs"
     mkdir -p "$client_config_dir"
     
-    # 生成通用客户端配置
-    local client_config="$client_config_dir/sing-box-client.json"
+    # 生成通用客户端配�?    local client_config="$client_config_dir/sing-box-client.json"
     
     cat > "$client_config" << EOF
 {
@@ -2717,8 +2632,7 @@ generate_client_config_template() {
   "outbounds": [
 EOF
     
-    # 添加配置的协议出站
-    local outbounds_added=false
+    # 添加配置的协议出�?    local outbounds_added=false
     
     # VLESS Reality
     if [[ -n "$VLESS_UUID" ]] && [[ -n "$VLESS_PORT" ]]; then
@@ -2845,41 +2759,37 @@ EOF
     # 生成使用说明
     local readme_file="$client_config_dir/README.md"
     cat > "$readme_file" << EOF
-# Sing-box 客户端配置说明
-
+# Sing-box 客户端配置说�?
 ## 配置文件
-- \`sing-box-client.json\`: 通用客户端配置文件
-
+- \`sing-box-client.json\`: 通用客户端配置文�?
 ## 使用方法
 
 ### Windows
 1. 下载 sing-box Windows 版本
-2. 将配置文件放在 sing-box 同目录
-3. 运行: \`sing-box.exe run -c sing-box-client.json\`
+2. 将配置文件放�?sing-box 同目�?3. 运行: \`sing-box.exe run -c sing-box-client.json\`
 
 ### macOS
 1. 安装 sing-box: \`brew install sing-box\`
 2. 运行: \`sing-box run -c sing-box-client.json\`
 
 ### Linux
-1. 下载对应架构的 sing-box
+1. 下载对应架构�?sing-box
 2. 运行: \`./sing-box run -c sing-box-client.json\`
 
 ### Android
-使用 SFA (Sing-box for Android) 应用，导入配置文件
-
+使用 SFA (Sing-box for Android) 应用，导入配置文�?
 ### iOS
 使用支持 sing-box 的客户端应用
 
 ## 代理设置
 - HTTP/SOCKS5 代理: 127.0.0.1:7890
-- 或启用 TUN 模式进行全局代理
+- 或启�?TUN 模式进行全局代理
 
 ## 协议说明
 EOF
     
     if [[ -n "$VLESS_UUID" ]]; then
-        echo "- VLESS Reality: 高性能，推荐使用" >> "$readme_file"
+        echo "- VLESS Reality: 高性能，推荐使�? >> "$readme_file"
     fi
     
     if [[ -n "$VMESS_UUID" ]]; then
@@ -2887,33 +2797,31 @@ EOF
     fi
     
     if [[ -n "$HY2_PASSWORD" ]]; then
-        echo "- Hysteria2: 高速传输，适合高带宽需求" >> "$readme_file"
+        echo "- Hysteria2: 高速传输，适合高带宽需�? >> "$readme_file"
     fi
     
-    echo -e "${GREEN}使用说明已生成:${NC}"
+    echo -e "${GREEN}使用说明已生�?${NC}"
     echo -e "  ${CYAN}说明文件: $readme_file${NC}"
     echo ""
     
     echo -e "${YELLOW}提示:${NC}"
-    echo -e "  • 客户端配置文件包含所有已配置的协议"
-    echo -e "  • 可根据需要选择使用不同的出站标签"
-    echo -e "  • 建议先测试连接再进行实际使用"
-    echo -e "  • 配置文件位于: $client_config_dir"
+    echo -e "  �?客户端配置文件包含所有已配置的协�?
+    echo -e "  �?可根据需要选择使用不同的出站标�?
+    echo -e "  �?建议先测试连接再进行实际使用"
+    echo -e "  �?配置文件位于: $client_config_dir"
     
     wait_for_input
 }
 
-# ==================== 一键配置功能 ====================
+# ==================== 一键配置功�?====================
 
-# 一键配置所有协议
-quick_setup_all_protocols() {
+# 一键配置所有协�?quick_setup_all_protocols() {
     echo -e "${CYAN}=== 一键配置三协议 ===${NC}"
     echo ""
     echo -e "${YELLOW}正在配置 VLESS Reality + VMess WebSocket + Hysteria2...${NC}"
     echo ""
     
-    # 配置所有协议
-    configure_vless_reality
+    # 配置所有协�?    configure_vless_reality
     configure_vmess_websocket
     configure_hysteria2
     
@@ -2936,11 +2844,11 @@ quick_setup_all_protocols() {
     generate_share_links
 }
 
-# ==================== 安装和卸载 ====================
+# ==================== 安装和卸�?====================
 
 # 执行完整安装
 perform_installation() {
-    echo -e "${CYAN}=== 开始安装 Sing-box ===${NC}"
+    echo -e "${CYAN}=== 开始安�?Sing-box ===${NC}"
     echo ""
     
     # 安装依赖
@@ -2949,8 +2857,7 @@ perform_installation() {
     # 创建目录
     create_directories
     
-    # 下载和安装
-    if ! download_and_install_singbox; then
+    # 下载和安�?    if ! download_and_install_singbox; then
         echo -e "${RED}安装失败${NC}"
         exit 1
     fi
@@ -2960,7 +2867,7 @@ perform_installation() {
     
     echo ""
     echo -e "${GREEN}=== 安装完成 ===${NC}"
-    echo -e "${YELLOW}现在可以配置协议了${NC}"
+    echo -e "${YELLOW}现在可以配置协议�?{NC}"
     
     wait_for_input
 }
@@ -2969,7 +2876,7 @@ perform_installation() {
 uninstall_singbox() {
     echo -e "${CYAN}=== 卸载 Sing-box ===${NC}"
     echo ""
-    echo -e "${RED}警告: 这将完全删除 Sing-box 及其所有配置${NC}"
+    echo -e "${RED}警告: 这将完全删除 Sing-box 及其所有配�?{NC}"
     echo ""
     
     read -p "确认卸载？[y/N]: " confirm
@@ -2986,9 +2893,8 @@ uninstall_singbox() {
     rm -f "/etc/systemd/system/$SERVICE_NAME.service"
     systemctl daemon-reload
     
-    # 删除二进制文件
+    # ɾ���������ļ�
     rm -f "$SINGBOX_BINARY"
-    
     # 删除配置目录
     rm -rf "$WORK_DIR"
     
@@ -3017,7 +2923,7 @@ show_installation_menu() {
             show_main_menu
             ;;
         "not_installed")
-            echo -e "${YELLOW}Sing-box 未安装，开始安装...${NC}"
+            echo -e "${YELLOW}Sing-box 未安装，开始安�?..${NC}"
             perform_installation
             # 安装完成后进入主菜单
             show_main_menu
@@ -3025,12 +2931,12 @@ show_installation_menu() {
     esac
 }
 
-# ==================== 主函数 ====================
+# ==================== 主函�?====================
 
 # 加载现有配置
 load_existing_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
-        log_info "检测到现有配置文件，尝试加载配置信息..."
+        log_info "检测到现有配置文件，尝试加载配置信�?.."
         
         # 从配置文件中提取端口信息
         if grep -q '"type": "vless"' "$CONFIG_FILE"; then
@@ -3053,25 +2959,22 @@ load_existing_config() {
     fi
 }
 
-# 主函数
-main() {
-    # 初始化日志
-    log_message "INFO" "Sing-box 一键安装脚本启动"
+# 主函�?main() {
+    # 初始化日�?    log_message "INFO" "Sing-box 一键安装脚本启�?
     log_message "DEBUG" "脚本版本: 2.0"
     log_message "DEBUG" "工作目录: $WORK_DIR"
     log_message "DEBUG" "配置文件: $CONFIG_FILE"
     log_message "DEBUG" "调试模式: $DEBUG"
     
-    # 基础检查
-    if ! check_root; then
-        handle_error 1 "需要 root 权限运行此脚本"
+    # 基础检�?    if ! check_root; then
+        handle_error 1 "需�?root 权限运行此脚�?
         exit 1
     fi
     
     show_banner
     
     if ! detect_system; then
-        handle_error 1 "系统检测失败"
+        handle_error 1 "系统检测失�?
         exit 1
     fi
     
@@ -3093,10 +2996,9 @@ main() {
     log_message "INFO" "脚本执行完成"
 }
 
-# ==================== 命令行参数处理 ====================
+# ==================== 命令行参数处�?====================
 
-# 处理命令行参数
-case "${1:-}" in
+# 处理命令行参�?case "${1:-}" in
     --install)
         log_message "INFO" "执行安装模式"
         check_root
@@ -3109,22 +3011,21 @@ case "${1:-}" in
         uninstall_singbox
         ;;
     --quick-setup)
-        log_message "INFO" "执行快速配置模式"
+        log_message "INFO" "执行快速配置模�?
         check_root
-        echo -e "${CYAN}=== 一键安装并配置三协议 ===${NC}"
+        echo -e "${CYAN}=== 一键安装并配置三协�?===${NC}"
         echo ""
         
-        # 先安装 Sing-box
+        # 先安�?Sing-box
         if ! command -v sing-box &> /dev/null; then
             log_message "INFO" "正在安装 Sing-box"
             detect_system
             perform_installation
         else
-            log_message "INFO" "Sing-box 已安装"
+            log_message "INFO" "Sing-box 已安�?
         fi
         
-        # 执行一键配置
-        log_message "INFO" "正在进行一键配置三协议"
+        # 执行一键配�?        log_message "INFO" "正在进行一键配置三协议"
         quick_setup_all_protocols
         exit 0
         ;;
@@ -3137,20 +3038,20 @@ case "${1:-}" in
         echo -e "${CYAN}$SCRIPT_NAME $SCRIPT_VERSION${NC}"
         echo ""
         echo -e "${YELLOW}用法:${NC}"
-        echo -e "  $0                # 启动交互式菜单"
+        echo -e "  $0                # 启动交互式菜�?
         echo -e "  $0 --install      # 直接安装"
-        echo -e "  $0 --uninstall    # 一键完全卸载"
-        echo -e "  $0 --quick-setup  # 一键安装并配置三协议"
+        echo -e "  $0 --uninstall    # 一键完全卸�?
+        echo -e "  $0 --quick-setup  # 一键安装并配置三协�?
         echo -e "  $0 --debug        # 启用调试模式"
         echo -e "  $0 --help         # 显示帮助"
         echo ""
-        echo -e "${CYAN}一键安装特点:${NC}"
-        echo -e "  ${GREEN}✓${NC} 自动安装 Sing-box"
-        echo -e "  ${GREEN}✓${NC} 配置三种协议 (VLESS Reality + VMess WebSocket + Hysteria2)"
-        echo -e "  ${GREEN}✓${NC} 自动分配高端口 (10000+)"
-        echo -e "  ${GREEN}✓${NC} 生成连接信息和分享链接"
-        echo -e "  ${GREEN}✓${NC} 无需外部模块，单文件运行"
-        echo -e "  ${GREEN}✓${NC} 增强的错误处理和故障排除功能"
+        echo -e "${CYAN}一键安装特�?${NC}"
+        echo -e "  ${GREEN}�?{NC} 自动安装 Sing-box"
+        echo -e "  ${GREEN}�?{NC} 配置三种协议 (VLESS Reality + VMess WebSocket + Hysteria2)"
+        echo -e "  ${GREEN}�?{NC} 自动分配高端�?(10000+)"
+        echo -e "  ${GREEN}�?{NC} 生成连接信息和分享链�?
+        echo -e "  ${GREEN}�?{NC} 无需外部模块，单文件运行"
+        echo -e "  ${GREEN}�?{NC} 增强的错误处理和故障排除功能"
         ;;
     *)
         main
