@@ -1,5 +1,4 @@
-﻿#!/bin/sh
-
+﻿
 # Sing-box 全能一键安装脚本
 # 支持 VLESS Reality、VMess WebSocket、Hysteria2 协议
 # 版本: v3.0.1 (All-in-One)
@@ -512,7 +511,7 @@ generate_random_string() {
     local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local result=''
     
-    for [ $[ $((i=0; i<length; i++)) ] ]; do
+    for ((i=0; i<length; i++)); do
         result+="${chars:RANDOM%${#chars}:1}"
     done
     
@@ -544,7 +543,7 @@ check_port() {
 get_random_port() {
     local port
     while true; do
-        port=$[ $[ $((RANDOM % 55535 + 10000)) ] ]
+        port=$((RANDOM % 55535 + 10000))
         if ! check_port "$port"; then
             echo "$port"
             break
