@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 
 # 全局变量
 SCRIPT_NAME="sing-box"
-SCRIPT_PATH="/usr/local/bin/sing-box"
+SCRIPT_PATH="/usr/local/bin/sing-box-manager"
 CONFIG_DIR="/etc/sing-box"
 DATA_DIR="/usr/local/etc/sing-box"
 LOG_DIR="/var/log/sing-box"
@@ -152,10 +152,10 @@ check_installation() {
     local script_installed=false
     local service_installed=false
     
-    if [[ -f "/usr/local/bin/sing-box" ]] && [[ -x "/usr/local/bin/sing-box" ]]; then
-        if /usr/local/bin/sing-box version >/dev/null 2>&1; then
+    if [[ -f "/usr/local/bin/sing-box-core" ]] && [[ -x "/usr/local/bin/sing-box-core" ]]; then
+        if /usr/local/bin/sing-box-core version >/dev/null 2>&1; then
             core_installed=true
-            local current_version=$(/usr/local/bin/sing-box version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
+            local current_version=$(/usr/local/bin/sing-box-core version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
             info "检测到 sing-box 核心: $current_version"
         fi
     fi
@@ -239,8 +239,8 @@ backup_existing() {
     mkdir -p "$backup_dir"
     
     # 备份核心程序
-    if [[ -f "/usr/local/bin/sing-box" ]]; then
-        cp "/usr/local/bin/sing-box" "$backup_dir/sing-box-core"
+    if [[ -f "/usr/local/bin/sing-box-core" ]]; then
+        cp "/usr/local/bin/sing-box-core" "$backup_dir/sing-box-core"
         info "备份核心程序"
     fi
     
@@ -305,8 +305,8 @@ download_singbox() {
     info "下载版本: $SINGBOX_VERSION"
     
     # 检查是否需要更新
-    if [[ -f "/usr/local/bin/sing-box" ]] && [[ $INSTALL_MODE == "update" ]]; then
-        local current_version=$(/usr/local/bin/sing-box version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
+    if [[ -f "/usr/local/bin/sing-box-core" ]] && [[ $INSTALL_MODE == "update" ]]; then
+        local current_version=$(/usr/local/bin/sing-box-core version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
         if [[ "$current_version" == "${SINGBOX_VERSION#v}" ]]; then
             info "核心程序已是最新版本: $current_version"
             return 0
@@ -334,8 +334,8 @@ download_singbox() {
         systemctl stop sing-box
     fi
     
-    cp "$EXTRACT_DIR/sing-box" /usr/local/bin/
-    chmod +x /usr/local/bin/sing-box
+    cp "$EXTRACT_DIR/sing-box" /usr/local/bin/sing-box-core
+    chmod +x /usr/local/bin/sing-box-core
     
     # 清理临时文件
     rm -rf sing-box.tar.gz "$EXTRACT_DIR"
@@ -400,6 +400,7 @@ download_script() {
     chmod +x "$SCRIPT_PATH"
     
     # 创建软链接
+    ln -sf "$SCRIPT_PATH" /usr/local/bin/sing-box
     ln -sf "$SCRIPT_PATH" /usr/local/bin/sb
     
     success "管理脚本安装完成"
@@ -425,7 +426,7 @@ User=root
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
-ExecStart=/usr/local/bin/sing-box run -c $CONFIG_FILE
+ExecStart=/usr/local/bin/sing-box-core run -c $CONFIG_FILE
 Restart=on-failure
 RestartSec=3s
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -542,7 +543,7 @@ start_service() {
         info "故障排除建议:"
         echo "  1. 检查配置文件: $CONFIG_FILE"
         echo "  2. 查看详细日志: journalctl -u sing-box -f"
-        echo "  3. 手动启动测试: /usr/local/bin/sing-box run -c $CONFIG_FILE"
+        echo "  3. 手动启动测试: /usr/local/bin/sing-box-core run -c $CONFIG_FILE"
         echo "  4. 检查端口占用: netstat -tuln | grep :端口号"
     fi
 }
@@ -576,8 +577,8 @@ show_completion() {
     echo ""
     
     # 显示版本信息
-    if [[ -f "/usr/local/bin/sing-box" ]]; then
-        local core_version=$(/usr/local/bin/sing-box version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
+    if [[ -f "/usr/local/bin/sing-box-core" ]]; then
+        local core_version=$(/usr/local/bin/sing-box-core version 2>/dev/null | head -1 | awk '{print $3}' || echo "unknown")
         info "🔧 核心版本: $core_version"
     fi
     
