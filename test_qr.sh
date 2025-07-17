@@ -57,5 +57,9 @@ generate_test_qr "$vmess_link" "VMess WebSocket QR码"
 hysteria2_link="hysteria2://12345678-1234-1234-1234-123456789012@example.com:8443?sni=www.microsoft.com#Hysteria2"
 generate_test_qr "$hysteria2_link" "Hysteria2 QR码"
 
+# 测试TUIC5链接
+tuic5_link="tuic://12345678-1234-1234-1234-123456789012:your-password@example.com:8844?congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#TUIC5"
+generate_test_qr "$tuic5_link" "TUIC5 QR码"
+
 echo "=== 测试完成 ==="
 echo "提示：上述QR码为测试用例，请使用实际的配置信息"

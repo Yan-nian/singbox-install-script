@@ -9,6 +9,7 @@
 - **VLESS Reality** - 基于 TLS 的高性能协议
 - **VMess WebSocket** - 经典的 V2Ray 协议
 - **Hysteria2** - 基于 QUIC 的高速协议
+- **TUIC5** - 基于 QUIC 的新一代协议
 
 ## 主要功能
 
@@ -104,6 +105,14 @@ sudo ./install.sh
 - **带宽**: 可配置上下行带宽
 - **证书**: 自动生成自签名证书
 
+#### TUIC5
+- **端口**: 随机生成，可自定义
+- **用户**: 支持多用户配置，需要 UUID 和密码
+- **拥塞控制**: BBR 算法
+- **UDP 中继**: 原生模式
+- **证书**: 自动生成自签名证书
+- **ALPN**: 支持 HTTP/3 (h3)
+
 ### 管理功能
 
 #### 更改端口号
@@ -131,6 +140,7 @@ sudo ./install.sh
 - **VLESS Reality**: 生成 vless:// 链接的 QR 码
 - **VMess WebSocket**: 生成 vmess:// 链接的 QR 码
 - **Hysteria2**: 生成 hysteria2:// 链接的 QR 码
+- **TUIC5**: 生成 tuic:// 链接的 QR 码
 
 > 注意：QR 码功能需要安装 `qrencode` 工具
 > 

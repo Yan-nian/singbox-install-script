@@ -50,9 +50,15 @@
           "uuid": "00000000-0000-0000-0000-000000000000"
         }
       ],
+      "packet_encoding": "xudp",
+      "flow": "xtls-rprx-vision",
       "tls": {
         "enabled": true,
         "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
         "reality": {
           "enabled": true,
           "handshake": {
@@ -75,11 +81,22 @@
           "uuid": "00000000-0000-0000-0000-000000000000"
         }
       ],
+      "security": "auto",
+      "packet_encoding": "packetaddr",
+      "tls": {
+        "enabled": false,
+        "server_name": "SERVER_IP_HERE",
+        "insecure": false,
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
       "transport": {
         "type": "ws",
         "path": "/vmess",
         "headers": {
-          "Host": "SERVER_IP_HERE"
+          "Host": ["SERVER_IP_HERE"]
         }
       }
     },
@@ -98,8 +115,37 @@
       ],
       "tls": {
         "enabled": true,
+        "server_name": "SERVER_IP_HERE",
+        "insecure": true,
         "certificate_path": "/etc/sing-box/certs/cert.pem",
-        "key_path": "/etc/sing-box/certs/private.key"
+        "key_path": "/etc/sing-box/certs/private.key",
+        "alpn": ["h3"]
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "tuic5",
+      "listen": "::",
+      "listen_port": 8844,
+      "users": [
+        {
+          "name": "user1",
+          "uuid": "00000000-0000-0000-0000-000000000000",
+          "password": "PASSWORD_HERE"
+        }
+      ],
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "udp_over_stream": false,
+      "zero_rtt_handshake": false,
+      "heartbeat": "10s",
+      "tls": {
+        "enabled": true,
+        "server_name": "SERVER_IP_HERE",
+        "insecure": true,
+        "certificate_path": "/etc/sing-box/certs/cert.pem",
+        "key_path": "/etc/sing-box/certs/private.key",
+        "alpn": ["h3"]
       }
     }
   ],

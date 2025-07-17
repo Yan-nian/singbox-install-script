@@ -25,6 +25,7 @@ LOG_FILE="/var/log/sing-box.log"
 VLESS_CONFIG=""
 VMESS_CONFIG=""
 HYSTERIA2_CONFIG=""
+TUIC5_CONFIG=""
 
 # 检查是否为root用户
 check_root() {
@@ -216,6 +217,16 @@ generate_hysteria2_link() {
     echo "hysteria2://$password@$server_ip:$port?insecure=1#Hysteria2"
 }
 
+# 生成TUIC5链接
+generate_tuic5_link() {
+    local server_ip="$1"
+    local port="$2"
+    local uuid="$3"
+    local password="$4"
+    
+    echo "tuic://$uuid:$password@$server_ip:$port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#TUIC5"
+}
+
 # 生成Reality配置
 generate_reality_config() {
     echo -e "${BLUE}配置 VLESS Reality...${NC}"
@@ -281,9 +292,15 @@ generate_reality_config() {
         \"users\": [
             {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
         ],
+        \"packet_encoding\": \"xudp\",
+        \"flow\": \"xtls-rprx-vision\",
         \"tls\": {
             \"enabled\": true,
             \"server_name\": \"$server_names\",
+            \"utls\": {
+                \"enabled\": true,
+                \"fingerprint\": \"chrome\"
+            },
             \"reality\": {
                 \"enabled\": true,
                 \"handshake\": {
@@ -340,11 +357,22 @@ generate_vmess_config() {
         \"users\": [
             {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
         ],
+        \"security\": \"auto\",
+        \"packet_encoding\": \"packetaddr\",
+        \"tls\": {
+            \"enabled\": false,
+            \"server_name\": \"$(get_public_ip)\",
+            \"insecure\": false,
+            \"utls\": {
+                \"enabled\": true,
+                \"fingerprint\": \"chrome\"
+            }
+        },
         \"transport\": {
             \"type\": \"ws\",
             \"path\": \"$ws_path\",
             \"headers\": {
-                \"Host\": \"$(get_public_ip)\"
+                \"Host\": [\"$(get_public_ip)\"]
             }
         }
     }"
@@ -408,8 +436,76 @@ generate_hysteria2_config() {
         ],
         \"tls\": {
             \"enabled\": true,
+            \"server_name\": \"$(get_public_ip)\",
+            \"insecure\": true,
             \"certificate_path\": \"$cert_dir/cert.pem\",
-            \"key_path\": \"$cert_dir/private.key\"
+            \"key_path\": \"$cert_dir/private.key\",
+            \"alpn\": [\"h3\"]
+        }
+    }"
+}
+
+# 生成TUIC5配置
+generate_tuic5_config() {
+    echo -e "${BLUE}配置 TUIC5...${NC}"
+    
+    local port
+    local users=()
+    
+    # 端口配置
+    read -p "请输入端口号 (默认: 随机): " port
+    port=${port:-$(generate_random_port)}
+    
+    # 用户配置
+    echo -e "${YELLOW}用户配置：${NC}"
+    while true; do
+        read -p "请输入用户名 (留空结束): " username
+        if [[ -z "$username" ]]; then
+            break
+        fi
+        local uuid=$(generate_uuid)
+        read -p "请输入 $username 的密码: " password
+        users+=("\"$username\":{\"uuid\":\"$uuid\",\"password\":\"$password\"}")
+        echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
+        echo -e "${GREEN}用户 $username 的密码: $password${NC}"
+    done
+    
+    if [[ ${#users[@]} -eq 0 ]]; then
+        local default_uuid=$(generate_uuid)
+        local default_password=$(generate_random_string 16)
+        users+=("\"default\":{\"uuid\":\"$default_uuid\",\"password\":\"$default_password\"}")
+        echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+        echo -e "${GREEN}默认用户密码: $default_password${NC}"
+    fi
+    
+    # 生成自签名证书
+    local cert_dir="$CONFIG_DIR/certs"
+    mkdir -p "$cert_dir"
+    
+    # 生成证书
+    openssl req -x509 -nodes -newkey rsa:2048 -keyout "$cert_dir/private.key" -out "$cert_dir/cert.pem" -days 365 -subj "/CN=$(get_public_ip)" 2>/dev/null
+    
+    # 存储配置信息到全局变量
+    TUIC5_CONFIG="{
+        \"type\": \"tuic\",
+        \"tag\": \"tuic5\",
+        \"listen\": \"::\",
+        \"listen_port\": $port,
+        \"users\": [
+            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
+        ],
+        \"congestion_control\": \"bbr\",
+        \"udp_relay_mode\": \"native\",
+        \"udp_over_stream\": false,
+        \"zero_rtt_handshake\": false,
+        \"heartbeat\": \"10s\",
+        \"tls\": {
+            \"enabled\": true,
+            \"server_name\": \"$(get_public_ip)\",
+            \"insecure\": true,
+            \"certificate_path\": \"$cert_dir/cert.pem\",
+            \"key_path\": \"$cert_dir/private.key\",
+            \"alpn\": [\"h3\"]
         }
     }"
 }
@@ -443,6 +539,12 @@ generate_config() {
                 generate_hysteria2_config
                 if [[ -n "$HYSTERIA2_CONFIG" ]]; then
                     inbounds+=("$HYSTERIA2_CONFIG")
+                fi
+                ;;
+            "tuic5")
+                generate_tuic5_config
+                if [[ -n "$TUIC5_CONFIG" ]]; then
+                    inbounds+=("$TUIC5_CONFIG")
                 fi
                 ;;
         esac
@@ -583,8 +685,9 @@ protocol_menu() {
     echo "1. VLESS Reality"
     echo "2. VMess WebSocket"
     echo "3. Hysteria2"
-    echo "4. 全部安装"
-    echo "5. 自定义组合"
+    echo "4. TUIC5"
+    echo "5. 全部安装"
+    echo "6. 自定义组合"
     echo "0. 返回主菜单"
     echo -e "${CYAN}========================================${NC}"
     
@@ -602,13 +705,17 @@ protocol_menu() {
             selected_protocols=("hysteria2")
             ;;
         4) 
-            selected_protocols=("vless" "vmess" "hysteria2")
+            selected_protocols=("tuic5")
             ;;
-        5)
+        5) 
+            selected_protocols=("vless" "vmess" "hysteria2" "tuic5")
+            ;;
+        6)
             echo -e "${YELLOW}请选择要安装的协议（多选用空格分隔）：${NC}"
             echo "1. VLESS Reality"
             echo "2. VMess WebSocket"
             echo "3. Hysteria2"
+            echo "4. TUIC5"
             read -p "输入选择: " -a custom_choices
             
             for custom_choice in "${custom_choices[@]}"; do
@@ -616,6 +723,7 @@ protocol_menu() {
                     1) selected_protocols+=("vless") ;;
                     2) selected_protocols+=("vmess") ;;
                     3) selected_protocols+=("hysteria2") ;;
+                    4) selected_protocols+=("tuic5") ;;
                 esac
             done
             ;;
@@ -637,6 +745,7 @@ protocol_menu() {
     VLESS_CONFIG=""
     VMESS_CONFIG=""
     HYSTERIA2_CONFIG=""
+    TUIC5_CONFIG=""
     
     # 生成配置
     if generate_config "${selected_protocols[@]}"; then
@@ -857,6 +966,39 @@ show_client_info() {
         # 生成QR码
         echo -e "${YELLOW}Hysteria2 QR码:${NC}"
         if generate_qr_code "$hy2_link" 2; then
+            echo
+        else
+            echo -e "${RED}QR码生成失败${NC}"
+        fi
+        echo
+    fi
+    
+    # 解析TUIC5配置
+    if grep -q "tuic5" "$CONFIG_FILE"; then
+        echo -e "${CYAN}=== TUIC5 配置 ===${NC}"
+        local tuic5_port=$(grep -A 5 "tuic5" "$CONFIG_FILE" | grep "listen_port" | grep -o '[0-9]*')
+        local tuic5_uuid=$(grep -A 20 "tuic5" "$CONFIG_FILE" | grep "uuid" | head -1 | grep -o '[0-9a-f-]*')
+        local tuic5_password=$(grep -A 20 "tuic5" "$CONFIG_FILE" | grep "password" | head -1 | cut -d'"' -f4)
+        
+        echo "  服务器: $server_ip"
+        echo "  端口: $tuic5_port"
+        echo "  UUID: $tuic5_uuid"
+        echo "  密码: $tuic5_password"
+        echo "  拥塞控制: bbr"
+        echo "  UDP中继模式: native"
+        echo "  ALPN: h3"
+        echo "  注意: 客户端需要跳过证书验证"
+        echo
+        
+        # 生成TUIC5链接
+        local tuic5_link=$(generate_tuic5_link "$server_ip" "$tuic5_port" "$tuic5_uuid" "$tuic5_password")
+        echo -e "${YELLOW}TUIC5链接:${NC}"
+        echo "$tuic5_link"
+        echo
+        
+        # 生成QR码
+        echo -e "${YELLOW}TUIC5 QR码:${NC}"
+        if generate_qr_code "$tuic5_link" 2; then
             echo
         else
             echo -e "${RED}QR码生成失败${NC}"
