@@ -1,245 +1,267 @@
-# sing-box 一键安装脚本
+# Sing-box 一键安装脚本
 
-## 简介
+基于 [BandWh.com](https://www.bandwh.com/net/2175.html) 教程制作的 Sing-box 一键安装脚本，支持多种协议配置。
 
-这是一个功能完整的 sing-box 一键安装脚本，支持多种代理协议的快速部署和管理。
+## 功能特点
+
+- 🚀 **一键安装**: 自动安装 Sing-box 服务端
+- 🌐 **多协议支持**: 支持 Shadowsocks、SOCKS5、REALITY 等协议
+- 🔧 **自动配置**: 自动生成配置文件和密钥
+- 🛡️ **防火墙配置**: 自动配置防火墙规则
+- 📊 **状态监控**: 提供服务状态查看功能
+- 🔄 **服务管理**: 支持启动、停止、重启服务
+
+## 支持的系统
+
+- ✅ Debian 9+ / Ubuntu 18.04+
+- ✅ CentOS 7+ / RHEL 7+
+- ✅ 其他基于 systemd 的 Linux 发行版
 
 ## 支持的协议
 
-- **VLESS Reality** - 基于 TLS 的高性能协议
-- **VMess WebSocket** - 经典的 V2Ray 协议
-- **Hysteria2** - 基于 QUIC 的高速协议
-- **TUIC5** - 基于 QUIC 的新一代协议
+### 1. SOCKS5 代理
+- 支持用户名密码认证
+- 自动生成随机端口和认证信息
 
-## 主要功能
+### 2. Shadowsocks
+- 使用 2022-blake3-aes-128-gcm 加密方式
+- 自动生成密钥和端口
 
-### 🚀 一键安装
-- 自动检测系统架构
-- 下载最新版本的 sing-box
-- 配置系统服务
-- 支持多种 Linux 发行版
-
-### 🔧 协议配置
-- 支持单独或组合配置多种协议
-- 交互式配置用户信息
-- 自动生成密钥和证书
-- 智能端口分配
-
-### 📱 QR 码功能
-- 终端内直接显示连接二维码
-- 支持所有协议的 QR 码生成
-- 方便移动设备扫描配置
-- 无需额外的图片文件
-
-### ⚙️ 管理功能
-- 动态更改端口号
-- 一键更新 sing-box 核心
-- 查看配置和运行状态
-- 完整的客户端连接信息
-- 完整卸载功能
-
-### 🛡️ 安全特性
-- 自动生成强随机密码
-- Reality 协议支持
-- 自签名证书生成
-- 安全的配置文件权限
+### 3. REALITY
+- 基于 VLESS 协议
+- 使用 xtls-rprx-vision 流控
+- 伪装成 Microsoft 官网
 
 ## 使用方法
 
-### 1. 下载脚本
-```bash
-wget -O install.sh https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh
-chmod +x install.sh
-./install.sh
-./install.sh
-```
+### 方法一：交互式安装
 
-### 2. 运行脚本
 ```bash
+# 下载脚本
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh -o install.sh
+
+# 添加执行权限
+chmod +x install.sh
+
+# 运行脚本
 sudo ./install.sh
 ```
 
-### 3. 选择功能
-脚本提供交互式菜单：
+### 方法二：一键安装
+
+```bash
+# 直接安装
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh) install
+
+# 或者下载后安装
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh
+chmod +x install.sh
+sudo ./install.sh install
 ```
-========================================
-         sing-box 一键安装脚本
-         支持 VLESS Reality/VMess/Hysteria2
-========================================
-1. 安装 sing-box
-2. 配置协议
-3. 更改端口号
-4. 更新 sing-box 核心
-5. 查看配置信息
-6. 卸载 sing-box
+
+### 方法三：快速一键命令
+
+```bash
+# 下载并运行
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh)
+```
+
+## 菜单选项
+
+运行脚本后会显示以下菜单：
+
+```
+==========================================
+         Sing-box 一键安装脚本
+==========================================
+1. 安装 Sing-box
+2. 卸载 Sing-box
+3. 重启 Sing-box
+4. 查看状态
+5. 查看配置
+6. 查看日志
 0. 退出
-========================================
+==========================================
 ```
 
-## 详细功能说明
+## 配置信息
 
-### 安装 sing-box
-- 自动检测系统架构（amd64/arm64/armv7）
-- 从 GitHub 下载最新版本
-- 创建系统服务
-- 配置基本目录结构
+安装完成后，脚本会显示以下配置信息：
 
-### 协议配置
+### SOCKS5 代理配置
+```
+地址: 您的服务器IP
+端口: 随机生成的端口
+用户名: 随机生成的用户名
+密码: 随机生成的密码
+```
 
-#### VLESS Reality
-- **端口**: 默认 443，可自定义
-- **用户**: 支持多用户配置
-- **目标服务器**: 默认 www.microsoft.com
-- **密钥**: 自动生成公私钥对
-- **短ID**: 随机生成
+### Shadowsocks 配置
+```
+地址: 您的服务器IP
+端口: 随机生成的端口
+密码: 自动生成的密钥
+加密方式: 2022-blake3-aes-128-gcm
+```
 
-#### VMess WebSocket
-- **端口**: 随机生成，可自定义
-- **用户**: 支持多用户配置
-- **路径**: 随机生成 8 位路径
-- **传输**: WebSocket 传输
-
-#### Hysteria2
-- **端口**: 随机生成，可自定义
-- **用户**: 支持多用户配置
-- **带宽**: 可配置上下行带宽
-- **证书**: 自动生成自签名证书
-
-#### TUIC5
-- **端口**: 随机生成，可自定义
-- **用户**: 支持多用户配置，需要 UUID 和密码
-- **拥塞控制**: BBR 算法
-- **UDP 中继**: 原生模式
-- **证书**: 自动生成自签名证书
-- **ALPN**: 支持 HTTP/3 (h3)
-
-### 管理功能
-
-#### 更改端口号
-- 显示当前端口配置
-- 验证端口号有效性
-- 自动备份和恢复配置
-- 服务自动重启
-
-#### 更新核心
-- 停止当前服务
-- 备份现有配置
-- 下载最新版本
-- 恢复配置并重启
-
-#### 查看配置
-- 显示服务状态
-- 显示端口信息
-- 显示日志内容
-- 配置文件路径
-- **QR 码生成**: 直接在终端中显示连接二维码
-- **客户端信息**: 显示详细的连接参数和配置链接
-
-### QR 码功能
-脚本支持为所有协议生成 QR 码，方便移动设备扫描配置：
-- **VLESS Reality**: 生成 vless:// 链接的 QR 码
-- **VMess WebSocket**: 生成 vmess:// 链接的 QR 码
-- **Hysteria2**: 生成 hysteria2:// 链接的 QR 码
-- **TUIC5**: 生成 tuic:// 链接的 QR 码
-
-> 注意：QR 码功能需要安装 `qrencode` 工具
-> 
-> 安装命令：
-> - Ubuntu/Debian: `apt-get install qrencode`
-> - CentOS/RHEL: `yum install qrencode`
-> - Fedora: `dnf install qrencode`
-
-#### 卸载功能
-- 停止并禁用服务
-- 删除二进制文件
-- 删除配置文件
-- 删除日志文件
-- 清理系统服务
-
-## 配置文件结构
-
-脚本生成的配置文件包含：
-- **日志配置**: 错误级别日志，输出到文件
-- **DNS 配置**: 国内外分流 DNS 解析
-- **入站配置**: 根据选择的协议生成
-- **出站配置**: 直连和阻断出站
-- **路由配置**: 基于 GeoSite 的分流规则
-
-## 文件位置
-
-- **二进制文件**: `/usr/local/bin/sing-box`
-- **配置文件**: `/etc/sing-box/config.json`
-- **服务文件**: `/etc/systemd/system/sing-box.service`
-- **日志文件**: `/var/log/sing-box.log`
-- **证书目录**: `/etc/sing-box/certs/`
-
-## 系统要求
-
-- Linux 系统（Ubuntu/Debian/CentOS/RHEL）
-- Root 权限
-- 网络连接
-- 基本工具：curl、tar、systemctl、openssl
-
-## 支持的架构
-
-- x86_64 (amd64)
-- aarch64 (arm64)
-- armv7l (armv7)
+### REALITY 配置
+```
+地址: 您的服务器IP
+端口: 443
+UUID: 自动生成的UUID
+Flow: xtls-rprx-vision
+SNI: www.microsoft.com
+公钥: 自动生成的公钥
+Short ID: 0123456789abcdef
+```
 
 ## 常用命令
 
 ```bash
-# 查看服务状态
-systemctl status sing-box
+# 启动服务
+sudo systemctl start sing-box
 
-# 查看实时日志
-tail -f /var/log/sing-box.log
+# 停止服务
+sudo systemctl stop sing-box
 
 # 重启服务
-systemctl restart sing-box
+sudo systemctl restart sing-box
 
-# 检查配置文件
-sing-box check -c /etc/sing-box/config.json
+# 查看状态
+sudo systemctl status sing-box
 
-# 格式化配置文件
-sing-box format -w -c /etc/sing-box/config.json
+# 查看日志
+sudo journalctl -u sing-box --output cat -e
+
+# 查看端口占用
+sudo netstat -tulnp | grep sing-box
+
+# 实时查看日志
+sudo journalctl -u sing-box -f
 ```
 
-## 注意事项
+## 配置文件位置
 
-1. **防火墙设置**: 确保配置的端口在防火墙中开放
-2. **SSL 证书**: Hysteria2 使用自签名证书，客户端需要跳过证书验证
-3. **端口冲突**: 避免使用已被占用的端口
-4. **系统资源**: 确保服务器有足够的资源运行服务
-5. **定期更新**: 建议定期更新 sing-box 核心版本
+- 配置文件：`/etc/sing-box/config.json`
+- 服务文件：`/etc/systemd/system/sing-box.service`
+- 可执行文件：`/usr/local/bin/sing-box`
+
+## 手动修改配置
+
+如需手动修改配置，请编辑配置文件：
+
+```bash
+# 编辑配置文件
+sudo nano /etc/sing-box/config.json
+
+# 重启服务使配置生效
+sudo systemctl restart sing-box
+```
+
+## 防火墙设置
+
+脚本会自动配置防火墙规则，支持：
+
+- **UFW** (Ubuntu/Debian)
+- **firewalld** (CentOS/RHEL)
+- **iptables** (传统防火墙)
+
+如果自动配置失败，请手动开放以下端口：
+
+```bash
+# UFW
+sudo ufw allow [SOCKS端口]/tcp
+sudo ufw allow [SS端口]/tcp
+sudo ufw allow [SS端口]/udp
+sudo ufw allow 443/tcp
+
+# firewalld
+sudo firewall-cmd --permanent --add-port=[端口]/tcp
+sudo firewall-cmd --permanent --add-port=[端口]/udp
+sudo firewall-cmd --reload
+
+# iptables
+sudo iptables -A INPUT -p tcp --dport [端口] -j ACCEPT
+sudo iptables -A INPUT -p udp --dport [端口] -j ACCEPT
+```
+
+## 客户端配置
+
+### Android 客户端
+推荐使用 [sing-box](https://github.com/SagerNet/sing-box) 官方客户端
+
+### iOS 客户端
+推荐使用 [sing-box](https://apps.apple.com/app/sing-box/id6451272673) 官方客户端
+
+### Windows 客户端
+推荐使用 [sing-box](https://github.com/SagerNet/sing-box/releases) 官方客户端
+
+### 路由器
+推荐使用 [homeproxy](https://github.com/immortalwrt/homeproxy) 插件
 
 ## 故障排除
 
-### 服务启动失败
-1. **检查配置文件语法**: `sing-box check -c /etc/sing-box/config.json`
-2. **查看错误日志**: `tail -f /var/log/sing-box.log`
-3. **检查端口占用**: `netstat -tlnp | grep :端口号`
-4. **验证 JSON 格式**: `jq . /etc/sing-box/config.json` 或 `python3 -m json.tool /etc/sing-box/config.json`
+### 1. 服务启动失败
 
-### 配置文件错误
-常见的配置文件问题：
-- **JSON 语法错误**: 检查引号、逗号、括号是否正确
-- **用户配置格式**: 确保用户配置为正确的 JSON 数组格式
-- **证书路径**: 确保证书文件存在且权限正确
-- **端口冲突**: 检查端口是否被其他服务占用
+```bash
+# 查看详细日志
+sudo journalctl -u sing-box --output cat -e
 
-### 连接问题
-1. 确认防火墙设置
-2. 检查服务器网络连接
-3. 验证客户端配置参数
-4. 检查 DNS 解析
+# 检查配置文件语法
+sudo sing-box check -c /etc/sing-box/config.json
+```
 
-### 配置验证
-如果遇到配置问题，可以：
-1. 使用脚本重新生成配置
-2. 检查用户权限
-3. 验证证书文件
-4. 重启服务并查看日志
+### 2. 端口被占用
+
+```bash
+# 查看端口占用
+sudo netstat -tulnp | grep [端口号]
+
+# 修改配置文件中的端口
+sudo nano /etc/sing-box/config.json
+```
+
+### 3. 防火墙问题
+
+```bash
+# 检查防火墙状态
+sudo ufw status
+sudo firewall-cmd --list-ports
+
+# 手动开放端口
+sudo ufw allow [端口]/tcp
+```
+
+### 4. 重新生成配置
+
+```bash
+# 停止服务
+sudo systemctl stop sing-box
+
+# 重新运行脚本
+sudo ./install.sh
+
+# 选择安装选项重新生成配置
+```
+
+## 卸载方法
+
+```bash
+# 使用脚本卸载
+sudo ./install.sh uninstall
+
+# 或者在菜单中选择卸载选项
+sudo ./install.sh
+# 然后选择选项 2
+```
+
+## 更新日志
+
+### v1.0.0
+- 初始版本发布
+- 支持 Shadowsocks、SOCKS5、REALITY 协议
+- 自动配置防火墙
+- 交互式菜单界面
 
 ## 贡献
 
@@ -247,24 +269,20 @@ sing-box format -w -c /etc/sing-box/config.json
 
 ## 许可证
 
-MIT License
+本项目采用 MIT 许可证。
 
-## 作者
+## 免责声明
 
-Yan-nian
+本脚本仅供学习和技术交流使用，请遵守当地法律法规。使用本脚本所产生的任何后果，由使用者自行承担。
 
-## 更新日志
+## 参考资料
 
-### v1.1.0 (2025-07-17)
-- ✅ 修复 JSON 配置生成错误
-- ✅ 优化用户配置格式
-- ✅ 增强配置文件验证
-- ✅ 添加 TUIC5 协议支持
-- ✅ 完善 QR 码生成功能
-- ✅ 更新协议配置模板
+- [Sing-box 官方文档](https://sing-box.sagernet.org/)
+- [BandWh.com 教程](https://www.bandwh.com/net/2175.html)
+- [Sing-box GitHub](https://github.com/SagerNet/sing-box)
 
-### v1.0.0 (2025-07-17)
-- 初始版本发布
-- 支持 VLESS Reality、VMess、Hysteria2 协议
-- 完整的安装、配置、管理功能
-- 交互式用户界面
+---
+
+**作者**: Yan-nian  
+**版本**: 1.0.0  
+**更新时间**: 2025-01-17
