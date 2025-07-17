@@ -127,6 +127,24 @@ WantedBy=multi-user.target
 EOF
 }
 
+# 验证端口号
+validate_port() {
+    local port=$1
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || [[ "$port" -lt 1 ]] || [[ "$port" -gt 65535 ]]; then
+        return 1
+    fi
+    
+    # 检查端口是否已被占用
+    if command -v ss &> /dev/null; then
+        if ss -tuln | grep -q ":$port "; then
+            echo -e "${YELLOW}警告：端口 $port 可能已被占用${NC}"
+            return 2
+        fi
+    fi
+    
+    return 0
+}
+
 # 生成随机字符串
 generate_random_string() {
     local length=$1
@@ -236,39 +254,81 @@ generate_reality_config() {
     local dest_server
     local server_names
     
-    # 端口配置
-    read -p "请输入端口号 (默认: 443): " port
-    port=${port:-443}
-    
-    # 用户配置
-    echo -e "${YELLOW}用户配置：${NC}"
-    local users_json=""
-    while true; do
-        read -p "请输入用户名 (留空结束): " username
-        if [[ -z "$username" ]]; then
-            break
-        fi
-        local uuid=$(generate_uuid)
-        if [[ -n "$users_json" ]]; then
-            users_json+=","
-        fi
-        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
-        echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
-    done
-    
-    if [[ -z "$users_json" ]]; then
+    # 检查是否为快速配置模式
+    if [[ "$QUICK_CONFIG" == "true" ]]; then
+        echo -e "${GREEN}快速配置模式：使用默认参数${NC}"
+        port=443
+        dest_server="www.microsoft.com"
+        server_names="www.microsoft.com"
+        
+        # 直接创建默认用户
         local default_uuid=$(generate_uuid)
-        users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
-        echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+        local users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
+        echo -e "${GREEN}已创建默认用户，UUID: $default_uuid${NC}"
+    else
+        # 正常配置流程
+        # 端口配置
+        while true; do
+            read -p "请输入端口号 (默认: 443): " port
+            port=${port:-443}
+            
+            if validate_port "$port"; then
+                break
+            elif [[ $? -eq 2 ]]; then
+                read -p "端口可能已被占用，是否继续使用? (y/n): " continue_choice
+                if [[ "$continue_choice" =~ ^[yY]$ ]]; then
+                    break
+                fi
+            else
+                echo -e "${RED}端口号无效，请输入 1-65535 之间的数字${NC}"
+            fi
+        done
+        
+        # 用户配置
+        echo -e "${YELLOW}用户配置模式：${NC}"
+        echo "1. 快速配置（使用默认用户）"
+        echo "2. 自定义配置（添加多个用户）"
+        read -p "请选择配置模式 (默认: 1): " config_mode
+        config_mode=${config_mode:-1}
+        
+        local users_json=""
+        if [[ "$config_mode" == "1" ]]; then
+            # 快速配置，直接创建默认用户
+            local default_uuid=$(generate_uuid)
+            users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
+            echo -e "${GREEN}已创建默认用户，UUID: $default_uuid${NC}"
+        else
+            # 自定义配置
+            echo -e "${CYAN}说明：可以创建多个用户账号，每个用户都有独立的UUID${NC}"
+            echo -e "${CYAN}如果直接回车（留空）会自动创建一个默认用户${NC}"
+            while true; do
+                read -p "请输入用户名 (直接回车结束): " username
+                if [[ -z "$username" ]]; then
+                    break
+                fi
+                local uuid=$(generate_uuid)
+                if [[ -n "$users_json" ]]; then
+                    users_json+=","
+                fi
+                users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
+                echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
+            done
+            
+            if [[ -z "$users_json" ]]; then
+                local default_uuid=$(generate_uuid)
+                users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
+                echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+            fi
+        fi
+        
+        # 目标服务器配置
+        read -p "请输入目标服务器 (默认: www.microsoft.com): " dest_server
+        dest_server=${dest_server:-www.microsoft.com}
+        
+        # 服务器名称配置
+        read -p "请输入服务器名称 (默认: www.microsoft.com): " server_names
+        server_names=${server_names:-www.microsoft.com}
     fi
-    
-    # 目标服务器配置
-    read -p "请输入目标服务器 (默认: www.microsoft.com): " dest_server
-    dest_server=${dest_server:-www.microsoft.com}
-    
-    # 服务器名称配置
-    read -p "请输入服务器名称 (默认: www.microsoft.com): " server_names
-    server_names=${server_names:-www.microsoft.com}
     
     # 生成密钥对
     local key_pair=$($BINARY_PATH generate reality-keypair 2>/dev/null)
@@ -325,33 +385,61 @@ generate_vmess_config() {
     local ws_path
     
     # 端口配置
-    read -p "请输入端口号 (默认: 随机): " port
-    port=${port:-$(generate_random_port)}
+    while true; do
+        read -p "请输入端口号 (默认: 随机): " port
+        port=${port:-$(generate_random_port)}
+        
+        if validate_port "$port"; then
+            break
+        elif [[ $? -eq 2 ]]; then
+            read -p "端口可能已被占用，是否继续使用? (y/n): " continue_choice
+            if [[ "$continue_choice" =~ ^[yY]$ ]]; then
+                break
+            fi
+        else
+            echo -e "${RED}端口号无效，请输入 1-65535 之间的数字${NC}"
+        fi
+    done
     
     # WebSocket路径配置
     read -p "请输入WebSocket路径 (默认: 随机): " ws_path
     ws_path=${ws_path:-"/$(generate_random_string 8)"}
     
     # 用户配置
-    echo -e "${YELLOW}用户配置：${NC}"
-    local users_json=""
-    while true; do
-        read -p "请输入用户名 (留空结束): " username
-        if [[ -z "$username" ]]; then
-            break
-        fi
-        local uuid=$(generate_uuid)
-        if [[ -n "$users_json" ]]; then
-            users_json+=","
-        fi
-        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
-        echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
-    done
+    echo -e "${YELLOW}用户配置模式：${NC}"
+    echo "1. 快速配置（使用默认用户）"
+    echo "2. 自定义配置（添加多个用户）"
+    read -p "请选择配置模式 (默认: 1): " config_mode
+    config_mode=${config_mode:-1}
     
-    if [[ -z "$users_json" ]]; then
+    local users_json=""
+    if [[ "$config_mode" == "1" ]]; then
+        # 快速配置，直接创建默认用户
         local default_uuid=$(generate_uuid)
         users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
-        echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+        echo -e "${GREEN}已创建默认用户，UUID: $default_uuid${NC}"
+    else
+        # 自定义配置
+        echo -e "${CYAN}说明：可以创建多个用户账号，每个用户都有独立的UUID${NC}"
+        echo -e "${CYAN}如果直接回车（留空）会自动创建一个默认用户${NC}"
+        while true; do
+            read -p "请输入用户名 (直接回车结束): " username
+            if [[ -z "$username" ]]; then
+                break
+            fi
+            local uuid=$(generate_uuid)
+            if [[ -n "$users_json" ]]; then
+                users_json+=","
+            fi
+            users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
+            echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
+        done
+        
+        if [[ -z "$users_json" ]]; then
+            local default_uuid=$(generate_uuid)
+            users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
+            echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+        fi
     fi
     
     # 存储配置信息到全局变量
@@ -392,8 +480,21 @@ generate_hysteria2_config() {
     local down_mbps
     
     # 端口配置
-    read -p "请输入端口号 (默认: 随机): " port
-    port=${port:-$(generate_random_port)}
+    while true; do
+        read -p "请输入端口号 (默认: 随机): " port
+        port=${port:-$(generate_random_port)}
+        
+        if validate_port "$port"; then
+            break
+        elif [[ $? -eq 2 ]]; then
+            read -p "端口可能已被占用，是否继续使用? (y/n): " continue_choice
+            if [[ "$continue_choice" =~ ^[yY]$ ]]; then
+                break
+            fi
+        else
+            echo -e "${RED}端口号无效，请输入 1-65535 之间的数字${NC}"
+        fi
+    done
     
     # 带宽配置
     read -p "请输入上行带宽 (Mbps, 默认: 100): " up_mbps
@@ -403,25 +504,40 @@ generate_hysteria2_config() {
     down_mbps=${down_mbps:-100}
     
     # 用户配置
-    echo -e "${YELLOW}用户配置：${NC}"
-    local users_json=""
-    while true; do
-        read -p "请输入用户名 (留空结束): " username
-        if [[ -z "$username" ]]; then
-            break
-        fi
-        read -p "请输入 $username 的密码: " password
-        if [[ -n "$users_json" ]]; then
-            users_json+=","
-        fi
-        users_json+="{\"name\":\"$username\",\"password\":\"$password\"}"
-        echo -e "${GREEN}用户 $username 已添加${NC}"
-    done
+    echo -e "${YELLOW}用户配置模式：${NC}"
+    echo "1. 快速配置（使用默认用户）"
+    echo "2. 自定义配置（添加多个用户）"
+    read -p "请选择配置模式 (默认: 1): " config_mode
+    config_mode=${config_mode:-1}
     
-    if [[ -z "$users_json" ]]; then
+    local users_json=""
+    if [[ "$config_mode" == "1" ]]; then
+        # 快速配置，直接创建默认用户
         local default_password=$(generate_random_string 16)
         users_json="{\"name\":\"default\",\"password\":\"$default_password\"}"
-        echo -e "${GREEN}默认用户密码: $default_password${NC}"
+        echo -e "${GREEN}已创建默认用户，密码: $default_password${NC}"
+    else
+        # 自定义配置
+        echo -e "${CYAN}说明：可以创建多个用户账号，每个用户都有独立的密码${NC}"
+        echo -e "${CYAN}如果直接回车（留空）会自动创建一个默认用户${NC}"
+        while true; do
+            read -p "请输入用户名 (直接回车结束): " username
+            if [[ -z "$username" ]]; then
+                break
+            fi
+            read -p "请输入 $username 的密码: " password
+            if [[ -n "$users_json" ]]; then
+                users_json+=","
+            fi
+            users_json+="{\"name\":\"$username\",\"password\":\"$password\"}"
+            echo -e "${GREEN}用户 $username 已添加${NC}"
+        done
+        
+        if [[ -z "$users_json" ]]; then
+            local default_password=$(generate_random_string 16)
+            users_json="{\"name\":\"default\",\"password\":\"$default_password\"}"
+            echo -e "${GREEN}默认用户密码: $default_password${NC}"
+        fi
     fi
     
     # 生成自签名证书
@@ -459,33 +575,63 @@ generate_tuic5_config() {
     local users=()
     
     # 端口配置
-    read -p "请输入端口号 (默认: 随机): " port
-    port=${port:-$(generate_random_port)}
-    
-    # 用户配置
-    echo -e "${YELLOW}用户配置：${NC}"
-    local users_json=""
     while true; do
-        read -p "请输入用户名 (留空结束): " username
-        if [[ -z "$username" ]]; then
+        read -p "请输入端口号 (默认: 随机): " port
+        port=${port:-$(generate_random_port)}
+        
+        if validate_port "$port"; then
             break
+        elif [[ $? -eq 2 ]]; then
+            read -p "端口可能已被占用，是否继续使用? (y/n): " continue_choice
+            if [[ "$continue_choice" =~ ^[yY]$ ]]; then
+                break
+            fi
+        else
+            echo -e "${RED}端口号无效，请输入 1-65535 之间的数字${NC}"
         fi
-        local uuid=$(generate_uuid)
-        read -p "请输入 $username 的密码: " password
-        if [[ -n "$users_json" ]]; then
-            users_json+=","
-        fi
-        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\",\"password\":\"$password\"}"
-        echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
-        echo -e "${GREEN}用户 $username 的密码: $password${NC}"
     done
     
-    if [[ -z "$users_json" ]]; then
+    # 用户配置
+    echo -e "${YELLOW}用户配置模式：${NC}"
+    echo "1. 快速配置（使用默认用户）"
+    echo "2. 自定义配置（添加多个用户）"
+    read -p "请选择配置模式 (默认: 1): " config_mode
+    config_mode=${config_mode:-1}
+    
+    local users_json=""
+    if [[ "$config_mode" == "1" ]]; then
+        # 快速配置，直接创建默认用户
         local default_uuid=$(generate_uuid)
         local default_password=$(generate_random_string 16)
         users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\",\"password\":\"$default_password\"}"
-        echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+        echo -e "${GREEN}已创建默认用户，UUID: $default_uuid${NC}"
         echo -e "${GREEN}默认用户密码: $default_password${NC}"
+    else
+        # 自定义配置
+        echo -e "${CYAN}说明：可以创建多个用户账号，每个用户都有独立的UUID和密码${NC}"
+        echo -e "${CYAN}如果直接回车（留空）会自动创建一个默认用户${NC}"
+        while true; do
+            read -p "请输入用户名 (直接回车结束): " username
+            if [[ -z "$username" ]]; then
+                break
+            fi
+            local uuid=$(generate_uuid)
+            read -p "请输入 $username 的密码: " password
+            if [[ -n "$users_json" ]]; then
+                users_json+=","
+            fi
+            users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\",\"password\":\"$password\"}"
+            echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
+            echo -e "${GREEN}用户 $username 的密码: $password${NC}"
+        done
+        
+        if [[ -z "$users_json" ]]; then
+            local default_uuid=$(generate_uuid)
+            local default_password=$(generate_random_string 16)
+            users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\",\"password\":\"$default_password\"}"
+            echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
+            echo -e "${GREEN}默认用户密码: $default_password${NC}"
+        fi
     fi
     
     # 生成自签名证书
@@ -696,6 +842,7 @@ protocol_menu() {
     echo "4. TUIC5"
     echo "5. 全部安装"
     echo "6. 自定义组合"
+    echo "7. 快速配置（推荐新手使用）"
     echo "0. 返回主菜单"
     echo -e "${CYAN}========================================${NC}"
     
@@ -734,6 +881,13 @@ protocol_menu() {
                     4) selected_protocols+=("tuic5") ;;
                 esac
             done
+            ;;
+        7)
+            echo -e "${BLUE}快速配置模式：将自动选择 VLESS Reality 协议${NC}"
+            echo -e "${BLUE}所有参数将使用默认值，无需手动输入${NC}"
+            selected_protocols=("vless")
+            # 设置全局变量以启用快速配置
+            export QUICK_CONFIG=true
             ;;
         0) 
             return 0
