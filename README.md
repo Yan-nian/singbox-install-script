@@ -216,19 +216,30 @@ sing-box format -w -c /etc/sing-box/config.json
 ## 故障排除
 
 ### 服务启动失败
-1. 检查配置文件语法: `sing-box check -c /etc/sing-box/config.json`
-2. 查看错误日志: `tail -f /var/log/sing-box.log`
-3. 检查端口占用: `netstat -tlnp | grep :端口号`
+1. **检查配置文件语法**: `sing-box check -c /etc/sing-box/config.json`
+2. **查看错误日志**: `tail -f /var/log/sing-box.log`
+3. **检查端口占用**: `netstat -tlnp | grep :端口号`
+4. **验证 JSON 格式**: `jq . /etc/sing-box/config.json` 或 `python3 -m json.tool /etc/sing-box/config.json`
+
+### 配置文件错误
+常见的配置文件问题：
+- **JSON 语法错误**: 检查引号、逗号、括号是否正确
+- **用户配置格式**: 确保用户配置为正确的 JSON 数组格式
+- **证书路径**: 确保证书文件存在且权限正确
+- **端口冲突**: 检查端口是否被其他服务占用
 
 ### 连接问题
 1. 确认防火墙设置
 2. 检查服务器网络连接
 3. 验证客户端配置参数
+4. 检查 DNS 解析
 
-### 配置错误
+### 配置验证
+如果遇到配置问题，可以：
 1. 使用脚本重新生成配置
 2. 检查用户权限
 3. 验证证书文件
+4. 重启服务并查看日志
 
 ## 贡献
 
@@ -243,6 +254,14 @@ MIT License
 Yan-nian
 
 ## 更新日志
+
+### v1.1.0 (2025-07-17)
+- ✅ 修复 JSON 配置生成错误
+- ✅ 优化用户配置格式
+- ✅ 增强配置文件验证
+- ✅ 添加 TUIC5 协议支持
+- ✅ 完善 QR 码生成功能
+- ✅ 更新协议配置模板
 
 ### v1.0.0 (2025-07-17)
 - 初始版本发布

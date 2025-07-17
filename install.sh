@@ -242,19 +242,23 @@ generate_reality_config() {
     
     # 用户配置
     echo -e "${YELLOW}用户配置：${NC}"
+    local users_json=""
     while true; do
         read -p "请输入用户名 (留空结束): " username
         if [[ -z "$username" ]]; then
             break
         fi
         local uuid=$(generate_uuid)
-        users+=("\"$username\":{\"uuid\":\"$uuid\"}")
+        if [[ -n "$users_json" ]]; then
+            users_json+=","
+        fi
+        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
         echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
     done
     
-    if [[ ${#users[@]} -eq 0 ]]; then
+    if [[ -z "$users_json" ]]; then
         local default_uuid=$(generate_uuid)
-        users+=("\"default\":{\"uuid\":\"$default_uuid\"}")
+        users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
         echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
     fi
     
@@ -289,9 +293,7 @@ generate_reality_config() {
         \"tag\": \"vless-reality\",
         \"listen\": \"::\",
         \"listen_port\": $port,
-        \"users\": [
-            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
-        ],
+        \"users\": [$users_json],
         \"packet_encoding\": \"xudp\",
         \"flow\": \"xtls-rprx-vision\",
         \"tls\": {
@@ -332,19 +334,23 @@ generate_vmess_config() {
     
     # 用户配置
     echo -e "${YELLOW}用户配置：${NC}"
+    local users_json=""
     while true; do
         read -p "请输入用户名 (留空结束): " username
         if [[ -z "$username" ]]; then
             break
         fi
         local uuid=$(generate_uuid)
-        users+=("\"$username\":{\"uuid\":\"$uuid\"}")
+        if [[ -n "$users_json" ]]; then
+            users_json+=","
+        fi
+        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\"}"
         echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
     done
     
-    if [[ ${#users[@]} -eq 0 ]]; then
+    if [[ -z "$users_json" ]]; then
         local default_uuid=$(generate_uuid)
-        users+=("\"default\":{\"uuid\":\"$default_uuid\"}")
+        users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
         echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
     fi
     
@@ -354,9 +360,7 @@ generate_vmess_config() {
         \"tag\": \"vmess-ws\",
         \"listen\": \"::\",
         \"listen_port\": $port,
-        \"users\": [
-            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
-        ],
+        \"users\": [$users_json],
         \"security\": \"auto\",
         \"packet_encoding\": \"packetaddr\",
         \"tls\": {
@@ -400,19 +404,23 @@ generate_hysteria2_config() {
     
     # 用户配置
     echo -e "${YELLOW}用户配置：${NC}"
+    local users_json=""
     while true; do
         read -p "请输入用户名 (留空结束): " username
         if [[ -z "$username" ]]; then
             break
         fi
         read -p "请输入 $username 的密码: " password
-        users+=("\"$username\":{\"password\":\"$password\"}")
+        if [[ -n "$users_json" ]]; then
+            users_json+=","
+        fi
+        users_json+="{\"name\":\"$username\",\"password\":\"$password\"}"
         echo -e "${GREEN}用户 $username 已添加${NC}"
     done
     
-    if [[ ${#users[@]} -eq 0 ]]; then
+    if [[ -z "$users_json" ]]; then
         local default_password=$(generate_random_string 16)
-        users+=("\"default\":{\"password\":\"$default_password\"}")
+        users_json="{\"name\":\"default\",\"password\":\"$default_password\"}"
         echo -e "${GREEN}默认用户密码: $default_password${NC}"
     fi
     
@@ -431,9 +439,7 @@ generate_hysteria2_config() {
         \"listen_port\": $port,
         \"up_mbps\": $up_mbps,
         \"down_mbps\": $down_mbps,
-        \"users\": [
-            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
-        ],
+        \"users\": [$users_json],
         \"tls\": {
             \"enabled\": true,
             \"server_name\": \"$(get_public_ip)\",
@@ -458,6 +464,7 @@ generate_tuic5_config() {
     
     # 用户配置
     echo -e "${YELLOW}用户配置：${NC}"
+    local users_json=""
     while true; do
         read -p "请输入用户名 (留空结束): " username
         if [[ -z "$username" ]]; then
@@ -465,15 +472,18 @@ generate_tuic5_config() {
         fi
         local uuid=$(generate_uuid)
         read -p "请输入 $username 的密码: " password
-        users+=("\"$username\":{\"uuid\":\"$uuid\",\"password\":\"$password\"}")
+        if [[ -n "$users_json" ]]; then
+            users_json+=","
+        fi
+        users_json+="{\"name\":\"$username\",\"uuid\":\"$uuid\",\"password\":\"$password\"}"
         echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
         echo -e "${GREEN}用户 $username 的密码: $password${NC}"
     done
     
-    if [[ ${#users[@]} -eq 0 ]]; then
+    if [[ -z "$users_json" ]]; then
         local default_uuid=$(generate_uuid)
         local default_password=$(generate_random_string 16)
-        users+=("\"default\":{\"uuid\":\"$default_uuid\",\"password\":\"$default_password\"}")
+        users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\",\"password\":\"$default_password\"}"
         echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
         echo -e "${GREEN}默认用户密码: $default_password${NC}"
     fi
@@ -491,9 +501,7 @@ generate_tuic5_config() {
         \"tag\": \"tuic5\",
         \"listen\": \"::\",
         \"listen_port\": $port,
-        \"users\": [
-            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
-        ],
+        \"users\": [$users_json],
         \"congestion_control\": \"bbr\",
         \"udp_relay_mode\": \"native\",
         \"udp_over_stream\": false,
