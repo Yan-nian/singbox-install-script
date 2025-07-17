@@ -354,7 +354,6 @@ generate_reality_config() {
         \"listen\": \"::\",
         \"listen_port\": $port,
         \"users\": [$users_json],
-        \"packet_encoding\": \"xudp\",
         \"flow\": \"xtls-rprx-vision\",
         \"tls\": {
             \"enabled\": true,
@@ -449,17 +448,6 @@ generate_vmess_config() {
         \"listen\": \"::\",
         \"listen_port\": $port,
         \"users\": [$users_json],
-        \"security\": \"auto\",
-        \"packet_encoding\": \"packetaddr\",
-        \"tls\": {
-            \"enabled\": false,
-            \"server_name\": \"$(get_public_ip)\",
-            \"insecure\": false,
-            \"utls\": {
-                \"enabled\": true,
-                \"fingerprint\": \"chrome\"
-            }
-        },
         \"transport\": {
             \"type\": \"ws\",
             \"path\": \"$ws_path\",
