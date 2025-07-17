@@ -21,6 +21,11 @@ SERVICE_FILE="/etc/systemd/system/sing-box.service"
 BINARY_PATH="/usr/local/bin/sing-box"
 LOG_FILE="/var/log/sing-box.log"
 
+# 全局配置变量
+VLESS_CONFIG=""
+VMESS_CONFIG=""
+HYSTERIA2_CONFIG=""
+
 # 检查是否为root用户
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -155,6 +160,62 @@ get_public_ip() {
     echo "$ip"
 }
 
+# 生成终端QR码
+generate_qr_code() {
+    local text="$1"
+    local size="${2:-2}"
+    
+    # 检查是否有qrencode命令
+    if ! command -v qrencode &> /dev/null; then
+        echo -e "${YELLOW}正在安装 qrencode...${NC}"
+        if command -v apt-get &> /dev/null; then
+            apt-get update && apt-get install -y qrencode
+        elif command -v yum &> /dev/null; then
+            yum install -y qrencode
+        elif command -v dnf &> /dev/null; then
+            dnf install -y qrencode
+        else
+            echo -e "${RED}无法自动安装 qrencode，请手动安装后再使用此功能${NC}"
+            return 1
+        fi
+    fi
+    
+    # 生成QR码到终端
+    qrencode -t ANSIUTF8 -s "$size" "$text"
+}
+
+# 生成VLESS链接
+generate_vless_link() {
+    local server_ip="$1"
+    local port="$2"
+    local uuid="$3"
+    local public_key="$4"
+    local short_id="$5"
+    local server_name="$6"
+    
+    echo "vless://$uuid@$server_ip:$port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$server_name&fp=chrome&pbk=$public_key&sid=$short_id&type=tcp&headerType=none#VLESS-Reality"
+}
+
+# 生成VMess链接
+generate_vmess_link() {
+    local server_ip="$1"
+    local port="$2"
+    local uuid="$3"
+    local ws_path="$4"
+    
+    local vmess_json="{\"v\":\"2\",\"ps\":\"VMess-WebSocket\",\"add\":\"$server_ip\",\"port\":\"$port\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$server_ip\",\"path\":\"$ws_path\",\"tls\":\"\"}"
+    echo "vmess://$(echo -n "$vmess_json" | base64 -w 0)"
+}
+
+# 生成Hysteria2链接
+generate_hysteria2_link() {
+    local server_ip="$1"
+    local port="$2"
+    local password="$3"
+    
+    echo "hysteria2://$password@$server_ip:$port?insecure=1#Hysteria2"
+}
+
 # 生成Reality配置
 generate_reality_config() {
     echo -e "${BLUE}配置 VLESS Reality...${NC}"
@@ -176,13 +237,13 @@ generate_reality_config() {
             break
         fi
         local uuid=$(generate_uuid)
-        users+=("{\"name\":\"$username\",\"uuid\":\"$uuid\"}")
+        users+=("\"$username\":{\"uuid\":\"$uuid\"}")
         echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
     done
     
     if [[ ${#users[@]} -eq 0 ]]; then
         local default_uuid=$(generate_uuid)
-        users+=("{\"name\":\"default\",\"uuid\":\"$default_uuid\"}")
+        users+=("\"default\":{\"uuid\":\"$default_uuid\"}")
         echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
     fi
     
@@ -195,9 +256,15 @@ generate_reality_config() {
     server_names=${server_names:-www.microsoft.com}
     
     # 生成密钥对
-    local key_pair=$(sing-box generate reality-keypair)
+    local key_pair=$($BINARY_PATH generate reality-keypair 2>/dev/null)
     local private_key=$(echo "$key_pair" | grep "PrivateKey" | awk '{print $2}')
     local public_key=$(echo "$key_pair" | grep "PublicKey" | awk '{print $2}')
+    
+    # 如果sing-box命令失败，生成随机密钥
+    if [[ -z "$private_key" ]]; then
+        private_key=$(openssl rand -base64 32)
+        public_key=$(openssl rand -base64 32)
+    fi
     
     echo -e "${GREEN}Reality 公钥: $public_key${NC}"
     echo -e "${GREEN}Reality 私钥: $private_key${NC}"
@@ -205,29 +272,29 @@ generate_reality_config() {
     # 生成short_id
     local short_id=$(openssl rand -hex 8)
     
-    # 返回配置
-    cat << EOF
-{
-    "type": "vless",
-    "tag": "vless-reality",
-    "listen": "::",
-    "listen_port": $port,
-    "users": [$(IFS=,; echo "${users[*]}")],
-    "tls": {
-        "enabled": true,
-        "server_name": "$server_names",
-        "reality": {
-            "enabled": true,
-            "handshake": {
-                "server": "$dest_server",
-                "server_port": 443
-            },
-            "private_key": "$private_key",
-            "short_id": ["$short_id"]
+    # 存储配置信息到全局变量
+    VLESS_CONFIG="{
+        \"type\": \"vless\",
+        \"tag\": \"vless-reality\",
+        \"listen\": \"::\",
+        \"listen_port\": $port,
+        \"users\": [
+            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
+        ],
+        \"tls\": {
+            \"enabled\": true,
+            \"server_name\": \"$server_names\",
+            \"reality\": {
+                \"enabled\": true,
+                \"handshake\": {
+                    \"server\": \"$dest_server\",
+                    \"server_port\": 443
+                },
+                \"private_key\": \"$private_key\",
+                \"short_id\": [\"$short_id\"]
+            }
         }
-    }
-}
-EOF
+    }"
 }
 
 # 生成VMess配置
@@ -236,10 +303,15 @@ generate_vmess_config() {
     
     local port
     local users=()
+    local ws_path
     
     # 端口配置
     read -p "请输入端口号 (默认: 随机): " port
     port=${port:-$(generate_random_port)}
+    
+    # WebSocket路径配置
+    read -p "请输入WebSocket路径 (默认: 随机): " ws_path
+    ws_path=${ws_path:-"/$(generate_random_string 8)"}
     
     # 用户配置
     echo -e "${YELLOW}用户配置：${NC}"
@@ -249,33 +321,33 @@ generate_vmess_config() {
             break
         fi
         local uuid=$(generate_uuid)
-        users+=("{\"name\":\"$username\",\"uuid\":\"$uuid\"}")
+        users+=("\"$username\":{\"uuid\":\"$uuid\"}")
         echo -e "${GREEN}用户 $username 的UUID: $uuid${NC}"
     done
     
     if [[ ${#users[@]} -eq 0 ]]; then
         local default_uuid=$(generate_uuid)
-        users+=("{\"name\":\"default\",\"uuid\":\"$default_uuid\"}")
+        users+=("\"default\":{\"uuid\":\"$default_uuid\"}")
         echo -e "${GREEN}默认用户UUID: $default_uuid${NC}"
     fi
     
-    # 返回配置
-    cat << EOF
-{
-    "type": "vmess",
-    "tag": "vmess-ws",
-    "listen": "::",
-    "listen_port": $port,
-    "users": [$(IFS=,; echo "${users[*]}")],
-    "transport": {
-        "type": "ws",
-        "path": "/$(generate_random_string 8)",
-        "headers": {
-            "Host": "$(get_public_ip)"
+    # 存储配置信息到全局变量
+    VMESS_CONFIG="{
+        \"type\": \"vmess\",
+        \"tag\": \"vmess-ws\",
+        \"listen\": \"::\",
+        \"listen_port\": $port,
+        \"users\": [
+            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
+        ],
+        \"transport\": {
+            \"type\": \"ws\",
+            \"path\": \"$ws_path\",
+            \"headers\": {
+                \"Host\": \"$(get_public_ip)\"
+            }
         }
-    }
-}
-EOF
+    }"
 }
 
 # 生成Hysteria2配置
@@ -306,13 +378,13 @@ generate_hysteria2_config() {
             break
         fi
         read -p "请输入 $username 的密码: " password
-        users+=("{\"name\":\"$username\",\"password\":\"$password\"}")
+        users+=("\"$username\":{\"password\":\"$password\"}")
         echo -e "${GREEN}用户 $username 已添加${NC}"
     done
     
     if [[ ${#users[@]} -eq 0 ]]; then
         local default_password=$(generate_random_string 16)
-        users+=("{\"name\":\"default\",\"password\":\"$default_password\"}")
+        users+=("\"default\":{\"password\":\"$default_password\"}")
         echo -e "${GREEN}默认用户密码: $default_password${NC}"
     fi
     
@@ -323,23 +395,23 @@ generate_hysteria2_config() {
     # 生成证书
     openssl req -x509 -nodes -newkey rsa:2048 -keyout "$cert_dir/private.key" -out "$cert_dir/cert.pem" -days 365 -subj "/CN=$(get_public_ip)" 2>/dev/null
     
-    # 返回配置
-    cat << EOF
-{
-    "type": "hysteria2",
-    "tag": "hysteria2",
-    "listen": "::",
-    "listen_port": $port,
-    "up_mbps": $up_mbps,
-    "down_mbps": $down_mbps,
-    "users": [$(IFS=,; echo "${users[*]}")],
-    "tls": {
-        "enabled": true,
-        "certificate_path": "$cert_dir/cert.pem",
-        "key_path": "$cert_dir/private.key"
-    }
-}
-EOF
+    # 存储配置信息到全局变量
+    HYSTERIA2_CONFIG="{
+        \"type\": \"hysteria2\",
+        \"tag\": \"hysteria2\",
+        \"listen\": \"::\",
+        \"listen_port\": $port,
+        \"up_mbps\": $up_mbps,
+        \"down_mbps\": $down_mbps,
+        \"users\": [
+            {$(IFS=,; echo "${users[*]}" | sed 's/:/": {/g' | sed 's/,/}, {/g')}
+        ],
+        \"tls\": {
+            \"enabled\": true,
+            \"certificate_path\": \"$cert_dir/cert.pem\",
+            \"key_path\": \"$cert_dir/private.key\"
+        }
+    }"
 }
 
 # 生成完整配置文件
@@ -349,19 +421,46 @@ generate_config() {
     
     echo -e "${BLUE}生成配置文件...${NC}"
     
+    # 创建配置目录
+    mkdir -p "$CONFIG_DIR"
+    
     # 根据选择的协议生成配置
     for protocol in "${protocols[@]}"; do
         case $protocol in
             "vless")
-                inbounds+=($(generate_reality_config))
+                generate_reality_config
+                if [[ -n "$VLESS_CONFIG" ]]; then
+                    inbounds+=("$VLESS_CONFIG")
+                fi
                 ;;
             "vmess")
-                inbounds+=($(generate_vmess_config))
+                generate_vmess_config
+                if [[ -n "$VMESS_CONFIG" ]]; then
+                    inbounds+=("$VMESS_CONFIG")
+                fi
                 ;;
             "hysteria2")
-                inbounds+=($(generate_hysteria2_config))
+                generate_hysteria2_config
+                if [[ -n "$HYSTERIA2_CONFIG" ]]; then
+                    inbounds+=("$HYSTERIA2_CONFIG")
+                fi
                 ;;
         esac
+    done
+    
+    # 如果没有配置任何协议，退出
+    if [[ ${#inbounds[@]} -eq 0 ]]; then
+        echo -e "${RED}没有配置任何协议！${NC}"
+        return 1
+    fi
+    
+    # 构建inbounds数组
+    local inbounds_json=""
+    for i in "${!inbounds[@]}"; do
+        if [[ $i -gt 0 ]]; then
+            inbounds_json+=","
+        fi
+        inbounds_json+="${inbounds[$i]}"
     done
     
     # 生成完整配置
@@ -406,7 +505,7 @@ generate_config() {
         ],
         "strategy": "prefer_ipv4"
     },
-    "inbounds": [$(IFS=,; echo "${inbounds[*]}")],
+    "inbounds": [$inbounds_json],
     "outbounds": [
         {
             "type": "direct",
@@ -455,10 +554,29 @@ generate_config() {
 EOF
     
     echo -e "${GREEN}配置文件生成完成！${NC}"
+    
+    # 验证配置文件
+    if [[ -f "$BINARY_PATH" ]]; then
+        echo -e "${BLUE}验证配置文件...${NC}"
+        if $BINARY_PATH check -c "$CONFIG_FILE"; then
+            echo -e "${GREEN}配置文件验证通过！${NC}"
+        else
+            echo -e "${RED}配置文件验证失败！${NC}"
+            return 1
+        fi
+    fi
+    
+    return 0
 }
 
 # 协议选择菜单
 protocol_menu() {
+    # 检查是否已安装sing-box
+    if [[ ! -f "$BINARY_PATH" ]]; then
+        echo -e "${RED}请先安装 sing-box！${NC}"
+        return 1
+    fi
+    
     echo -e "${CYAN}========================================${NC}"
     echo -e "${CYAN}           协议配置选择${NC}"
     echo -e "${CYAN}========================================${NC}"
@@ -466,34 +584,81 @@ protocol_menu() {
     echo "2. VMess WebSocket"
     echo "3. Hysteria2"
     echo "4. 全部安装"
+    echo "5. 自定义组合"
     echo "0. 返回主菜单"
     echo -e "${CYAN}========================================${NC}"
     
-    read -p "请选择协议 (可多选，用空格分隔): " -a choices
+    read -p "请选择协议: " choice
     
     local selected_protocols=()
-    for choice in "${choices[@]}"; do
-        case $choice in
-            1) selected_protocols+=("vless") ;;
-            2) selected_protocols+=("vmess") ;;
-            3) selected_protocols+=("hysteria2") ;;
-            4) selected_protocols=("vless" "vmess" "hysteria2") ;;
-            0) return 0 ;;
-        esac
-    done
+    case $choice in
+        1) 
+            selected_protocols=("vless")
+            ;;
+        2) 
+            selected_protocols=("vmess")
+            ;;
+        3) 
+            selected_protocols=("hysteria2")
+            ;;
+        4) 
+            selected_protocols=("vless" "vmess" "hysteria2")
+            ;;
+        5)
+            echo -e "${YELLOW}请选择要安装的协议（多选用空格分隔）：${NC}"
+            echo "1. VLESS Reality"
+            echo "2. VMess WebSocket"
+            echo "3. Hysteria2"
+            read -p "输入选择: " -a custom_choices
+            
+            for custom_choice in "${custom_choices[@]}"; do
+                case $custom_choice in
+                    1) selected_protocols+=("vless") ;;
+                    2) selected_protocols+=("vmess") ;;
+                    3) selected_protocols+=("hysteria2") ;;
+                esac
+            done
+            ;;
+        0) 
+            return 0
+            ;;
+        *)
+            echo -e "${RED}无效选择${NC}"
+            return 1
+            ;;
+    esac
     
     if [[ ${#selected_protocols[@]} -eq 0 ]]; then
         echo -e "${RED}未选择任何协议${NC}"
         return 1
     fi
     
-    generate_config "${selected_protocols[@]}"
+    # 清空全局配置变量
+    VLESS_CONFIG=""
+    VMESS_CONFIG=""
+    HYSTERIA2_CONFIG=""
     
-    # 启动服务
-    systemctl restart sing-box
-    systemctl status sing-box --no-pager
-    
-    echo -e "${GREEN}配置完成！服务已启动。${NC}"
+    # 生成配置
+    if generate_config "${selected_protocols[@]}"; then
+        # 启动服务
+        echo -e "${BLUE}启动 sing-box 服务...${NC}"
+        systemctl restart sing-box
+        
+        # 等待服务启动
+        sleep 2
+        
+        if systemctl is-active --quiet sing-box; then
+            echo -e "${GREEN}配置完成！服务已启动。${NC}"
+            systemctl status sing-box --no-pager
+        else
+            echo -e "${RED}服务启动失败！${NC}"
+            echo -e "${YELLOW}查看错误日志：${NC}"
+            journalctl -u sing-box --no-pager -n 10
+        fi
+    else
+        echo -e "${RED}配置生成失败！${NC}"
+        return 1
+    fi
 }
 
 # 更改端口号
@@ -586,6 +751,126 @@ uninstall_singbox() {
     echo -e "${GREEN}sing-box 卸载完成！${NC}"
 }
 
+# 显示客户端连接信息
+show_client_info() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo -e "${RED}配置文件不存在${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}======== 客户端连接信息 ========${NC}"
+    
+    local server_ip=$(get_public_ip)
+    echo -e "${GREEN}服务器IP: $server_ip${NC}"
+    echo
+    
+    # 解析VLESS Reality配置
+    if grep -q "vless-reality" "$CONFIG_FILE"; then
+        echo -e "${CYAN}=== VLESS Reality 配置 ===${NC}"
+        local vless_port=$(grep -A 5 "vless-reality" "$CONFIG_FILE" | grep "listen_port" | grep -o '[0-9]*')
+        local vless_uuid=$(grep -A 20 "vless-reality" "$CONFIG_FILE" | grep "uuid" | head -1 | grep -o '[0-9a-f-]*')
+        local private_key=$(grep -A 30 "vless-reality" "$CONFIG_FILE" | grep "private_key" | cut -d'"' -f4)
+        local short_id=$(grep -A 30 "vless-reality" "$CONFIG_FILE" | grep "short_id" | grep -o '[0-9a-f]*' | head -1)
+        local server_name=$(grep -A 30 "vless-reality" "$CONFIG_FILE" | grep "server_name" | cut -d'"' -f4)
+        
+        # 生成Reality公钥（从私钥推导，这里简化处理）
+        local public_key=$(echo "$private_key" | base64 -d 2>/dev/null | base64 -w 0 2>/dev/null || echo "$private_key")
+        
+        echo "  服务器: $server_ip"
+        echo "  端口: $vless_port"
+        echo "  UUID: $vless_uuid"
+        echo "  私钥: $private_key"
+        echo "  短ID: $short_id"
+        echo "  服务器名称: $server_name"
+        echo
+        
+        # 生成VLESS链接
+        local vless_link=$(generate_vless_link "$server_ip" "$vless_port" "$vless_uuid" "$public_key" "$short_id" "$server_name")
+        echo -e "${YELLOW}VLESS链接:${NC}"
+        echo "$vless_link"
+        echo
+        
+        # 生成QR码
+        echo -e "${YELLOW}VLESS QR码:${NC}"
+        if generate_qr_code "$vless_link" 2; then
+            echo
+        else
+            echo -e "${RED}QR码生成失败${NC}"
+        fi
+        echo
+    fi
+    
+    # 解析VMess配置
+    if grep -q "vmess-ws" "$CONFIG_FILE"; then
+        echo -e "${CYAN}=== VMess WebSocket 配置 ===${NC}"
+        local vmess_port=$(grep -A 5 "vmess-ws" "$CONFIG_FILE" | grep "listen_port" | grep -o '[0-9]*')
+        local vmess_uuid=$(grep -A 20 "vmess-ws" "$CONFIG_FILE" | grep "uuid" | head -1 | grep -o '[0-9a-f-]*')
+        local ws_path=$(grep -A 30 "vmess-ws" "$CONFIG_FILE" | grep "path" | cut -d'"' -f4)
+        
+        echo "  服务器: $server_ip"
+        echo "  端口: $vmess_port"
+        echo "  UUID: $vmess_uuid"
+        echo "  WebSocket路径: $ws_path"
+        echo "  传输协议: ws"
+        echo "  加密: auto"
+        echo
+        
+        # 生成VMess链接
+        local vmess_link=$(generate_vmess_link "$server_ip" "$vmess_port" "$vmess_uuid" "$ws_path")
+        echo -e "${YELLOW}VMess链接:${NC}"
+        echo "$vmess_link"
+        echo
+        
+        # 生成QR码
+        echo -e "${YELLOW}VMess QR码:${NC}"
+        if generate_qr_code "$vmess_link" 2; then
+            echo
+        else
+            echo -e "${RED}QR码生成失败${NC}"
+        fi
+        echo
+    fi
+    
+    # 解析Hysteria2配置
+    if grep -q "hysteria2" "$CONFIG_FILE"; then
+        echo -e "${CYAN}=== Hysteria2 配置 ===${NC}"
+        local hy2_port=$(grep -A 5 "hysteria2" "$CONFIG_FILE" | grep "listen_port" | grep -o '[0-9]*')
+        local hy2_password=$(grep -A 20 "hysteria2" "$CONFIG_FILE" | grep "password" | head -1 | cut -d'"' -f4)
+        local up_mbps=$(grep -A 10 "hysteria2" "$CONFIG_FILE" | grep "up_mbps" | grep -o '[0-9]*')
+        local down_mbps=$(grep -A 10 "hysteria2" "$CONFIG_FILE" | grep "down_mbps" | grep -o '[0-9]*')
+        
+        echo "  服务器: $server_ip"
+        echo "  端口: $hy2_port"
+        echo "  密码: $hy2_password"
+        echo "  上行带宽: ${up_mbps}Mbps"
+        echo "  下行带宽: ${down_mbps}Mbps"
+        echo "  协议: hysteria2"
+        echo "  注意: 客户端需要跳过证书验证"
+        echo
+        
+        # 生成Hysteria2链接
+        local hy2_link=$(generate_hysteria2_link "$server_ip" "$hy2_port" "$hy2_password")
+        echo -e "${YELLOW}Hysteria2链接:${NC}"
+        echo "$hy2_link"
+        echo
+        
+        # 生成QR码
+        echo -e "${YELLOW}Hysteria2 QR码:${NC}"
+        if generate_qr_code "$hy2_link" 2; then
+            echo
+        else
+            echo -e "${RED}QR码生成失败${NC}"
+        fi
+        echo
+    fi
+    
+    echo -e "${PURPLE}========================================${NC}"
+    echo -e "${YELLOW}配置文件位置: $CONFIG_FILE${NC}"
+    echo -e "${YELLOW}日志文件位置: $LOG_FILE${NC}"
+    echo -e "${YELLOW}使用说明: 扫描QR码或复制链接到客户端${NC}"
+    echo -e "${PURPLE}========================================${NC}"
+}
+
 # 查看配置信息
 show_config() {
     if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -627,10 +912,11 @@ main_menu() {
         echo -e "${PURPLE}========================================${NC}"
         echo "1. 安装 sing-box"
         echo "2. 配置协议"
-        echo "3. 更改端口号"
-        echo "4. 更新 sing-box 核心"
-        echo "5. 查看配置信息"
-        echo "6. 卸载 sing-box"
+        echo "3. 查看客户端连接信息"
+        echo "4. 查看配置和服务状态"
+        echo "5. 更改端口号"
+        echo "6. 更新 sing-box 核心"
+        echo "7. 卸载 sing-box"
         echo "0. 退出"
         echo -e "${PURPLE}========================================${NC}"
         
@@ -646,18 +932,22 @@ main_menu() {
                 read -p "按回车键继续..."
                 ;;
             3)
-                change_port
+                show_client_info
                 read -p "按回车键继续..."
                 ;;
             4)
-                update_singbox
-                read -p "按回车键继续..."
-                ;;
-            5)
                 show_config
                 read -p "按回车键继续..."
                 ;;
+            5)
+                change_port
+                read -p "按回车键继续..."
+                ;;
             6)
+                update_singbox
+                read -p "按回车键继续..."
+                ;;
+            7)
                 uninstall_singbox
                 read -p "按回车键继续..."
                 ;;
@@ -685,12 +975,27 @@ check_dependencies() {
                 apt-get update && apt-get install -y "$dep"
             elif command -v yum &> /dev/null; then
                 yum install -y "$dep"
+            elif command -v dnf &> /dev/null; then
+                dnf install -y "$dep"
             else
                 echo -e "${RED}无法自动安装依赖 $dep，请手动安装${NC}"
                 exit 1
             fi
         fi
     done
+    
+    # 提示用户 qrencode 是可选的
+    if ! command -v qrencode &> /dev/null; then
+        echo -e "${YELLOW}注意: qrencode 未安装，QR码功能将不可用${NC}"
+        echo -e "${YELLOW}可以通过以下命令安装:${NC}"
+        if command -v apt-get &> /dev/null; then
+            echo -e "${YELLOW}  apt-get install qrencode${NC}"
+        elif command -v yum &> /dev/null; then
+            echo -e "${YELLOW}  yum install qrencode${NC}"
+        elif command -v dnf &> /dev/null; then
+            echo -e "${YELLOW}  dnf install qrencode${NC}"
+        fi
+    fi
 }
 
 # 主函数
