@@ -1,0 +1,150 @@
+{
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "timestamp": true,
+    "output": "/var/log/sing-box.log"
+  },
+  "dns": {
+    "rules": [
+      {
+        "outbound": ["any"],
+        "server": "local"
+      },
+      {
+        "clash_mode": "Proxy",
+        "server": "remote"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "local"
+      },
+      {
+        "rule_set": ["geosite-cn"],
+        "server": "local"
+      }
+    ],
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct",
+        "tag": "remote"
+      },
+      {
+        "address": "https://223.5.5.5/dns-query",
+        "detour": "direct",
+        "tag": "local"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-reality",
+      "listen": "::",
+      "listen_port": 443,
+      "users": [
+        {
+          "name": "user1",
+          "uuid": "00000000-0000-0000-0000-000000000000"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.microsoft.com",
+            "server_port": 443
+          },
+          "private_key": "PRIVATE_KEY_HERE",
+          "short_id": ["SHORT_ID_HERE"]
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "vmess-ws",
+      "listen": "::",
+      "listen_port": 10086,
+      "users": [
+        {
+          "name": "user1",
+          "uuid": "00000000-0000-0000-0000-000000000000"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/vmess",
+        "headers": {
+          "Host": "SERVER_IP_HERE"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hysteria2",
+      "listen": "::",
+      "listen_port": 8443,
+      "up_mbps": 100,
+      "down_mbps": 100,
+      "users": [
+        {
+          "name": "user1",
+          "password": "PASSWORD_HERE"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "certificate_path": "/etc/sing-box/certs/cert.pem",
+        "key_path": "/etc/sing-box/certs/private.key"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "direct"
+      },
+      {
+        "clash_mode": "Proxy",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["geosite-cn"],
+        "outbound": "direct"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://fastly.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      }
+    ]
+  }
+}
