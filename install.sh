@@ -357,6 +357,12 @@ create_directories() {
     mkdir -p "$DATA_DIR"
     mkdir -p "$LOG_DIR"
     
+    # 设置正确的权限
+    chmod 755 "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR/configs"
+    chmod 755 "$DATA_DIR"
+    chmod 755 "$LOG_DIR"
+    
     success "目录创建完成"
 }
 
@@ -421,7 +427,7 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 ExecStart=/usr/local/bin/sing-box run -c $CONFIG_FILE
 Restart=on-failure
-RestartSec=1800s
+RestartSec=3s
 ExecReload=/bin/kill -HUP \$MAINPID
 
 [Install]
@@ -469,12 +475,24 @@ create_initial_config() {
       "type": "direct",
       "tag": "direct"
     }
-  ]
+  ],
+  "route": {
+    "rules": [],
+    "final": "direct"
+  }
 }
 EOF
 
+    # 设置配置文件权限
+    chmod 644 "$CONFIG_FILE"
+    
     # 创建数据库文件
     touch "$DB_FILE"
+    chmod 644 "$DB_FILE"
+    
+    # 创建日志文件并设置权限
+    touch "$LOG_DIR/sing-box.log"
+    chmod 644 "$LOG_DIR/sing-box.log"
     
     success "初始配置创建完成"
 }
@@ -520,23 +538,11 @@ start_service() {
         warn "最近的错误日志:"
         journalctl -u sing-box --no-pager -l --since "5 minutes ago" | tail -10
         
-        # 检查配置文件
-        if [[ -f "$CONFIG_FILE" ]]; then
-            info "检查配置文件语法..."
-            if command -v sing-box >/dev/null 2>&1; then
-                if sing-box check -c "$CONFIG_FILE"; then
-                    info "配置文件语法正确"
-                else
-                    warn "配置文件语法可能有问题"
-                fi
-            fi
-        fi
-        
         # 提供故障排除建议
         info "故障排除建议:"
         echo "  1. 检查配置文件: $CONFIG_FILE"
         echo "  2. 查看详细日志: journalctl -u sing-box -f"
-        echo "  3. 手动启动测试: sing-box run -c $CONFIG_FILE"
+        echo "  3. 手动启动测试: /usr/local/bin/sing-box run -c $CONFIG_FILE"
         echo "  4. 检查端口占用: netstat -tuln | grep :端口号"
     fi
 }
