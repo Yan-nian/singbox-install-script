@@ -263,7 +263,7 @@ generate_reality_config() {
         
         # 直接创建默认用户
         local default_uuid=$(generate_uuid)
-        local users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
+        users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\"}"
         echo -e "${GREEN}已创建默认用户，UUID: $default_uuid${NC}"
     else
         # 正常配置流程
@@ -347,14 +347,23 @@ generate_reality_config() {
     # 生成short_id
     local short_id=$(openssl rand -hex 8)
     
+    # 修正用户配置，添加flow字段
+    local corrected_users_json=""
+    if [[ "$QUICK_CONFIG" == "true" ]]; then
+        local default_uuid=$(echo "$users_json" | grep -o '"uuid":"[^"]*"' | cut -d'"' -f4)
+        corrected_users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\",\"flow\":\"xtls-rprx-vision\"}"
+    else
+        # 为每个用户添加flow字段
+        corrected_users_json=$(echo "$users_json" | sed 's/},{/,\"flow\":\"xtls-rprx-vision\"},{/g' | sed 's/}$/,\"flow\":\"xtls-rprx-vision\"}/g')
+    fi
+    
     # 存储配置信息到全局变量
     VLESS_CONFIG="{
         \"type\": \"vless\",
         \"tag\": \"vless-reality\",
         \"listen\": \"::\",
         \"listen_port\": $port,
-        \"users\": [$users_json],
-        \"flow\": \"xtls-rprx-vision\",
+        \"users\": [$corrected_users_json],
         \"tls\": {
             \"enabled\": true,
             \"server_name\": \"$server_names\",
@@ -441,13 +450,23 @@ generate_vmess_config() {
         fi
     fi
     
+    # 修正用户配置，添加alterId字段
+    local corrected_users_json=""
+    if [[ "$config_mode" == "1" ]]; then
+        local default_uuid=$(echo "$users_json" | grep -o '"uuid":"[^"]*"' | cut -d'"' -f4)
+        corrected_users_json="{\"name\":\"default\",\"uuid\":\"$default_uuid\",\"alterId\":0}"
+    else
+        # 为每个用户添加alterId字段
+        corrected_users_json=$(echo "$users_json" | sed 's/},{/,\"alterId\":0},{/g' | sed 's/}$/,\"alterId\":0}/g')
+    fi
+    
     # 存储配置信息到全局变量
     VMESS_CONFIG="{
         \"type\": \"vmess\",
         \"tag\": \"vmess-ws\",
         \"listen\": \"::\",
         \"listen_port\": $port,
-        \"users\": [$users_json],
+        \"users\": [$corrected_users_json],
         \"transport\": {
             \"type\": \"ws\",
             \"path\": \"$ws_path\",
