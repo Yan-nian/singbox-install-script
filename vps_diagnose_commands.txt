@@ -30,4 +30,4 @@ systemctl status sing-box -l
 
 # 7. 查看systemd日志
 echo "=== systemd日志 ==="
-journalctl -u sing-box -n
+journalctl -u sing-box -n 50 --no-pager

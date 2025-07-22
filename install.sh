@@ -6,7 +6,8 @@
 # 版本: v1.0.0
 # 更新时间: 2024-12-19
 
-set -e
+# 移除严格的错误处理，改为手动处理关键错误
+# set -e
 
 # 颜色定义
 RED='\033[0;31m'
@@ -106,8 +107,8 @@ error_handler() {
     exit 1
 }
 
-# 设置错误处理
-trap 'error_handler $LINENO' ERR
+# 设置信号处理
+trap 'echo "脚本被中断"; exit 1' INT TERM
 
 # 检查是否为root用户
 check_root() {
@@ -177,7 +178,7 @@ check_dependencies() {
     local missing_deps=()
     
     for dep in "${deps[@]}"; do
-        if ! command -v "$dep" &> /dev/null; then
+        if ! command -v "$dep" >/dev/null 2>&1; then
             missing_deps+=("$dep")
         fi
     done
@@ -188,18 +189,33 @@ check_dependencies() {
         
         case $OS_TYPE in
             ubuntu|debian)
-                apt update && apt install -y "${missing_deps[@]}"
+                if apt update >/dev/null 2>&1 && apt install -y "${missing_deps[@]}" >/dev/null 2>&1; then
+                    log_info "依赖安装成功"
+                else
+                    log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                    return 1
+                fi
                 ;;
             centos|rhel|fedora)
-                if command -v dnf &> /dev/null; then
-                    dnf install -y "${missing_deps[@]}"
+                if command -v dnf >/dev/null 2>&1; then
+                    if dnf install -y "${missing_deps[@]}" >/dev/null 2>&1; then
+                        log_info "依赖安装成功"
+                    else
+                        log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                        return 1
+                    fi
                 else
-                    yum install -y "${missing_deps[@]}"
+                    if yum install -y "${missing_deps[@]}" >/dev/null 2>&1; then
+                        log_info "依赖安装成功"
+                    else
+                        log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                        return 1
+                    fi
                 fi
                 ;;
             *)
                 log_error "不支持的包管理器，请手动安装: ${missing_deps[*]}"
-                exit 1
+                return 1
                 ;;
         esac
     fi
@@ -211,32 +227,41 @@ check_dependencies() {
 check_network() {
     log_info "正在检查网络连接..."
     
-    local test_urls=("google.com" "github.com" "cloudflare.com")
+    local test_urls=("google.com" "github.com" "cloudflare.com" "8.8.8.8")
     local network_ok=false
     
     for url in "${test_urls[@]}"; do
-        if ping -c 1 -W 3 "$url" &> /dev/null; then
+        if ping -c 1 -W 3 "$url" >/dev/null 2>&1; then
             network_ok=true
             break
         fi
     done
     
     if [[ "$network_ok" == "false" ]]; then
-        log_error "网络连接异常，请检查网络设置"
-        exit 1
+        log_warn "网络连接可能存在问题，但继续执行安装"
+    else
+        log_info "网络连接正常"
     fi
-    
-    log_info "网络连接正常"
 }
 
 # 检查端口占用
 check_port() {
     local port=$1
-    if ss -tuln | grep -q ":$port "; then
-        return 1
-    else
-        return 0
+    # 使用多种方法检查端口占用
+    if command -v ss >/dev/null 2>&1; then
+        if ss -tuln | grep -q ":$port "; then
+            return 1
+        fi
+    elif command -v netstat >/dev/null 2>&1; then
+        if netstat -tuln | grep -q ":$port "; then
+            return 1
+        fi
+    elif command -v lsof >/dev/null 2>&1; then
+        if lsof -i ":$port" >/dev/null 2>&1; then
+            return 1
+        fi
     fi
+    return 0
 }
 
 # 生成随机端口
@@ -272,18 +297,35 @@ get_current_config() {
     if [[ -f "$SINGBOX_CONFIG_DIR/config.json" ]]; then
         # 尝试从配置文件中提取协议和端口信息
         local config_file="$SINGBOX_CONFIG_DIR/config.json"
+        local protocols=()
+        local ports=()
+        
+        # 检测所有协议类型
         if grep -q "vless" "$config_file"; then
-            CURRENT_PROTOCOL="VLESS Reality"
-        elif grep -q "vmess" "$config_file"; then
-            CURRENT_PROTOCOL="VMess WebSocket"
-        elif grep -q "hysteria2" "$config_file"; then
-            CURRENT_PROTOCOL="Hysteria2"
+            protocols+=("VLESS Reality")
+        fi
+        if grep -q "vmess" "$config_file"; then
+            protocols+=("VMess WebSocket")
+        fi
+        if grep -q "hysteria2" "$config_file"; then
+            protocols+=("Hysteria2")
         fi
         
-        # 提取端口信息
-        CURRENT_PORT=$(grep -o '"listen_port":[[:space:]]*[0-9]*' "$config_file" | grep -o '[0-9]*' | head -1)
-        if [[ -z "$CURRENT_PORT" ]]; then
-            CURRENT_PORT=$(grep -o '"listen":[[:space:]]*"[^:]*:[0-9]*"' "$config_file" | grep -o '[0-9]*' | head -1)
+        # 提取所有端口信息
+        local all_ports=$(grep -o '"listen_port":[[:space:]]*[0-9]*' "$config_file" | grep -o '[0-9]*')
+        if [[ -z "$all_ports" ]]; then
+            all_ports=$(grep -o '"listen":[[:space:]]*"[^:]*:[0-9]*"' "$config_file" | grep -o '[0-9]*')
+        fi
+        
+        # 设置协议和端口显示
+        if [[ ${#protocols[@]} -gt 1 ]]; then
+            # 多协议配置
+            CURRENT_PROTOCOL="多协议 (${protocols[*]})"
+            CURRENT_PORT=$(echo "$all_ports" | tr '\n' ',' | sed 's/,$//')
+        elif [[ ${#protocols[@]} -eq 1 ]]; then
+            # 单协议配置
+            CURRENT_PROTOCOL="${protocols[0]}"
+            CURRENT_PORT=$(echo "$all_ports" | head -1)
         fi
     fi
 }
@@ -396,14 +438,20 @@ show_main_menu() {
 get_latest_version() {
     log_info "正在获取最新版本信息..."
     local api_url="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
-    SINGBOX_VERSION=$(curl -s "$api_url" | grep '"tag_name":' | cut -d'"' -f4)
+    
+    # 尝试多种方法获取版本信息
+    if command -v curl >/dev/null 2>&1; then
+        SINGBOX_VERSION=$(curl -s --connect-timeout 10 "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null)
+    elif command -v wget >/dev/null 2>&1; then
+        SINGBOX_VERSION=$(wget -qO- --timeout=10 "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null)
+    fi
     
     if [[ -z "$SINGBOX_VERSION" ]]; then
-        log_error "无法获取版本信息，使用默认版本"
+        log_warn "无法获取最新版本信息，使用默认版本"
         SINGBOX_VERSION="v1.8.0"
     fi
     
-    log_info "最新版本: $SINGBOX_VERSION"
+    log_info "使用版本: $SINGBOX_VERSION"
 }
 
 # 下载sing-box
@@ -415,33 +463,76 @@ download_singbox() {
     local temp_file="$temp_dir/sing-box.tar.gz"
     
     # 创建临时目录
-    mkdir -p "$temp_dir"
+    mkdir -p "$temp_dir" || {
+        log_error "无法创建临时目录"
+        return 1
+    }
     
     # 下载文件
-    if ! wget -q --show-progress -O "$temp_file" "$download_url"; then
-        log_error "下载失败，请检查网络连接"
+    log_info "下载地址: $download_url"
+    if command -v wget >/dev/null 2>&1; then
+        if ! wget -q --show-progress --timeout=30 -O "$temp_file" "$download_url"; then
+            log_error "wget下载失败，尝试使用curl"
+            if command -v curl >/dev/null 2>&1; then
+                if ! curl -L --connect-timeout 30 -o "$temp_file" "$download_url"; then
+                    log_error "下载失败，请检查网络连接"
+                    rm -rf "$temp_dir"
+                    return 1
+                fi
+            else
+                rm -rf "$temp_dir"
+                return 1
+            fi
+        fi
+    elif command -v curl >/dev/null 2>&1; then
+        if ! curl -L --connect-timeout 30 -o "$temp_file" "$download_url"; then
+            log_error "下载失败，请检查网络连接"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+    else
+        log_error "系统缺少下载工具(wget或curl)"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # 检查下载的文件
+    if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
+        log_error "下载的文件无效"
+        rm -rf "$temp_dir"
         return 1
     fi
     
     # 解压文件
     log_info "正在解压文件..."
-    tar -xzf "$temp_file" -C "$temp_dir"
+    if ! tar -xzf "$temp_file" -C "$temp_dir" 2>/dev/null; then
+        log_error "解压失败，文件可能损坏"
+        rm -rf "$temp_dir"
+        return 1
+    fi
     
     # 查找二进制文件
-    local binary_path=$(find "$temp_dir" -name "sing-box" -type f)
-    if [[ -z "$binary_path" ]]; then
+    local binary_path=$(find "$temp_dir" -name "sing-box" -type f 2>/dev/null | head -1)
+    if [[ -z "$binary_path" ]] || [[ ! -f "$binary_path" ]]; then
         log_error "未找到 sing-box 二进制文件"
+        rm -rf "$temp_dir"
         return 1
     fi
     
     # 复制到系统目录
-    cp "$binary_path" "$SINGBOX_BINARY"
+    if ! cp "$binary_path" "$SINGBOX_BINARY"; then
+        log_error "无法复制二进制文件到系统目录"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
     chmod +x "$SINGBOX_BINARY"
     
     # 清理临时文件
     rm -rf "$temp_dir"
     
     log_info "sing-box 下载安装完成"
+    return 0
 }
 
 # 创建系统服务
@@ -488,17 +579,53 @@ create_config_dirs() {
 
 # 生成UUID
 generate_uuid() {
-    if command -v uuidgen &> /dev/null; then
-        uuidgen
+    if command -v uuidgen >/dev/null 2>&1; then
+        uuidgen 2>/dev/null
+    elif [[ -r /proc/sys/kernel/random/uuid ]]; then
+        cat /proc/sys/kernel/random/uuid 2>/dev/null
     else
-        cat /proc/sys/kernel/random/uuid
+        # 备用方法：使用随机数生成UUID格式
+        printf '%08x-%04x-%04x-%04x-%012x\n' \
+            $((RANDOM * RANDOM % 4294967296)) \
+            $((RANDOM % 65536)) \
+            $(((RANDOM % 16384) | 16384)) \
+            $(((RANDOM % 16384) | 32768)) \
+            $((RANDOM * RANDOM % 281474976710656))
     fi
 }
 
 # 生成随机字符串
 generate_random_string() {
     local length=${1:-16}
-    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length"
+    if [[ -r /dev/urandom ]]; then
+        tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c "$length" 2>/dev/null
+    else
+        # 备用方法
+        local chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        local result=""
+        for ((i=0; i<length; i++)); do
+            result+="${chars:$((RANDOM % ${#chars})):1}"
+        done
+        echo "$result"
+    fi
+}
+
+# 生成十六进制随机字符串（用于 short_id）
+generate_hex_string() {
+    local length=${1:-8}
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex $((length/2)) 2>/dev/null | head -c "$length"
+    elif [[ -r /dev/urandom ]]; then
+        tr -dc '0-9a-f' < /dev/urandom 2>/dev/null | head -c "$length" 2>/dev/null
+    else
+        # 备用方法
+        local chars="0123456789abcdef"
+        local result=""
+        for ((i=0; i<length; i++)); do
+            result+="${chars:$((RANDOM % 16)):1}"
+        done
+        echo "$result"
+    fi
 }
 
 # 生成VLESS Reality增强配置文件
@@ -842,7 +969,7 @@ install_all_protocols() {
     local key_pair=$("$SINGBOX_BINARY" generate reality-keypair)
     VLESS_PRIVATE_KEY=$(echo "$key_pair" | grep "PrivateKey:" | awk '{print $2}')
     VLESS_PUBLIC_KEY=$(echo "$key_pair" | grep "PublicKey:" | awk '{print $2}')
-    VLESS_SHORT_ID=$(generate_random_string 8)
+    VLESS_SHORT_ID=$(generate_hex_string 8)
     
     # 设置默认伪装网站
     local dest_site="www.microsoft.com"
@@ -958,7 +1085,7 @@ install_vless_reality() {
     local key_pair=$("$SINGBOX_BINARY" generate reality-keypair)
     VLESS_PRIVATE_KEY=$(echo "$key_pair" | grep "PrivateKey:" | awk '{print $2}')
     VLESS_PUBLIC_KEY=$(echo "$key_pair" | grep "PublicKey:" | awk '{print $2}')
-    VLESS_SHORT_ID=$(generate_random_string 8)
+    VLESS_SHORT_ID=$(generate_hex_string 8)
     
     # 获取目标网站
     echo
@@ -1303,43 +1430,65 @@ show_connection_info() {
     
     # 解析配置文件获取信息
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
-    local protocol_type=$(grep -o '"type": "[^"]*"' "$config_file" | head -1 | cut -d'"' -f4)
-    local listen_port=$(grep -o '"listen_port": [0-9]*' "$config_file" | cut -d':' -f2 | tr -d ' ')
     
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}                当前连接信息${NC}"
+    echo -e "${YELLOW}                连接信息${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
-    echo -e "  端口: ${GREEN}$listen_port${NC}"
-    echo -e "  协议类型: ${GREEN}$protocol_type${NC}"
     
-    case $protocol_type in
-        "vless")
-            local uuid=$(grep -o '"uuid": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local flow=$(grep -o '"flow": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local server_name=$(grep -o '"server_name": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            echo -e "  UUID: ${GREEN}$uuid${NC}"
-            echo -e "  Flow: ${GREEN}$flow${NC}"
-            echo -e "  SNI: ${GREEN}$server_name${NC}"
-            echo -e "  TLS: ${GREEN}Reality${NC}"
-            ;;
-        "vmess")
-            local uuid=$(grep -o '"uuid": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local ws_path=$(grep -o '"path": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local tls_enabled=$(grep -q '"tls"' "$config_file" && echo "启用" || echo "未启用")
-            echo -e "  UUID: ${GREEN}$uuid${NC}"
-            echo -e "  传输协议: ${GREEN}WebSocket${NC}"
-            echo -e "  路径: ${GREEN}$ws_path${NC}"
-            echo -e "  TLS: ${GREEN}$tls_enabled${NC}"
-            ;;
-        "hysteria2")
-            local password=$(grep -o '"password": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local masquerade=$(grep -o '"masquerade": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            echo -e "  密码: ${GREEN}$password${NC}"
-            echo -e "  伪装网站: ${GREEN}$masquerade${NC}"
-            echo -e "  TLS: ${GREEN}启用${NC}"
-            ;;
-    esac
+    # 检查并显示VLESS Reality信息
+    if grep -q "vless" "$config_file"; then
+        echo -e "${CYAN}【VLESS Reality】${NC}"
+        local vless_uuid=$(grep -A 10 '"type": "vless"' "$config_file" | grep -o '"uuid": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local vless_port=$(grep -B 5 -A 10 '"type": "vless"' "$config_file" | grep -o '"listen_port": [0-9]*' | head -1 | cut -d':' -f2 | tr -d ' ')
+        local flow=$(grep -A 10 '"type": "vless"' "$config_file" | grep -o '"flow": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local server_name=$(grep -A 20 '"type": "vless"' "$config_file" | grep -o '"server_name": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local public_key=$(grep -A 20 '"type": "vless"' "$config_file" | grep -o '"public_key": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local short_id=$(grep -A 20 '"type": "vless"' "$config_file" | grep -o '"short_id": "[^"]*"' | head -1 | cut -d'"' -f4)
+        
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$vless_port${NC}"
+        echo -e "  UUID: ${GREEN}$vless_uuid${NC}"
+        echo -e "  Flow: ${GREEN}$flow${NC}"
+        echo -e "  TLS: ${GREEN}Reality${NC}"
+        echo -e "  SNI: ${GREEN}$server_name${NC}"
+        echo -e "  PublicKey: ${GREEN}$public_key${NC}"
+        echo -e "  ShortId: ${GREEN}$short_id${NC}"
+        echo
+    fi
+    
+    # 检查并显示VMess WebSocket信息
+    if grep -q "vmess" "$config_file"; then
+        echo -e "${CYAN}【VMess WebSocket】${NC}"
+        local vmess_uuid=$(grep -A 10 '"type": "vmess"' "$config_file" | grep -o '"uuid": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local vmess_port=$(grep -B 5 -A 10 '"type": "vmess"' "$config_file" | grep -o '"listen_port": [0-9]*' | head -1 | cut -d':' -f2 | tr -d ' ')
+        local ws_path=$(grep -A 20 '"type": "vmess"' "$config_file" | grep -o '"path": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local tls_enabled=$(grep -A 20 '"type": "vmess"' "$config_file" | grep -q '"tls"' && echo "启用" || echo "未启用")
+        
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$vmess_port${NC}"
+        echo -e "  UUID: ${GREEN}$vmess_uuid${NC}"
+        echo -e "  AlterID: ${GREEN}0${NC}"
+        echo -e "  传输协议: ${GREEN}WebSocket${NC}"
+        echo -e "  路径: ${GREEN}$ws_path${NC}"
+        echo -e "  TLS: ${GREEN}$tls_enabled${NC}"
+        echo
+    fi
+    
+    # 检查并显示Hysteria2信息
+    if grep -q "hysteria2" "$config_file"; then
+        echo -e "${CYAN}【Hysteria2】${NC}"
+        local hy2_password=$(grep -A 10 '"type": "hysteria2"' "$config_file" | grep -o '"password": "[^"]*"' | head -1 | cut -d'"' -f4)
+        local hy2_port=$(grep -B 5 -A 10 '"type": "hysteria2"' "$config_file" | grep -o '"listen_port": [0-9]*' | head -1 | cut -d':' -f2 | tr -d ' ')
+        local masquerade=$(grep -A 20 '"type": "hysteria2"' "$config_file" | grep -o '"masquerade": "[^"]*"' | head -1 | cut -d'"' -f4)
+        
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$hy2_port${NC}"
+        echo -e "  密码: ${GREEN}$hy2_password${NC}"
+        echo -e "  伪装网站: ${GREEN}$masquerade${NC}"
+        echo -e "  TLS: ${GREEN}启用${NC}"
+        echo -e "  ALPN: ${GREEN}h3${NC}"
+        echo
+    fi
     
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
@@ -1535,45 +1684,97 @@ change_port() {
 # 生成分享链接
 generate_share_links() {
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
-    local protocol_type=$(grep -o '"type": "[^"]*"' "$config_file" | head -1 | cut -d'"' -f4)
-    local listen_port=$(grep -o '"listen_port": [0-9]*' "$config_file" | cut -d':' -f2 | tr -d ' ')
+    local protocol_choice="$1"  # 可选参数：指定协议类型
+    
+    # 检测配置文件中的所有协议
+    local has_vless=$(grep -q '"type": "vless"' "$config_file" && echo "true" || echo "false")
+    local has_vmess=$(grep -q '"type": "vmess"' "$config_file" && echo "true" || echo "false")
+    local has_hysteria2=$(grep -q '"type": "hysteria2"' "$config_file" && echo "true" || echo "false")
+    
+    # 如果是多协议配置且没有指定协议，显示所有协议
+    local protocol_count=0
+    [[ "$has_vless" == "true" ]] && ((protocol_count++))
+    [[ "$has_vmess" == "true" ]] && ((protocol_count++))
+    [[ "$has_hysteria2" == "true" ]] && ((protocol_count++))
+    
+    if [[ $protocol_count -gt 1 && -z "$protocol_choice" ]]; then
+        # 多协议配置，显示所有协议的链接
+        echo "# 多协议配置 - 所有协议分享链接"
+        echo
+        
+        if [[ "$has_vless" == "true" ]]; then
+            echo "【VLESS Reality】"
+            generate_single_protocol_link "vless"
+            echo
+        fi
+        
+        if [[ "$has_vmess" == "true" ]]; then
+            echo "【VMess WebSocket】"
+            generate_single_protocol_link "vmess"
+            echo
+        fi
+        
+        if [[ "$has_hysteria2" == "true" ]]; then
+            echo "【Hysteria2】"
+            generate_single_protocol_link "hysteria2"
+            echo
+        fi
+        return
+    fi
+    
+    # 单协议配置或指定了协议类型
+    local protocol_type="$protocol_choice"
+    if [[ -z "$protocol_type" ]]; then
+        protocol_type=$(grep -o '"type": "[^"]*"' "$config_file" | head -1 | cut -d'"' -f4)
+    fi
+    
+    generate_single_protocol_link "$protocol_type"
+}
+
+# 生成单个协议的分享链接
+generate_single_protocol_link() {
+    local protocol_type="$1"
+    local config_file="$SINGBOX_CONFIG_DIR/config.json"
     
     case $protocol_type in
         "vless")
-            local uuid=$(grep -o '"uuid": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local flow=$(grep -o '"flow": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local server_name=$(grep -o '"server_name": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local private_key=$(grep -o '"private_key": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local short_id=$(grep -o '"short_id": \[\s*"[^"]*"' "$config_file" | cut -d'"' -f4)
+            # 获取VLESS相关配置
+            local vless_inbound=$(grep -A 20 '"type": "vless"' "$config_file")
+            local listen_port=$(echo "$vless_inbound" | grep -o '"listen_port": [0-9]*' | cut -d':' -f2 | tr -d ' ')
+            local uuid=$(echo "$vless_inbound" | grep -o '"uuid": "[^"]*"' | cut -d'"' -f4)
+            local flow=$(echo "$vless_inbound" | grep -o '"flow": "[^"]*"' | cut -d'"' -f4)
+            local server_name=$(echo "$vless_inbound" | grep -o '"server_name": "[^"]*"' | cut -d'"' -f4)
+            local private_key=$(echo "$vless_inbound" | grep -o '"private_key": "[^"]*"' | cut -d'"' -f4)
+            local short_id=$(echo "$vless_inbound" | grep -o '"short_id": \[\s*"[^"]*"' | cut -d'"' -f4)
             
             # 生成公钥
             local public_key=$(echo "$private_key" | base64 -d 2>/dev/null | xxd -p -c 32 | head -c 64)
             if [[ -z "$public_key" ]]; then
-                # 如果无法解析私钥，尝试重新生成密钥对
                 local key_pair=$("$SINGBOX_BINARY" generate reality-keypair 2>/dev/null)
                 public_key=$(echo "$key_pair" | grep "PublicKey:" | awk '{print $2}')
             fi
             
-            # VLESS Reality 链接
             local vless_link="vless://${uuid}@${IP_ADDRESS}:${listen_port}?encryption=none&flow=${flow}&security=reality&sni=${server_name}&fp=chrome&pbk=${public_key}&sid=${short_id}&type=tcp&headerType=none#VLESS-Reality-${IP_ADDRESS}"
             echo "$vless_link"
             ;;
         "vmess")
-            local uuid=$(grep -o '"uuid": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local ws_path=$(grep -o '"path": "[^"]*"' "$config_file" | cut -d'"' -f4)
-            local tls_enabled=$(grep -q '"tls"' "$config_file" && echo "tls" || echo "none")
+            # 获取VMess相关配置
+            local vmess_inbound=$(grep -A 20 '"type": "vmess"' "$config_file")
+            local listen_port=$(echo "$vmess_inbound" | grep -o '"listen_port": [0-9]*' | cut -d':' -f2 | tr -d ' ')
+            local uuid=$(echo "$vmess_inbound" | grep -o '"uuid": "[^"]*"' | cut -d'"' -f4)
+            local ws_path=$(echo "$vmess_inbound" | grep -A 10 '"transport"' | grep -o '"path": "[^"]*"' | cut -d'"' -f4)
+            local tls_enabled=$(echo "$vmess_inbound" | grep -q '"tls"' && echo "tls" || echo "none")
             
-            # VMess 配置 JSON
             local vmess_json='{"v":"2","ps":"VMess-WS-'$IP_ADDRESS'","add":"'$IP_ADDRESS'","port":"'$listen_port'","id":"'$uuid'","aid":"0","scy":"auto","net":"ws","type":"none","host":"","path":"'$ws_path'","tls":"'$tls_enabled'","sni":"","alpn":""}'
-            
-            # Base64 编码
             local vmess_link="vmess://$(echo -n "$vmess_json" | base64 -w 0)"
             echo "$vmess_link"
             ;;
         "hysteria2")
-            local password=$(grep -o '"password": "[^"]*"' "$config_file" | cut -d'"' -f4)
+            # 获取Hysteria2相关配置
+            local hy2_inbound=$(grep -A 20 '"type": "hysteria2"' "$config_file")
+            local listen_port=$(echo "$hy2_inbound" | grep -o '"listen_port": [0-9]*' | cut -d':' -f2 | tr -d ' ')
+            local password=$(echo "$hy2_inbound" | grep -o '"password": "[^"]*"' | cut -d'"' -f4)
             
-            # Hysteria2 链接
             local hy2_link="hysteria2://${password}@${IP_ADDRESS}:${listen_port}/?insecure=1#Hysteria2-${IP_ADDRESS}"
             echo "$hy2_link"
             ;;
@@ -1613,48 +1814,121 @@ share_config() {
     fi
     
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
-    local protocol_type=$(grep -o '"type": "[^"]*"' "$config_file" | head -1 | cut -d'"' -f4)
+    
+    # 检测配置文件中的所有协议
+    local has_vless=$(grep -q '"type": "vless"' "$config_file" && echo "true" || echo "false")
+    local has_vmess=$(grep -q '"type": "vmess"' "$config_file" && echo "true" || echo "false")
+    local has_hysteria2=$(grep -q '"type": "hysteria2"' "$config_file" && echo "true" || echo "false")
+    
+    local protocol_count=0
+    [[ "$has_vless" == "true" ]] && ((protocol_count++))
+    [[ "$has_vmess" == "true" ]] && ((protocol_count++))
+    [[ "$has_hysteria2" == "true" ]] && ((protocol_count++))
+    
+    local current_protocols=""
+    [[ "$has_vless" == "true" ]] && current_protocols="${current_protocols}VLESS Reality "
+    [[ "$has_vmess" == "true" ]] && current_protocols="${current_protocols}VMess WebSocket "
+    [[ "$has_hysteria2" == "true" ]] && current_protocols="${current_protocols}Hysteria2 "
     
     while true; do
         echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${YELLOW}                配置分享${NC}"
         echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "  当前协议: ${GREEN}$protocol_type${NC}"
+        if [[ $protocol_count -gt 1 ]]; then
+            echo -e "  当前协议: ${GREEN}多协议配置 ($current_protocols)${NC}"
+        else
+            echo -e "  当前协议: ${GREEN}$current_protocols${NC}"
+        fi
         echo
-        echo -e "  ${GREEN}1.${NC} 显示连接链接"
-        echo -e "  ${GREEN}2.${NC} 生成二维码"
-        echo -e "  ${GREEN}3.${NC} 保存配置到文件"
-        echo -e "  ${GREEN}4.${NC} 显示详细连接信息"
+        
+        if [[ $protocol_count -gt 1 ]]; then
+            echo -e "  ${GREEN}1.${NC} 显示所有协议连接链接"
+            echo -e "  ${GREEN}2.${NC} 选择协议生成二维码"
+            echo -e "  ${GREEN}3.${NC} 保存所有配置到文件"
+            echo -e "  ${GREEN}4.${NC} 显示详细连接信息"
+            echo -e "  ${GREEN}5.${NC} 选择单个协议分享"
+        else
+            echo -e "  ${GREEN}1.${NC} 显示连接链接"
+            echo -e "  ${GREEN}2.${NC} 生成二维码"
+            echo -e "  ${GREEN}3.${NC} 保存配置到文件"
+            echo -e "  ${GREEN}4.${NC} 显示详细连接信息"
+        fi
         echo -e "  ${GREEN}0.${NC} 返回主菜单"
         echo
         
-        read -p "请选择操作 [0-4]: " choice
+        if [[ $protocol_count -gt 1 ]]; then
+            read -p "请选择操作 [0-5]: " choice
+        else
+            read -p "请选择操作 [0-4]: " choice
+        fi
         
         case $choice in
             1)
                 echo
                 log_info "连接链接:"
-                local share_link=$(generate_share_links)
-                echo -e "${GREEN}$share_link${NC}"
+                local share_links=$(generate_share_links)
+                echo -e "${GREEN}$share_links${NC}"
                 echo
                 echo "请复制上述链接到客户端使用"
                 ;;
             2)
-                echo
-                log_info "二维码:"
-                local share_link=$(generate_share_links)
-                echo
-                generate_qrcode "$share_link"
-                echo
-                echo "请使用客户端扫描上述二维码"
+                if [[ $protocol_count -gt 1 ]]; then
+                    # 多协议配置，让用户选择协议生成二维码
+                    echo
+                    echo "请选择要生成二维码的协议:"
+                    local menu_num=1
+                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
+                    [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
+                    [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
+                    echo "  0. 返回"
+                    echo
+                    read -p "请选择协议 [0-$((menu_num-1))]: " protocol_choice
+                    
+                    local selected_protocol=""
+                    local current_num=1
+                    if [[ "$has_vless" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
+                        ((current_num++))
+                    fi
+                    if [[ "$has_vmess" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
+                        ((current_num++))
+                    fi
+                    if [[ "$has_hysteria2" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="hysteria2"
+                        ((current_num++))
+                    fi
+                    
+                    if [[ -n "$selected_protocol" ]]; then
+                        echo
+                        log_info "二维码:"
+                        local share_link=$(generate_share_links "$selected_protocol")
+                        echo
+                        generate_qrcode "$share_link"
+                        echo
+                        echo "请使用客户端扫描上述二维码"
+                    elif [[ "$protocol_choice" != "0" ]]; then
+                        log_error "无效选择"
+                    fi
+                else
+                    # 单协议配置
+                    echo
+                    log_info "二维码:"
+                    local share_link=$(generate_share_links)
+                    echo
+                    generate_qrcode "$share_link"
+                    echo
+                    echo "请使用客户端扫描上述二维码"
+                fi
                 ;;
             3)
                 local output_file="/root/sing-box-config-$(date +%Y%m%d_%H%M%S).txt"
-                local share_link=$(generate_share_links)
+                local share_links=$(generate_share_links)
                 
-                echo "协议类型: $protocol_type" > "$output_file"
+                echo "协议配置: $current_protocols" > "$output_file"
                 echo "服务器地址: $IP_ADDRESS" >> "$output_file"
-                echo "连接链接: $share_link" >> "$output_file"
+                echo "连接链接:" >> "$output_file"
+                echo "$share_links" >> "$output_file"
                 echo "生成时间: $(date)" >> "$output_file"
                 
                 log_info "配置已保存到: $output_file"
@@ -1662,6 +1936,46 @@ share_config() {
             4)
                 show_connection_info
                 return
+                ;;
+            5)
+                if [[ $protocol_count -gt 1 ]]; then
+                    # 选择单个协议分享
+                    echo
+                    echo "请选择要分享的协议:"
+                    local menu_num=1
+                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
+                    [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
+                    [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
+                    echo "  0. 返回"
+                    echo
+                    read -p "请选择协议 [0-$((menu_num-1))]: " protocol_choice
+                    
+                    local selected_protocol=""
+                    local current_num=1
+                    if [[ "$has_vless" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
+                        ((current_num++))
+                    fi
+                    if [[ "$has_vmess" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
+                        ((current_num++))
+                    fi
+                    if [[ "$has_hysteria2" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="hysteria2"
+                        ((current_num++))
+                    fi
+                    
+                    if [[ -n "$selected_protocol" ]]; then
+                        echo
+                        log_info "${selected_protocol^^} 协议连接链接:"
+                        local share_link=$(generate_share_links "$selected_protocol")
+                        echo -e "${GREEN}$share_link${NC}"
+                        echo
+                        echo "请复制上述链接到客户端使用"
+                    elif [[ "$protocol_choice" != "0" ]]; then
+                        log_error "无效选择"
+                    fi
+                fi
                 ;;
             0)
                 return
