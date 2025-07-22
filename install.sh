@@ -574,7 +574,31 @@ create_config_dirs() {
     mkdir -p "$SINGBOX_LOG_DIR"
     mkdir -p "$SINGBOX_CONFIG_DIR/certs"
     
+    # 创建缓存目录
+    mkdir -p "/var/cache/sing-box"
+    
     log_info "配置目录创建完成"
+}
+
+# 验证配置文件
+validate_config() {
+    local config_file="$SINGBOX_CONFIG_DIR/config.json"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log_error "配置文件不存在: $config_file"
+        return 1
+    fi
+    
+    log_info "正在验证配置文件..."
+    if "$SINGBOX_BINARY" check -c "$config_file" &>/dev/null; then
+        log_info "✓ 配置文件验证通过"
+        return 0
+    else
+        log_error "✗ 配置文件验证失败"
+        log_info "配置文件内容:"
+        cat "$config_file"
+        return 1
+    fi
 }
 
 # 生成UUID
@@ -1007,7 +1031,15 @@ install_all_protocols() {
     # 启动服务
     log_info "正在启动 sing-box 服务..."
     if systemctl start sing-box; then
-        log_info "所有协议安装完成！"
+        # 验证配置文件
+        if validate_config; then
+            log_info "所有协议安装完成！"
+        else
+            log_error "配置验证失败，请检查配置"
+            systemctl stop sing-box
+            read -p "按回车键返回主菜单..." -r
+            return 1
+        fi
         
         # 显示连接信息
         echo
@@ -1121,7 +1153,15 @@ install_vless_reality() {
     # 启动服务
     log_info "正在启动 sing-box 服务..."
     if systemctl start sing-box; then
-        log_info "VLESS Reality 安装完成！"
+        # 验证配置文件
+        if validate_config; then
+            log_info "VLESS Reality 安装完成！"
+        else
+            log_error "配置验证失败，请检查配置"
+            systemctl stop sing-box
+            read -p "按回车键返回主菜单..." -r
+            return 1
+        fi
         
         # 显示连接信息
         echo
@@ -1246,7 +1286,13 @@ install_vmess_ws() {
       "type": "direct",
       "tag": "direct"
     }
-  ]
+  ],
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    }
+  }
 }
 EOF
     
@@ -1256,7 +1302,15 @@ EOF
     # 启动服务
     log_info "正在启动 sing-box 服务..."
     if systemctl start sing-box; then
-        log_info "VMess WebSocket 安装完成！"
+        # 验证配置文件
+        if validate_config; then
+            log_info "VMess WebSocket 安装完成！"
+        else
+            log_error "配置验证失败，请检查配置"
+            systemctl stop sing-box
+            read -p "按回车键返回主菜单..." -r
+            return 1
+        fi
         
         # 显示连接信息
         echo
@@ -1381,7 +1435,13 @@ install_hysteria2() {
       "type": "direct",
       "tag": "direct"
     }
-  ]
+  ],
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    }
+  }
 }
 EOF
     
@@ -1391,7 +1451,15 @@ EOF
     # 启动服务
     log_info "正在启动 sing-box 服务..."
     if systemctl start sing-box; then
-        log_info "Hysteria2 安装完成！"
+        # 验证配置文件
+        if validate_config; then
+            log_info "Hysteria2 安装完成！"
+        else
+            log_error "配置验证失败，请检查配置"
+            systemctl stop sing-box
+            read -p "按回车键返回主菜单..." -r
+            return 1
+        fi
         
         # 显示连接信息
         echo
