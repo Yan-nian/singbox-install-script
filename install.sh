@@ -368,7 +368,7 @@ show_main_menu() {
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         
         if [[ "$status" == "not_installed" ]]; then
-            echo -e "  ${GREEN}1.${NC} 一键安装所有协议 (VLESS Reality + VMess WS + Hysteria2)"
+            echo -e "  ${GREEN}1.${NC} 一键安装所有协议 (VMess WS + Hysteria2)"
         else
             echo -e "  ${GREEN}1.${NC} 查看连接信息"
             echo -e "  ${GREEN}2.${NC} 管理服务 (启动/停止/重启)"
@@ -653,9 +653,13 @@ generate_hex_string() {
 }
 
 # 生成VLESS Reality增强配置文件
-generate_vless_reality_enhanced_config() {
-    local vless_port=$1
-    local dest_site=$2
+# 注意：sing-box不支持VLESS作为inbound，只支持作为outbound
+# 生成VMess WebSocket配置（替代VLESS Reality）
+generate_vmess_ws_config() {
+    local vmess_port=$1
+    local ws_path=$2
+    local cert_file=$3
+    local key_file=$4
     
     cat > "$SINGBOX_CONFIG_DIR/config.json" << EOF
 {
@@ -695,31 +699,24 @@ generate_vless_reality_enhanced_config() {
   },
   "inbounds": [
     {
-      "type": "vless",
-      "tag": "vless-in",
+      "type": "vmess",
+      "tag": "vmess-in",
       "listen": "::",
-      "listen_port": $vless_port,
+      "listen_port": $vmess_port,
       "users": [
         {
-          "uuid": "$VLESS_UUID",
-          "flow": "xtls-rprx-vision"
+          "uuid": "$VMESS_UUID",
+          "alter_id": 0
         }
       ],
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      },
       "tls": {
         "enabled": true,
-        "server_name": "$dest_site",
-        "reality": {
-          "enabled": true,
-          "handshake": {
-            "server": "$dest_site",
-            "server_port": 443
-          },
-          "private_key": "$VLESS_PRIVATE_KEY",
-          "short_id": [
-            "$VLESS_SHORT_ID"
-          ],
-          "max_time_difference": "1m"
-        }
+        "certificate_path": "$cert_file",
+        "key_path": "$key_file"
       }
     }
   ],
@@ -735,10 +732,6 @@ generate_vless_reality_enhanced_config() {
   ],
   "route": {
     "rules": [
-      {
-        "protocol": "dns",
-        "outbound": "dns-out"
-      },
       {
         "ip_is_private": true,
         "outbound": "direct"
@@ -775,17 +768,16 @@ EOF
 }
 
 # 生成增强配置文件
+# 生成多协议配置（VMess WebSocket + Hysteria2）
 generate_enhanced_config() {
-    local vless_port=$1
-    local vmess_port=$2
-    local hy2_port=$3
-    local ws_path=$4
-    local dest_site=$5
-    local masq_site=$6
-    local vmess_cert_file=$7
-    local vmess_key_file=$8
-    local hy2_cert_file=$9
-    local hy2_key_file=${10}
+    local vmess_port=$1
+    local hy2_port=$2
+    local ws_path=$3
+    local masq_site=$4
+    local vmess_cert_file=$5
+    local vmess_key_file=$6
+    local hy2_cert_file=$7
+    local hy2_key_file=$8
     
     cat > "$SINGBOX_CONFIG_DIR/config.json" << EOF
 {
@@ -825,34 +817,6 @@ generate_enhanced_config() {
   },
   "inbounds": [
     {
-      "type": "vless",
-      "tag": "vless-in",
-      "listen": "::",
-      "listen_port": $vless_port,
-      "users": [
-        {
-          "uuid": "$VLESS_UUID",
-          "flow": "xtls-rprx-vision"
-        }
-      ],
-      "tls": {
-        "enabled": true,
-        "server_name": "$dest_site",
-        "reality": {
-          "enabled": true,
-          "handshake": {
-            "server": "$dest_site",
-            "server_port": 443
-          },
-          "private_key": "$VLESS_PRIVATE_KEY",
-          "short_id": [
-            "$VLESS_SHORT_ID"
-          ],
-          "max_time_difference": "1m"
-        }
-      }
-    },
-    {
       "type": "vmess",
       "tag": "vmess-in",
       "listen": "::",
@@ -860,7 +824,7 @@ generate_enhanced_config() {
       "users": [
         {
           "uuid": "$VMESS_UUID",
-          "alterId": 0
+          "alter_id": 0
         }
       ],
       "transport": {
@@ -878,12 +842,14 @@ generate_enhanced_config() {
       "tag": "hy2-in",
       "listen": "::",
       "listen_port": $hy2_port,
+      "up_mbps": 100,
+      "down_mbps": 100,
       "users": [
         {
+          "name": "user",
           "password": "$HY2_PASSWORD"
         }
       ],
-      "masquerade": "$masq_site",
       "tls": {
         "enabled": true,
         "alpn": [
@@ -906,10 +872,6 @@ generate_enhanced_config() {
   ],
   "route": {
     "rules": [
-      {
-        "protocol": "dns",
-        "outbound": "dns-out"
-      },
       {
         "ip_is_private": true,
         "outbound": "direct"
@@ -948,7 +910,7 @@ EOF
 # 一键安装所有协议
 install_all_protocols() {
     show_logo
-    log_info "开始安装所有协议 (VLESS Reality + VMess WebSocket + Hysteria2)..."
+    log_info "开始安装所有协议 (VMess WebSocket + Hysteria2)..."
     
     # 获取并下载最新版本
     get_latest_version
@@ -1023,7 +985,7 @@ install_all_protocols() {
     # 生成增强多协议配置文件
     log_info "正在生成增强多协议配置文件..."
     
-    generate_enhanced_config "$vless_port" "$vmess_port" "$hy2_port" "$ws_path" "$dest_site" "$masq_site" "$vmess_cert_file" "$vmess_key_file" "$hy2_cert_file" "$hy2_key_file"
+    generate_enhanced_config "$vmess_port" "$hy2_port" "$ws_path" "$masq_site" "$vmess_cert_file" "$vmess_key_file" "$hy2_cert_file" "$hy2_key_file"
     
     # 创建系统服务
     create_systemd_service
@@ -1093,10 +1055,10 @@ install_all_protocols() {
     read -p "按回车键返回主菜单..." -r
 }
 
-# VLESS Reality 安装
-install_vless_reality() {
+# VMess WebSocket 安装
+install_vmess_ws() {
     show_logo
-    log_info "开始安装 VLESS Reality 协议..."
+    log_info "开始安装 VMess WebSocket 协议..."
     
     # 获取并下载最新版本
     get_latest_version
@@ -1145,7 +1107,7 @@ install_vless_reality() {
     # 生成增强配置文件
     log_info "正在生成增强配置文件..."
     
-    generate_vless_reality_enhanced_config "$vless_port" "$dest_site"
+    generate_vmess_ws_config "$vmess_port" "$ws_path" "$vmess_cert_file" "$vmess_key_file"
     
     # 创建系统服务
     create_systemd_service
@@ -1155,7 +1117,7 @@ install_vless_reality() {
     if systemctl start sing-box; then
         # 验证配置文件
         if validate_config; then
-            log_info "VLESS Reality 安装完成！"
+            log_info "VMess WebSocket 安装完成！"
         else
             log_error "配置验证失败，请检查配置"
             systemctl stop sing-box
@@ -1805,26 +1767,6 @@ generate_single_protocol_link() {
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
     
     case $protocol_type in
-        "vless")
-            # 获取VLESS相关配置
-            local vless_inbound=$(grep -A 20 '"type": "vless"' "$config_file")
-            local listen_port=$(echo "$vless_inbound" | grep -o '"listen_port": [0-9]*' | cut -d':' -f2 | tr -d ' ')
-            local uuid=$(echo "$vless_inbound" | grep -o '"uuid": "[^"]*"' | cut -d'"' -f4)
-            local flow=$(echo "$vless_inbound" | grep -o '"flow": "[^"]*"' | cut -d'"' -f4)
-            local server_name=$(echo "$vless_inbound" | grep -o '"server_name": "[^"]*"' | cut -d'"' -f4)
-            local private_key=$(echo "$vless_inbound" | grep -o '"private_key": "[^"]*"' | cut -d'"' -f4)
-            local short_id=$(echo "$vless_inbound" | grep -o '"short_id": \[\s*"[^"]*"' | cut -d'"' -f4)
-            
-            # 生成公钥
-            local public_key=$(echo "$private_key" | base64 -d 2>/dev/null | xxd -p -c 32 | head -c 64)
-            if [[ -z "$public_key" ]]; then
-                local key_pair=$("$SINGBOX_BINARY" generate reality-keypair 2>/dev/null)
-                public_key=$(echo "$key_pair" | grep "PublicKey:" | awk '{print $2}')
-            fi
-            
-            local vless_link="vless://${uuid}@${IP_ADDRESS}:${listen_port}?encryption=none&flow=${flow}&security=reality&sni=${server_name}&fp=chrome&pbk=${public_key}&sid=${short_id}&type=tcp&headerType=none#VLESS-Reality-${IP_ADDRESS}"
-            echo "$vless_link"
-            ;;
         "vmess")
             # 获取VMess相关配置
             local vmess_inbound=$(grep -A 20 '"type": "vmess"' "$config_file")
@@ -1884,17 +1826,14 @@ share_config() {
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
     
     # 检测配置文件中的所有协议
-    local has_vless=$(grep -q '"type": "vless"' "$config_file" && echo "true" || echo "false")
     local has_vmess=$(grep -q '"type": "vmess"' "$config_file" && echo "true" || echo "false")
     local has_hysteria2=$(grep -q '"type": "hysteria2"' "$config_file" && echo "true" || echo "false")
     
     local protocol_count=0
-    [[ "$has_vless" == "true" ]] && ((protocol_count++))
     [[ "$has_vmess" == "true" ]] && ((protocol_count++))
     [[ "$has_hysteria2" == "true" ]] && ((protocol_count++))
     
     local current_protocols=""
-    [[ "$has_vless" == "true" ]] && current_protocols="${current_protocols}VLESS Reality "
     [[ "$has_vmess" == "true" ]] && current_protocols="${current_protocols}VMess WebSocket "
     [[ "$has_hysteria2" == "true" ]] && current_protocols="${current_protocols}Hysteria2 "
     
@@ -1945,7 +1884,6 @@ share_config() {
                     echo
                     echo "请选择要生成二维码的协议:"
                     local menu_num=1
-                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
                     [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
                     [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
                     echo "  0. 返回"
@@ -1954,10 +1892,6 @@ share_config() {
                     
                     local selected_protocol=""
                     local current_num=1
-                    if [[ "$has_vless" == "true" ]]; then
-                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
-                        ((current_num++))
-                    fi
                     if [[ "$has_vmess" == "true" ]]; then
                         [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
                         ((current_num++))
@@ -2011,7 +1945,6 @@ share_config() {
                     echo
                     echo "请选择要分享的协议:"
                     local menu_num=1
-                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
                     [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
                     [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
                     echo "  0. 返回"
@@ -2020,10 +1953,6 @@ share_config() {
                     
                     local selected_protocol=""
                     local current_num=1
-                    if [[ "$has_vless" == "true" ]]; then
-                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
-                        ((current_num++))
-                    fi
                     if [[ "$has_vmess" == "true" ]]; then
                         [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
                         ((current_num++))
