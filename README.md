@@ -8,6 +8,25 @@
 - **VMess WebSocket** - 经典协议，支持 TLS 和非 TLS
 - **Hysteria2** - 基于 QUIC 的高性能协议
 
+## 功能特性
+
+- 🚀 **一键安装**: 自动下载并安装最新版本的 sing-box
+- 🔧 **多协议支持**: 默认同时安装 VLESS Reality、VMess WebSocket、Hysteria2 三种协议
+- 🛡️ **安全配置**: 自动生成安全的密钥和证书，修复了 VLESS Reality 配置问题
+- 📊 **服务管理**: 完整的 systemd 服务管理功能
+- 🔄 **配置管理**: 支持端口更改、配置分享等功能
+- 📝 **日志查看**: 方便的日志查看和故障排除
+- 🗑️ **完全卸载**: 支持完全卸载和重新安装
+
+### 🆕 v2.0.0 新增功能
+
+- 📡 **DNS 优化**: 集成 DNS over HTTPS，支持 Cloudflare、Google 和本地 DNS 服务器
+- 🛣️ **智能路由**: 基于域名和 IP 的路由规则，优化中国大陆网站访问性能
+- 📈 **Clash API**: 内置 Clash API 支持，提供 Web 管理界面
+- 💾 **缓存机制**: 启用缓存文件，提升连接性能和稳定性
+- ✨ **增强日志**: 添加时间戳支持，便于问题追踪和调试
+- 🏗️ **模块化架构**: 重构配置生成逻辑，提高代码可维护性
+
 ## 主要功能
 
 ### 协议安装
@@ -57,7 +76,7 @@ wget -O install.sh https://raw.githubusercontent.com/your-repo/sing-box-install/
 或者
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/sing-box-install/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/install.sh -o install.sh
 ```
 
 ### 2. 运行脚本
@@ -67,9 +86,15 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-### 3. 按照菜单提示操作
+### 3. 一键安装所有协议
 
-脚本会自动检测系统环境，然后显示主菜单供您选择操作。
+脚本会自动检测系统环境，然后显示主菜单。选择 "一键安装所有协议" 选项，脚本将自动：
+
+- 同时安装 VLESS Reality、VMess WebSocket、Hysteria2 三种协议
+- 自动分配不冲突的端口
+- 生成安全的密钥和证书
+- 创建 systemd 服务并启动
+- 显示所有协议的连接信息
 
 ## 使用说明
 

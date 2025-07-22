@@ -18,7 +18,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # 全局变量
-SCRIPT_VERSION="v1.0.0"
+SCRIPT_VERSION="v2.0.0"
 SINGBOX_VERSION=""
 SINGBOX_CONFIG_DIR="/etc/sing-box"
 SINGBOX_LOG_DIR="/var/log/sing-box"
@@ -326,9 +326,7 @@ show_main_menu() {
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         
         if [[ "$status" == "not_installed" ]]; then
-            echo -e "  ${GREEN}1.${NC} 安装 VLESS Reality 协议"
-            echo -e "  ${GREEN}2.${NC} 安装 VMess WebSocket 协议"
-            echo -e "  ${GREEN}3.${NC} 安装 Hysteria2 协议"
+            echo -e "  ${GREEN}1.${NC} 一键安装所有协议 (VLESS Reality + VMess WS + Hysteria2)"
         else
             echo -e "  ${GREEN}1.${NC} 查看连接信息"
             echo -e "  ${GREEN}2.${NC} 管理服务 (启动/停止/重启)"
@@ -347,22 +345,18 @@ show_main_menu() {
         case $choice in
             1)
                 if [[ "$status" == "not_installed" ]]; then
-                    install_vless_reality
+                    install_all_protocols
                 else
                     show_connection_info
                 fi
                 ;;
             2)
-                if [[ "$status" == "not_installed" ]]; then
-                    install_vmess_ws
-                else
+                if [[ "$status" != "not_installed" ]]; then
                     manage_service_menu
                 fi
                 ;;
             3)
-                if [[ "$status" == "not_installed" ]]; then
-                    install_hysteria2
-                else
+                if [[ "$status" != "not_installed" ]]; then
                     change_port_menu
                 fi
                 ;;
@@ -507,6 +501,439 @@ generate_random_string() {
     tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length"
 }
 
+# 生成VLESS Reality增强配置文件
+generate_vless_reality_enhanced_config() {
+    local vless_port=$1
+    local dest_site=$2
+    
+    cat > "$SINGBOX_CONFIG_DIR/config.json" << EOF
+{
+  "log": {
+    "level": "info",
+    "output": "$SINGBOX_LOG_DIR/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "google",
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "::",
+      "listen_port": $vless_port,
+      "users": [
+        {
+          "uuid": "$VLESS_UUID",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "$dest_site",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "$dest_site",
+            "server_port": 443
+          },
+          "private_key": "$VLESS_PRIVATE_KEY",
+          "short_id": [
+            "$VLESS_SHORT_ID"
+          ],
+          "max_time_difference": "1m"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".chinanet.cn",
+          ".chinaunicom.cn",
+          ".chinatelcom.cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "secret": "",
+      "external_ui_download_url": "https://mirror.ghproxy.com/https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "rule"
+    }
+  }
+}
+EOF
+}
+
+# 生成增强配置文件
+generate_enhanced_config() {
+    local vless_port=$1
+    local vmess_port=$2
+    local hy2_port=$3
+    local ws_path=$4
+    local dest_site=$5
+    local masq_site=$6
+    local vmess_cert_file=$7
+    local vmess_key_file=$8
+    local hy2_cert_file=$9
+    local hy2_key_file=${10}
+    
+    cat > "$SINGBOX_CONFIG_DIR/config.json" << EOF
+{
+  "log": {
+    "level": "info",
+    "output": "$SINGBOX_LOG_DIR/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "google",
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "::",
+      "listen_port": $vless_port,
+      "users": [
+        {
+          "uuid": "$VLESS_UUID",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "$dest_site",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "$dest_site",
+            "server_port": 443
+          },
+          "private_key": "$VLESS_PRIVATE_KEY",
+          "short_id": [
+            "$VLESS_SHORT_ID"
+          ],
+          "max_time_difference": "1m"
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "vmess-in",
+      "listen": "::",
+      "listen_port": $vmess_port,
+      "users": [
+        {
+          "uuid": "$VMESS_UUID",
+          "alterId": 0
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      },
+      "tls": {
+        "enabled": true,
+        "certificate_path": "$vmess_cert_file",
+        "key_path": "$vmess_key_file"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-in",
+      "listen": "::",
+      "listen_port": $hy2_port,
+      "users": [
+        {
+          "password": "$HY2_PASSWORD"
+        }
+      ],
+      "masquerade": "$masq_site",
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "certificate_path": "$hy2_cert_file",
+        "key_path": "$hy2_key_file"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".chinanet.cn",
+          ".chinaunicom.cn",
+          ".chinatelcom.cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "secret": "",
+      "external_ui_download_url": "https://mirror.ghproxy.com/https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "rule"
+    }
+  }
+}
+EOF
+}
+
+# 一键安装所有协议
+install_all_protocols() {
+    show_logo
+    log_info "开始安装所有协议 (VLESS Reality + VMess WebSocket + Hysteria2)..."
+    
+    # 获取并下载最新版本
+    get_latest_version
+    create_config_dirs
+    
+    if ! download_singbox; then
+        log_error "安装失败"
+        read -p "按回车键返回主菜单..." -r
+        return 1
+    fi
+    
+    # 生成所有协议的配置参数
+    VLESS_UUID=$(generate_uuid)
+    VMESS_UUID=$(generate_uuid)
+    HY2_PASSWORD=$(generate_random_string 32)
+    
+    # 生成端口（确保不冲突）
+    local vless_port=$(generate_random_port)
+    local vmess_port
+    local hy2_port
+    
+    # 确保端口不冲突
+    while true; do
+        vmess_port=$(generate_random_port)
+        if [[ "$vmess_port" != "$vless_port" ]]; then
+            break
+        fi
+    done
+    
+    while true; do
+        hy2_port=$(generate_random_port)
+        if [[ "$hy2_port" != "$vless_port" ]] && [[ "$hy2_port" != "$vmess_port" ]]; then
+            break
+        fi
+    done
+    
+    # 生成其他参数
+    local ws_path="/$(generate_random_string 12)"
+    
+    # 生成VLESS Reality密钥对
+    log_info "正在生成 VLESS Reality 密钥对..."
+    local key_pair=$("$SINGBOX_BINARY" generate reality-keypair)
+    VLESS_PRIVATE_KEY=$(echo "$key_pair" | grep "PrivateKey:" | awk '{print $2}')
+    VLESS_PUBLIC_KEY=$(echo "$key_pair" | grep "PublicKey:" | awk '{print $2}')
+    VLESS_SHORT_ID=$(generate_random_string 8)
+    
+    # 设置默认伪装网站
+    local dest_site="www.microsoft.com"
+    local masq_site="https://www.bing.com"
+    
+    # 生成证书目录
+    local cert_dir="$SINGBOX_CONFIG_DIR/certs"
+    mkdir -p "$cert_dir"
+    
+    # 为VMess和Hysteria2生成自签名证书
+    log_info "正在生成自签名证书..."
+    local vmess_cert_file="$cert_dir/vmess_cert.pem"
+    local vmess_key_file="$cert_dir/vmess_key.pem"
+    local hy2_cert_file="$cert_dir/hy2_cert.pem"
+    local hy2_key_file="$cert_dir/hy2_key.pem"
+    
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "$vmess_key_file" \
+        -out "$vmess_cert_file" \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=vmess.local" 2>/dev/null
+    
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "$hy2_key_file" \
+        -out "$hy2_cert_file" \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=hysteria.local" 2>/dev/null
+    
+    # 生成增强多协议配置文件
+    log_info "正在生成增强多协议配置文件..."
+    
+    generate_enhanced_config "$vless_port" "$vmess_port" "$hy2_port" "$ws_path" "$dest_site" "$masq_site" "$vmess_cert_file" "$vmess_key_file" "$hy2_cert_file" "$hy2_key_file"
+    
+    # 创建系统服务
+    create_systemd_service
+    
+    # 启动服务
+    log_info "正在启动 sing-box 服务..."
+    if systemctl start sing-box; then
+        log_info "所有协议安装完成！"
+        
+        # 显示连接信息
+        echo
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${YELLOW}                连接信息${NC}"
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        echo -e "${CYAN}【VLESS Reality】${NC}"
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$vless_port${NC}"
+        echo -e "  UUID: ${GREEN}$VLESS_UUID${NC}"
+        echo -e "  Flow: ${GREEN}xtls-rprx-vision${NC}"
+        echo -e "  TLS: ${GREEN}Reality${NC}"
+        echo -e "  SNI: ${GREEN}$dest_site${NC}"
+        echo -e "  PublicKey: ${GREEN}$VLESS_PUBLIC_KEY${NC}"
+        echo -e "  ShortId: ${GREEN}$VLESS_SHORT_ID${NC}"
+        echo
+        
+        echo -e "${CYAN}【VMess WebSocket】${NC}"
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$vmess_port${NC}"
+        echo -e "  UUID: ${GREEN}$VMESS_UUID${NC}"
+        echo -e "  AlterID: ${GREEN}0${NC}"
+        echo -e "  传输协议: ${GREEN}WebSocket${NC}"
+        echo -e "  路径: ${GREEN}$ws_path${NC}"
+        echo -e "  TLS: ${GREEN}启用${NC}"
+        echo
+        
+        echo -e "${CYAN}【Hysteria2】${NC}"
+        echo -e "  服务器地址: ${GREEN}$IP_ADDRESS${NC}"
+        echo -e "  端口: ${GREEN}$hy2_port${NC}"
+        echo -e "  密码: ${GREEN}$HY2_PASSWORD${NC}"
+        echo -e "  伪装网站: ${GREEN}$masq_site${NC}"
+        echo -e "  TLS: ${GREEN}启用${NC}"
+        echo -e "  ALPN: ${GREEN}h3${NC}"
+        
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        
+        # 保存当前配置信息
+        CURRENT_PROTOCOL="Multi-Protocol (VLESS+VMess+Hysteria2)"
+        CURRENT_PORT="$vless_port,$vmess_port,$hy2_port"
+        
+    else
+        log_error "服务启动失败，请检查配置"
+        echo
+        log_info "正在检查配置文件..."
+        "$SINGBOX_BINARY" check -c "$SINGBOX_CONFIG_DIR/config.json"
+    fi
+    
+    echo
+    read -p "按回车键返回主菜单..." -r
+}
+
 # VLESS Reality 安装
 install_vless_reality() {
     show_logo
@@ -556,52 +983,10 @@ install_vless_reality() {
         *) local dest_site="www.microsoft.com" ;;
     esac
     
-    # 生成配置文件
-    log_info "正在生成配置文件..."
+    # 生成增强配置文件
+    log_info "正在生成增强配置文件..."
     
-    cat > "$SINGBOX_CONFIG_DIR/config.json" << EOF
-{
-  "log": {
-    "level": "info",
-    "output": "$SINGBOX_LOG_DIR/sing-box.log"
-  },
-  "inbounds": [
-    {
-      "type": "vless",
-      "tag": "vless-in",
-      "listen": "::",
-      "listen_port": $vless_port,
-      "users": [
-        {
-          "uuid": "$VLESS_UUID",
-          "flow": "xtls-rprx-vision"
-        }
-      ],
-      "tls": {
-        "enabled": true,
-        "server_name": "$dest_site",
-        "reality": {
-          "enabled": true,
-          "handshake": {
-            "server": "$dest_site",
-            "server_port": 443
-          },
-          "private_key": "$VLESS_PRIVATE_KEY",
-          "short_id": [
-            "$VLESS_SHORT_ID"
-          ]
-        }
-      }
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-  ]
-}
-EOF
+    generate_vless_reality_enhanced_config "$vless_port" "$dest_site"
     
     # 创建系统服务
     create_systemd_service
