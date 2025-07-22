@@ -1,0 +1,33 @@
+# VPS上sing-box服务诊断命令序列
+# 请在VPS的SSH终端中逐个执行以下命令来诊断问题
+
+# 1. 检查sing-box二进制文件是否存在
+echo "=== 检查sing-box二进制文件 ==="
+ls -la /usr/local/bin/sing-box
+/usr/local/bin/sing-box version
+
+# 2. 检查配置文件是否存在
+echo "=== 检查配置文件 ==="
+ls -la /etc/sing-box/
+ls -la /etc/sing-box/config.json
+
+# 3. 检查配置文件内容和语法
+echo "=== 检查配置文件语法 ==="
+/usr/local/bin/sing-box check -c /etc/sing-box/config.json
+
+# 4. 如果配置文件不存在或有语法错误，查看配置文件内容
+echo "=== 配置文件内容 ==="
+cat /etc/sing-box/config.json
+
+# 5. 检查systemd服务文件
+echo "=== 检查systemd服务 ==="
+ls -la /etc/systemd/system/sing-box.service
+cat /etc/systemd/system/sing-box.service
+
+# 6. 查看详细的服务状态和日志
+echo "=== 服务状态 ==="
+systemctl status sing-box -l
+
+# 7. 查看systemd日志
+echo "=== systemd日志 ==="
+journalctl -u sing-box -n
