@@ -224,6 +224,71 @@ check_dependencies() {
     log_info "系统依赖检查完成"
 }
 
+# 优化的自签证书生成函数
+generate_self_signed_cert() {
+    local cert_file="$1"
+    local key_file="$2"
+    local common_name="$3"
+    local cert_dir=$(dirname "$cert_file")
+    
+    # 确保证书目录存在
+    mkdir -p "$cert_dir"
+    
+    # 创建临时配置文件用于证书扩展
+    local config_file="$cert_dir/cert_config.conf"
+    cat > "$config_file" << EOF
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = US
+ST = California
+L = San Francisco
+O = Sing-box
+OU = VPN Server
+CN = $common_name
+
+[v3_req]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = critical, serverAuth
+subjectKeyIdentifier = hash
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = $common_name
+DNS.2 = localhost
+DNS.3 = *.local
+IP.1 = 127.0.0.1
+IP.2 = ::1
+EOF
+    
+    # 使用椭圆曲线算法生成更安全的证书（ECC P-256）
+    if command -v openssl >/dev/null 2>&1; then
+        # 生成ECC私钥
+        openssl ecparam -genkey -name prime256v1 -out "$key_file" 2>/dev/null
+        
+        # 生成自签名证书（有效期2年，使用SHA256）
+        openssl req -new -x509 -key "$key_file" -out "$cert_file" \
+            -days 730 -sha256 -config "$config_file" \
+            -extensions v3_req 2>/dev/null
+        
+        # 设置适当的文件权限
+        chmod 600 "$key_file"
+        chmod 644 "$cert_file"
+        
+        # 清理临时配置文件
+        rm -f "$config_file"
+        
+        log_info "已生成ECC自签名证书: $cert_file"
+    else
+        log_error "OpenSSL未安装，无法生成证书"
+        return 1
+    fi
+}
+
 # 检查网络连接
 check_network() {
     log_info "正在检查网络连接..."
@@ -782,6 +847,9 @@ generate_vless_reality_config() {
       "tag": "vless-in",
       "listen": "::",
       "listen_port": $vless_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "users": [
         {
           "uuid": "$VLESS_UUID",
@@ -902,6 +970,9 @@ generate_vmess_ws_config() {
       "tag": "vmess-in",
       "listen": "::",
       "listen_port": $vmess_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "users": [
         {
           "uuid": "$VMESS_UUID",
@@ -910,7 +981,9 @@ generate_vmess_ws_config() {
       ],
       "transport": {
         "type": "ws",
-        "path": "$ws_path"
+        "path": "$ws_path",
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
       },
       "tls": {
         "enabled": true,
@@ -1020,6 +1093,9 @@ generate_enhanced_config() {
       "tag": "vmess-in",
       "listen": "::",
       "listen_port": $vmess_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "users": [
         {
           "uuid": "$VMESS_UUID",
@@ -1028,7 +1104,9 @@ generate_enhanced_config() {
       ],
       "transport": {
         "type": "ws",
-        "path": "$ws_path"
+        "path": "$ws_path",
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
       },
       "tls": {
         "enabled": true,
@@ -1041,6 +1119,9 @@ generate_enhanced_config() {
       "tag": "hy2-in",
       "listen": "::",
       "listen_port": $hy2_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "up_mbps": 100,
       "down_mbps": 100,
       "users": [
@@ -1049,6 +1130,7 @@ generate_enhanced_config() {
           "password": "$HY2_PASSWORD"
         }
       ],
+      "masquerade": "https://www.bing.com",
       "tls": {
         "enabled": true,
         "alpn": [
@@ -1160,6 +1242,9 @@ generate_triple_protocol_config() {
       "tag": "vmess-in",
       "listen": "::",
       "listen_port": $vmess_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "users": [
         {
           "uuid": "$VMESS_UUID",
@@ -1168,7 +1253,9 @@ generate_triple_protocol_config() {
       ],
       "transport": {
         "type": "ws",
-        "path": "$ws_path"
+        "path": "$ws_path",
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
       },
       "tls": {
         "enabled": true,
@@ -1181,6 +1268,9 @@ generate_triple_protocol_config() {
       "tag": "hy2-in",
       "listen": "::",
       "listen_port": $hy2_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
       "up_mbps": 100,
       "down_mbps": 100,
       "users": [
@@ -1189,6 +1279,7 @@ generate_triple_protocol_config() {
           "password": "$HY2_PASSWORD"
         }
       ],
+      "masquerade": "https://www.bing.com",
       "tls": {
         "enabled": true,
         "alpn": [
@@ -1426,15 +1517,11 @@ install_all_protocols() {
     local hy2_cert_file="$cert_dir/hy2_cert.pem"
     local hy2_key_file="$cert_dir/hy2_key.pem"
     
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$vmess_key_file" \
-        -out "$vmess_cert_file" \
-        -subj "/C=US/ST=State/L=City/O=Organization/CN=vmess.local" 2>/dev/null
+    # 生成VMess证书（使用ECC算法）
+    generate_self_signed_cert "$vmess_cert_file" "$vmess_key_file" "vmess.local"
     
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$hy2_key_file" \
-        -out "$hy2_cert_file" \
-        -subj "/C=US/ST=State/L=City/O=Organization/CN=hysteria.local" 2>/dev/null
+    # 生成Hysteria2证书（使用ECC算法）
+    generate_self_signed_cert "$hy2_cert_file" "$hy2_key_file" "hysteria.local"
     
     # 生成三协议配置文件
     log_info "正在生成三协议配置文件..."
@@ -1562,10 +1649,8 @@ install_vmess_ws() {
         local cert_file="$cert_dir/cert.pem"
         local key_file="$cert_dir/key.pem"
         
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-            -keyout "$key_file" \
-            -out "$cert_file" \
-            -subj "/C=US/ST=State/L=City/O=Organization/CN=$domain_name" 2>/dev/null
+        # 使用优化的证书生成函数
+        generate_self_signed_cert "$cert_file" "$key_file" "$domain_name"
         
         tls_config=',
         "tls": {
@@ -1606,12 +1691,43 @@ install_vmess_ws() {
     {
       "type": "direct",
       "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
     }
   ],
+  "route": {
+    "rules": [
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".chinanet.cn",
+          ".chinaunicom.cn",
+          ".chinatelcom.cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
   "experimental": {
     "cache_file": {
       "enabled": true,
       "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "secret": "",
+      "external_ui_download_url": "https://mirror.ghproxy.com/https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "rule"
     }
   }
 }
@@ -1715,10 +1831,8 @@ install_hysteria2() {
     local cert_file="$cert_dir/cert.pem"
     local key_file="$cert_dir/key.pem"
     
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$key_file" \
-        -out "$cert_file" \
-        -subj "/C=US/ST=State/L=City/O=Organization/CN=hysteria.local" 2>/dev/null
+    # 使用优化的证书生成函数
+    generate_self_signed_cert "$cert_file" "$key_file" "hysteria.local"
     
     # 生成配置文件
     log_info "正在生成配置文件..."
@@ -1727,7 +1841,37 @@ install_hysteria2() {
 {
   "log": {
     "level": "info",
-    "output": "$SINGBOX_LOG_DIR/sing-box.log"
+    "output": "$SINGBOX_LOG_DIR/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "google",
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare",
+    "strategy": "prefer_ipv4"
   },
   "inbounds": [
     {
@@ -1735,6 +1879,11 @@ install_hysteria2() {
       "tag": "hy2-in",
       "listen": "::",
       "listen_port": $hy2_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
+      "up_mbps": 100,
+      "down_mbps": 100,
       "users": [
         {
           "name": "user",
@@ -1756,12 +1905,56 @@ install_hysteria2() {
     {
       "type": "direct",
       "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
     }
   ],
+  "route": {
+    "rules": [
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "127.0.0.0/8",
+          "169.254.0.0/16",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7",
+          "fe80::/10",
+          "::1/128"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
   "experimental": {
     "cache_file": {
       "enabled": true,
       "path": "$SINGBOX_CONFIG_DIR/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "secret": "",
+      "external_ui_download_url": "https://mirror.ghproxy.com/https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "rule"
     }
   }
 }
@@ -2453,9 +2646,54 @@ reinstall_menu() {
     rm -rf "$SINGBOX_CONFIG_DIR"
     rm -rf "$SINGBOX_LOG_DIR"
     
-    log_info "配置清理完成，请选择要安装的协议"
+    # 清除当前协议和端口信息
+    CURRENT_PROTOCOL=""
+    CURRENT_PORT=""
+    
+    log_info "配置清理完成，现在可以重新选择协议安装"
     echo
-    read -p "按回车键返回主菜单..." -r
+    
+    # 显示协议选择菜单
+    while true; do
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}                选择要安装的协议${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo
+        echo -e "  ${GREEN}1.${NC} 单独安装 VLESS Reality (推荐)"
+        echo -e "  ${GREEN}2.${NC} 单独安装 VMess WebSocket"
+        echo -e "  ${GREEN}3.${NC} 单独安装 Hysteria2"
+        echo -e "  ${GREEN}4.${NC} 一键安装所有协议 (VLESS Reality + VMess WS + Hysteria2)"
+        echo -e "  ${RED}0.${NC} 返回主菜单"
+        echo
+        
+        read -p "请选择要安装的协议 [0-4]: " choice
+        
+        case $choice in
+            1)
+                install_vless_reality
+                return
+                ;;
+            2)
+                install_vmess_ws
+                return
+                ;;
+            3)
+                install_hysteria2
+                return
+                ;;
+            4)
+                install_all_protocols
+                return
+                ;;
+            0)
+                return
+                ;;
+            *)
+                log_error "无效选择，请重新输入"
+                echo
+                ;;
+        esac
+    done
 }
 
 # 卸载sing-box
