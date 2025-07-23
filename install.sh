@@ -1159,176 +1159,46 @@ generate_hex_string() {
     fi
 }
 
-# 生成Reality密钥对
+# 生成Reality密钥对 - 简化版本，参考sing-box (1).sh
 generate_reality_keypair() {
     show_status "loading" "正在生成Reality密钥对..."
     
-    # 查找可用的sing-box二进制文件
+    # 查找sing-box二进制文件
     local singbox_cmd=""
     
-    # 优先级顺序：系统路径 -> 工作目录 -> 临时目录
-    local possible_paths=(
-        "$SINGBOX_BINARY"
-        "$SINGBOX_CONFIG_DIR/sing-box"
-        "/etc/sing-box/sing-box"
-        "/tmp/sing-box/sing-box"
-        "./sing-box"
-        "sing-box"
-    )
-    
-    for path in "${possible_paths[@]}"; do
-        if [[ -f "$path" ]] && [[ -x "$path" ]]; then
-            singbox_cmd="$path"
-            log_debug "找到可执行的sing-box: $singbox_cmd"
-            break
-        fi
-    done
-    
-    # 如果没有找到，尝试从系统PATH查找
-    if [[ -z "$singbox_cmd" ]] && command -v sing-box >/dev/null 2>&1; then
+    if [[ -x "$SINGBOX_BINARY" ]]; then
+        singbox_cmd="$SINGBOX_BINARY"
+    elif [[ -x "$SINGBOX_CONFIG_DIR/sing-box" ]]; then
+        singbox_cmd="$SINGBOX_CONFIG_DIR/sing-box"
+    elif command -v sing-box >/dev/null 2>&1; then
         singbox_cmd="sing-box"
-        log_debug "从系统PATH找到sing-box"
-    fi
-    
-    # 如果仍然没有找到，自动下载安装
-    if [[ -z "$singbox_cmd" ]]; then
-        show_status "warning" "sing-box二进制文件不存在，正在自动下载安装..."
-        
-        # 检测系统架构（如果未设置）
-        if [[ -z "$ARCH" ]]; then
-            local raw_arch=$(uname -m)
-            case $raw_arch in
-                x86_64) ARCH="amd64" ;;
-                aarch64|arm64) ARCH="arm64" ;;
-                armv7l) ARCH="armv7" ;;
-                *) 
-                    show_status "error" "不支持的系统架构: $raw_arch"
-                    return 1
-                    ;;
-            esac
-            log_debug "检测到系统架构: $ARCH"
-        fi
-        
-        # 检测操作系统类型（如果未设置）
-        if [[ -z "$OS_BINARY" ]]; then
-            local os_name=$(uname -s | tr '[:upper:]' '[:lower:]')
-            case $os_name in
-                linux) OS_BINARY="linux" ;;
-                darwin) OS_BINARY="darwin" ;;
-                *) OS_BINARY="linux" ;;
-            esac
-            log_debug "检测到操作系统: $OS_BINARY"
-        fi
-        
-        # 获取最新版本并下载
-        if ! get_latest_version; then
-            show_status "error" "无法获取sing-box版本信息"
-            return 1
-        fi
-        
-        if ! download_singbox; then
-            show_status "error" "sing-box下载安装失败"
-            return 1
-        fi
-        
-        # 重新查找sing-box
-        for path in "${possible_paths[@]}"; do
-            if [[ -f "$path" ]] && [[ -x "$path" ]]; then
-                singbox_cmd="$path"
-                break
-            fi
-        done
-        
-        if [[ -z "$singbox_cmd" ]]; then
-            show_status "error" "sing-box安装后仍无法找到可执行文件"
-            return 1
-        fi
-        
-        show_status "success" "sing-box安装完成，继续生成密钥对..."
-    fi
-    
-    local keypair_output
-    local max_retries=3
-    local retry_count=0
-    
-    while [[ $retry_count -lt $max_retries ]]; do
-        # 使用找到的sing-box命令生成密钥对，参考sing-box (1).sh的实现方式
-        if keypair_output=$("$singbox_cmd" generate reality-keypair 2>&1); then
-            log_debug "密钥生成尝试 $((retry_count+1)) 成功"
-            log_debug "原始输出: $keypair_output"
-            
-            # 检查输出是否包含密钥信息
-            if [[ "$keypair_output" == *"PrivateKey:"* ]] && [[ "$keypair_output" == *"PublicKey:"* ]]; then
-                log_debug "检测到标准格式输出"
-                break
-            elif [[ "$keypair_output" == *"private_key"* ]] && [[ "$keypair_output" == *"public_key"* ]]; then
-                log_debug "检测到JSON格式输出"
-                break
-            else
-                log_debug "输出格式不符合预期，重试"
-            fi
-        else
-            local exit_code=$?
-            log_debug "密钥生成尝试 $((retry_count+1)) 失败，退出码: $exit_code"
-            log_debug "错误输出: $keypair_output"
-        fi
-        
-        ((retry_count++))
-        if [[ $retry_count -lt $max_retries ]]; then
-            show_status "warning" "生成失败，正在重试 ($retry_count/$max_retries)..."
-            sleep 1
-        fi
-    done
-    
-    if [[ $retry_count -eq $max_retries ]]; then
-        show_status "error" "生成Reality密钥对失败（已重试$max_retries次）"
-        log_debug "最终失败输出: $keypair_output"
+    else
+        show_status "error" "未找到sing-box二进制文件，请先安装sing-box"
         return 1
     fi
     
-    # 解析密钥对 - 参考sing-box (1).sh的解析方式
-    if [[ "$keypair_output" == *"PrivateKey:"* ]] && [[ "$keypair_output" == *"PublicKey:"* ]]; then
-        # 标准格式：PrivateKey: xxx\nPublicKey: xxx - 使用awk解析最后一个字段
+    log_debug "使用sing-box: $singbox_cmd"
+    
+    # 生成Reality密钥对 - 使用与sing-box (1).sh相同的方法
+    local keypair_output
+    keypair_output=$("$singbox_cmd" generate reality-keypair 2>/dev/null)
+    
+    if [[ $? -eq 0 && -n "$keypair_output" ]]; then
+        # 使用awk解析输出，与sing-box (1).sh保持一致
         VLESS_REALITY_PRIVATE_KEY=$(awk '/PrivateKey/{print $NF}' <<< "$keypair_output")
         VLESS_REALITY_PUBLIC_KEY=$(awk '/PublicKey/{print $NF}' <<< "$keypair_output")
-    elif [[ "$keypair_output" == *"private_key"* ]] && [[ "$keypair_output" == *"public_key"* ]]; then
-        # JSON格式输出
-        VLESS_REALITY_PRIVATE_KEY=$(echo "$keypair_output" | grep -o '"private_key"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
-        VLESS_REALITY_PUBLIC_KEY=$(echo "$keypair_output" | grep -o '"public_key"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
-    else
-        # 尝试按行解析
-        local lines=($(echo "$keypair_output" | tr '\n' ' '))
-        if [[ ${#lines[@]} -ge 2 ]]; then
-            VLESS_REALITY_PRIVATE_KEY="${lines[0]}"
-            VLESS_REALITY_PUBLIC_KEY="${lines[1]}"
+        
+        if [[ -n "$VLESS_REALITY_PRIVATE_KEY" && -n "$VLESS_REALITY_PUBLIC_KEY" ]]; then
+            show_status "success" "Reality密钥对生成成功"
+            log_debug "私钥: ${VLESS_REALITY_PRIVATE_KEY:0:8}... (长度: ${#VLESS_REALITY_PRIVATE_KEY})"
+            log_debug "公钥: ${VLESS_REALITY_PUBLIC_KEY:0:8}... (长度: ${#VLESS_REALITY_PUBLIC_KEY})"
+            return 0
         fi
     fi
     
-    # 清理密钥字符串，移除所有空白字符
-    VLESS_REALITY_PRIVATE_KEY=$(echo "$VLESS_REALITY_PRIVATE_KEY" | tr -d '[:space:]')
-    VLESS_REALITY_PUBLIC_KEY=$(echo "$VLESS_REALITY_PUBLIC_KEY" | tr -d '[:space:]')
-    
-    if [[ -z "$VLESS_REALITY_PRIVATE_KEY" ]] || [[ -z "$VLESS_REALITY_PUBLIC_KEY" ]]; then
-        show_status "error" "解析Reality密钥对失败"
-        log_debug "原始输出: $keypair_output"
-        log_debug "解析后私钥: '$VLESS_REALITY_PRIVATE_KEY'"
-        log_debug "解析后公钥: '$VLESS_REALITY_PUBLIC_KEY'"
-        return 1
-    fi
-    
-    # 验证密钥格式（Reality密钥通常是base64格式，但也可能包含其他字符）
-    if [[ ${#VLESS_REALITY_PRIVATE_KEY} -lt 10 ]] || [[ ${#VLESS_REALITY_PUBLIC_KEY} -lt 10 ]]; then
-        show_status "error" "生成的密钥长度过短"
-        log_debug "私钥长度: ${#VLESS_REALITY_PRIVATE_KEY}, 公钥长度: ${#VLESS_REALITY_PUBLIC_KEY}"
-        log_debug "私钥内容: '$VLESS_REALITY_PRIVATE_KEY'"
-        log_debug "公钥内容: '$VLESS_REALITY_PUBLIC_KEY'"
-        return 1
-    fi
-    
-    show_status "success" "Reality密钥对生成成功"
-    log_debug "私钥: ${VLESS_REALITY_PRIVATE_KEY:0:8}... (长度: ${#VLESS_REALITY_PRIVATE_KEY})"
-    log_debug "公钥: ${VLESS_REALITY_PUBLIC_KEY:0:8}... (长度: ${#VLESS_REALITY_PUBLIC_KEY})"
-    return 0
+    show_status "error" "生成Reality密钥对失败"
+    log_debug "sing-box输出: $keypair_output"
+    return 1
 }
 
 # 验证目标网站连通性
