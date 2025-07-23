@@ -6,19 +6,8 @@
 # 版本: v2.0.0
 # 更新时间: 2024-12-19
 
-# 严格错误处理和调试模式
-set -euo pipefail
+# 基础设置
 IFS=$'\n\t'
-
-# 错误处理函数
-error_exit() {
-    local line_number=$1
-    local error_code=$2
-    log_error "脚本在第 $line_number 行发生错误 (退出码: $error_code)"
-    log_error "请检查网络连接、系统权限和依赖项"
-    cleanup_on_error
-    exit $error_code
-}
 
 # 清理函数
 cleanup_on_error() {
@@ -27,8 +16,7 @@ cleanup_on_error() {
     [[ -f "/tmp/sing-box-backup.tar.gz" ]] && rm -f "/tmp/sing-box-backup.tar.gz"
 }
 
-# 设置错误陷阱
-trap 'error_exit ${LINENO} $?' ERR
+# 设置中断信号处理
 trap 'echo "脚本被中断"; cleanup_on_error; exit 130' INT TERM
 
 # 颜色定义
