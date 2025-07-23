@@ -153,7 +153,27 @@ graph TD
 - 增强安装过程的稳定性
 - 改进安装失败的恢复机制
 
-### 5.3 技术实现细节
+### 5.3 配置文件修复要求
+
+**核心问题修复：**
+
+**问题1：缺少代理出口（Outbounds）配置**
+- 当前配置只有direct（直连）和block（拦截）两个出口选项
+- 必须添加实际的代理服务器配置（VMess、VLESS等类型的出口）
+- sing-box需要通过这些出口将数据包转发到代理服务器
+
+**问题2：路由规则（Route）错误**
+- 当前"final": "direct"导致所有流量直接连接互联网
+- 需要修改为通过代理服务器转发流量
+- 路由规则应该将需要代理的流量指向代理出口
+
+**修复方案：**
+- 参照sing-box官方文档标准配置
+- 添加完整的outbounds代理配置
+- 修正路由规则，确保流量正确转发
+- 实现客户端到代理服务器的完整链路
+
+### 5.4 技术实现细节
 
 **VLESS Reality协议优化：**
 
@@ -173,7 +193,7 @@ graph TD
 - **目标网站**: 预设microsoft.com、cloudflare.com，支持自定义
 - **服务器名称**: 与目标网站一致
 
-**标准化配置结构：**
+**修复后的标准化配置结构：**
 ```json
 {
   "log": {
@@ -220,14 +240,44 @@ graph TD
       }
     }
   }],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "type": "vless",
+      "server": "代理服务器地址",
+      "server_port": 443,
+      "uuid": "生成的UUID",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "reality": {
+          "enabled": true,
+          "public_key": "生成的公钥",
+          "short_id": "生成的短ID"
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
   "route": {
     "rules": [
       {
         "ip_is_private": true,
         "outbound": "direct"
+      },
+      {
+        "domain_suffix": [".cn"],
+        "outbound": "direct"
       }
     ],
-    "final": "direct",
+    "final": "proxy",
     "auto_detect_interface": true
   },
   "experimental": {
@@ -241,7 +291,27 @@ graph TD
 }
 ```
 
-### 5.2 主菜单更新要求
+**关键修复点说明：**
+1. **添加outbounds配置**：包含proxy（代理出口）、direct（直连）、block（拦截）三种出口
+2. **修正路由规则**：将"final": "direct"改为"final": "proxy"，确保默认流量通过代理
+3. **完善代理链路**：客户端 → inbounds → route → outbounds → 代理服务器
+4. **保留直连规则**：私有IP和中国域名仍然直连，其他流量走代理
+
+### 5.5 配置文件生成函数要求
+
+**核心配置生成函数：**
+- `generate_complete_config()` - 生成包含完整outbounds的配置文件
+- `validate_config_structure()` - 验证配置文件结构完整性
+- `fix_route_rules()` - 修复路由规则，确保流量正确转发
+- `add_proxy_outbounds()` - 添加代理出口配置
+
+**配置验证要求：**
+- 检查outbounds是否包含代理配置
+- 验证路由规则final指向是否正确
+- 确保inbounds和outbounds配置匹配
+- 测试配置文件语法正确性
+
+### 5.6 主菜单更新要求
 
 **新增菜单选项：**
 - 未安装状态：

@@ -1378,6 +1378,27 @@ generate_vless_reality_config() {
   ],
   "outbounds": [
     {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vless_port,
+      "uuid": "$VLESS_UUID",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "$VLESS_TARGET_WEBSITE",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "$VLESS_REALITY_PUBLIC_KEY",
+          "short_id": "$VLESS_REALITY_SHORT_ID"
+        }
+      }
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -1400,9 +1421,16 @@ generate_vless_reality_config() {
           ".chinatelcom.cn"
         ],
         "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
       }
     ],
-    "final": "direct",
+    "final": "proxy",
     "auto_detect_interface": true
   },
   "experimental": {
@@ -1495,6 +1523,25 @@ generate_vmess_ws_config() {
   ],
   "outbounds": [
     {
+      "type": "vmess",
+      "tag": "proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vmess_port,
+      "uuid": "$VMESS_UUID",
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "$DOMAIN_NAME",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -1517,9 +1564,16 @@ generate_vmess_ws_config() {
           ".chinatelcom.cn"
         ],
         "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
       }
     ],
-    "final": "direct",
+    "final": "proxy",
     "auto_detect_interface": true
   },
   "experimental": {
@@ -1643,6 +1697,43 @@ generate_enhanced_config() {
   ],
   "outbounds": [
     {
+      "type": "vmess",
+      "tag": "vmess-proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vmess_port,
+      "uuid": "$VMESS_UUID",
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "$DOMAIN_NAME",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $hy2_port,
+      "password": "$HY2_PASSWORD",
+      "tls": {
+        "enabled": true,
+        "server_name": "$DOMAIN_NAME",
+        "alpn": [
+          "h3"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -1665,9 +1756,16 @@ generate_enhanced_config() {
           ".chinatelcom.cn"
         ],
         "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
       }
     ],
-    "final": "direct",
+    "final": "vmess-proxy",
     "auto_detect_interface": true
   },
   "experimental": {
@@ -1819,6 +1917,64 @@ generate_triple_protocol_config() {
   ],
   "outbounds": [
     {
+      "type": "vless",
+      "tag": "vless-proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vless_port,
+      "uuid": "$VLESS_UUID",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "$VLESS_TARGET_WEBSITE",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "$VLESS_REALITY_PUBLIC_KEY",
+          "short_id": "$VLESS_REALITY_SHORT_ID"
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "vmess-proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vmess_port,
+      "uuid": "$VMESS_UUID",
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "$DOMAIN_NAME",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $hy2_port,
+      "password": "$HY2_PASSWORD",
+      "tls": {
+        "enabled": true,
+        "server_name": "$DOMAIN_NAME",
+        "alpn": [
+          "h3"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -1841,9 +1997,16 @@ generate_triple_protocol_config() {
           ".chinatelcom.cn"
         ],
         "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
       }
     ],
-    "final": "direct",
+    "final": "vless-proxy",
     "auto_detect_interface": true
   },
   "experimental": {
