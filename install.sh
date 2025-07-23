@@ -1737,6 +1737,7 @@ install_hysteria2() {
       "listen_port": $hy2_port,
       "users": [
         {
+          "name": "user",
           "password": "$HY2_PASSWORD"
         }
       ],
