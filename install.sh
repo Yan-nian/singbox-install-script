@@ -975,8 +975,7 @@ generate_vmess_ws_config() {
       "domain_strategy": "ipv4_only",
       "users": [
         {
-          "uuid": "$VMESS_UUID",
-          "alter_id": 0
+          "uuid": "$VMESS_UUID"
         }
       ],
       "transport": {
@@ -1098,8 +1097,7 @@ generate_enhanced_config() {
       "domain_strategy": "ipv4_only",
       "users": [
         {
-          "uuid": "$VMESS_UUID",
-          "alter_id": 0
+          "uuid": "$VMESS_UUID"
         }
       ],
       "transport": {
@@ -1247,8 +1245,7 @@ generate_triple_protocol_config() {
       "domain_strategy": "ipv4_only",
       "users": [
         {
-          "uuid": "$VMESS_UUID",
-          "alter_id": 0
+          "uuid": "$VMESS_UUID"
         }
       ],
       "transport": {

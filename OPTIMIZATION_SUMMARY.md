@@ -1,5 +1,26 @@
 # Sing-box 配置优化总结
 
+## 最新修复 (2024)
+
+### VMess 配置兼容性修复
+
+**问题**: sing-box 新版本不再支持 VMess 协议中的 `alter_id` 字段，导致配置验证失败。
+
+**错误信息**: 
+```
+FATAL[0000] decode config at /etc/sing-box/config.json: inbounds[0].users[0].alter_id: json: unknown field "alter_id"
+```
+
+**修复内容**:
+- ✅ 移除 `generate_vmess_ws_config()` 函数中的 `alter_id` 字段
+- ✅ 移除 `generate_enhanced_config()` 函数中的 `alter_id` 字段  
+- ✅ 移除 `generate_triple_protocol_config()` 函数中的 `alter_id` 字段
+- ✅ 修复现有 `config.json` 文件中的 `alter_id` 字段
+
+**影响范围**: 所有包含 VMess WebSocket 协议的配置函数
+
+**兼容性**: 适配最新版本的 sing-box，确保配置文件能够正常验证和运行
+
 ## 优化概述
 
 基于 GitHub 上 `chika0801/sing-box-examples` 仓库的标准模版，对 `install.sh` 脚本中的所有协议配置进行了现代化优化。

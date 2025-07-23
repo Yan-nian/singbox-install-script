@@ -1,0 +1,160 @@
+{
+  "log": {
+    "level": "info",
+    "output": "/var/log/sing-box/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "google",
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "direct"
+      },
+      {
+        "tag": "local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "cloudflare",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "vmess",
+      "tag": "vmess-in",
+      "listen": "::",
+      "listen_port": 39205,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
+      "users": [
+        {
+          "uuid": "e85d5f70-bdf5-43bb-9b35-ad38345a71ac"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/iBCJcgMxw5s1",
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      },
+      "tls": {
+        "enabled": true,
+        "certificate_path": "/etc/sing-box/certs/vmess_cert.pem",
+        "key_path": "/etc/sing-box/certs/vmess_key.pem"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-in",
+      "listen": "::",
+      "listen_port": 35785,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
+      "up_mbps": 100,
+      "down_mbps": 100,
+      "users": [
+        {
+          "name": "user",
+          "password": "l3eD88DsoKaa3cb1ZqveWnFcSjIBDm0h"
+        }
+      ],
+      "masquerade": "https://www.bing.com",
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "certificate_path": "/etc/sing-box/certs/hy2_cert.pem",
+        "key_path": "/etc/sing-box/certs/hy2_key.pem"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "::",
+      "listen_port": 41888,
+      "users": [
+        {
+          "uuid": "b0de35a3-32e7-40ed-b128-43967f28b789",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "microsoft.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "microsoft.com",
+            "server_port": 443
+          },
+          "private_key": "QOGV7_93QcHVcQ9_O90jbzXkE-ZcfDUQjhmz564dRV0",
+          "short_id": [
+            "bd1287ed"
+          ],
+          "max_time_difference": "1m"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".chinanet.cn",
+          ".chinaunicom.cn",
+          ".chinatelcom.cn"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "/etc/sing-box/cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "secret": "",
+      "external_ui_download_url": "https://mirror.ghproxy.com/https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "direct",
+      "default_mode": "rule"
+    }
+  }
+}
