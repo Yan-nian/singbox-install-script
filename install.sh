@@ -1434,8 +1434,16 @@ generate_vless_reality_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ],
-          "max_time_difference": "1m"
+          ]
+        }
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
         }
       }
     }
@@ -1567,9 +1575,12 @@ generate_vmess_ws_config() {
       "sniff": true,
       "sniff_override_destination": true,
       "domain_strategy": "ipv4_only",
+      "tcp_fast_open": false,
+      "proxy_protocol": false,
       "users": [
         {
-          "uuid": "$VMESS_UUID"
+          "uuid": "$VMESS_UUID",
+          "alterId": 0
         }
       ],
       "transport": {
@@ -1582,6 +1593,15 @@ generate_vmess_ws_config() {
         "enabled": true,
         "certificate_path": "$cert_file",
         "key_path": "$key_file"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
       }
     }
   ],
@@ -1744,7 +1764,6 @@ generate_enhanced_config() {
       "down_mbps": 100,
       "users": [
         {
-          "name": "user",
           "password": "$HY2_PASSWORD"
         }
       ],
@@ -1907,9 +1926,12 @@ generate_triple_protocol_config() {
       "sniff": true,
       "sniff_override_destination": true,
       "domain_strategy": "ipv4_only",
+      "tcp_fast_open": false,
+      "proxy_protocol": false,
       "users": [
         {
-          "uuid": "$VMESS_UUID"
+          "uuid": "$VMESS_UUID",
+          "alterId": 0
         }
       ],
       "transport": {
@@ -1922,6 +1944,15 @@ generate_triple_protocol_config() {
         "enabled": true,
         "certificate_path": "$vmess_cert_file",
         "key_path": "$vmess_key_file"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
       }
     },
     {
@@ -1936,7 +1967,6 @@ generate_triple_protocol_config() {
       "down_mbps": 100,
       "users": [
         {
-          "name": "user",
           "password": "$HY2_PASSWORD"
         }
       ],
@@ -1973,8 +2003,16 @@ generate_triple_protocol_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ],
-          "max_time_difference": "1m"
+          ]
+        }
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
         }
       }
     }
@@ -2393,7 +2431,8 @@ install_vmess_ws() {
 {
   "log": {
     "level": "info",
-    "output": "$SINGBOX_LOG_DIR/sing-box.log"
+    "output": "$SINGBOX_LOG_DIR/sing-box.log",
+    "timestamp": true
   },
   "inbounds": [
     {
@@ -2401,6 +2440,11 @@ install_vmess_ws() {
       "tag": "vmess-in",
       "listen": "::",
       "listen_port": $vmess_port,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "domain_strategy": "ipv4_only",
+      "tcp_fast_open": false,
+      "proxy_protocol": false,
       "users": [
         {
           "uuid": "$VMESS_UUID",
@@ -2409,8 +2453,19 @@ install_vmess_ws() {
       ],
       "transport": {
         "type": "ws",
-        "path": "$ws_path"
-      }$tls_config
+        "path": "$ws_path",
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }$tls_config,
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
+      }
     }
   ],
   "outbounds": [
