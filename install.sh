@@ -800,7 +800,8 @@ generate_vless_reality_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ]
+          ],
+          "max_time_difference": "1m"
         }
       }
     }
@@ -1220,7 +1221,8 @@ generate_triple_protocol_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ]
+          ],
+          "max_time_difference": "1m"
         }
       }
     }
