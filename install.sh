@@ -253,6 +253,20 @@ check_system() {
             ;;
     esac
     
+    # 检测操作系统类型（用于下载正确的二进制文件）
+    local os_name=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case $os_name in
+        linux)
+            OS_BINARY="linux"
+            ;;
+        darwin)
+            OS_BINARY="darwin"
+            ;;
+        *)
+            OS_BINARY="linux"  # 默认使用linux版本
+            ;;
+    esac
+    
     # 检测系统资源
     local total_mem=$(free -m | awk 'NR==2{printf "%.0f", $2}')
     local available_space=$(df / | awk 'NR==2{printf "%.0f", $4/1024}')
@@ -870,7 +884,7 @@ get_latest_version() {
 download_singbox() {
     show_status "loading" "正在下载 sing-box $SINGBOX_VERSION..."
     
-    local filename="sing-box-${SINGBOX_VERSION#v}-linux-${ARCH}.tar.gz"
+    local filename="sing-box-${SINGBOX_VERSION#v}-${OS_BINARY}-${ARCH}.tar.gz"
     local download_urls=(
         "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/${filename}"
         "${GITHUB_MIRROR}/https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/${filename}"
@@ -944,13 +958,16 @@ download_singbox() {
     fi
     
     # 查找二进制文件
-    local binary_path=$(find "$temp_dir" -name "sing-box" -type f -executable 2>/dev/null | head -1)
+    local binary_path=$(find "$temp_dir" -name "sing-box" -type f 2>/dev/null | head -1)
     if [[ -z "$binary_path" ]] || [[ ! -f "$binary_path" ]]; then
         show_status "error" "未找到 sing-box 二进制文件"
-        log_debug "临时目录内容: $(ls -la "$temp_dir" 2>/dev/null)"
+        log_debug "临时目录内容: $(find "$temp_dir" -type f 2>/dev/null)"
         rm -rf "$temp_dir"
         return 1
     fi
+    
+    # 设置执行权限（如果需要）
+    chmod +x "$binary_path" 2>/dev/null || true
     
     log_debug "找到二进制文件: $binary_path"
     
@@ -1146,31 +1163,82 @@ generate_hex_string() {
 generate_reality_keypair() {
     show_status "loading" "正在生成Reality密钥对..."
     
+    # 检查sing-box二进制文件是否存在
+    if [[ ! -f "$SINGBOX_BINARY" ]]; then
+        show_status "warning" "sing-box二进制文件不存在，正在自动下载安装..."
+        
+        # 检测系统架构（如果未设置）
+        if [[ -z "$ARCH" ]]; then
+            local raw_arch=$(uname -m)
+            case $raw_arch in
+                x86_64) ARCH="amd64" ;;
+                aarch64|arm64) ARCH="arm64" ;;
+                armv7l) ARCH="armv7" ;;
+                *) 
+                    show_status "error" "不支持的系统架构: $raw_arch"
+                    return 1
+                    ;;
+            esac
+            log_debug "检测到系统架构: $ARCH"
+        fi
+        
+        # 检测操作系统类型（如果未设置）
+        if [[ -z "$OS_BINARY" ]]; then
+            local os_name=$(uname -s | tr '[:upper:]' '[:lower:]')
+            case $os_name in
+                linux) OS_BINARY="linux" ;;
+                darwin) OS_BINARY="darwin" ;;
+                *) OS_BINARY="linux" ;;
+            esac
+            log_debug "检测到操作系统: $OS_BINARY"
+        fi
+        
+        # 获取最新版本并下载
+        if ! get_latest_version; then
+            show_status "error" "无法获取sing-box版本信息"
+            return 1
+        fi
+        
+        if ! download_singbox; then
+            show_status "error" "sing-box下载安装失败"
+            return 1
+        fi
+        
+        show_status "success" "sing-box安装完成，继续生成密钥对..."
+    fi
+    
+    # 检查sing-box是否可执行
     if ! command -v "$SINGBOX_BINARY" >/dev/null 2>&1; then
-        show_status "error" "sing-box二进制文件不存在，无法生成密钥对"
+        show_status "error" "sing-box二进制文件无法执行，请检查权限"
         return 1
     fi
     
     local keypair_output
+    local keypair_error
     local max_retries=3
     local retry_count=0
     
     while [[ $retry_count -lt $max_retries ]]; do
-        keypair_output=$("$SINGBOX_BINARY" generate reality-keypair 2>/dev/null)
+        # 捕获标准输出和错误输出
+        keypair_output=$("$SINGBOX_BINARY" generate reality-keypair 2>&1)
+        local exit_code=$?
         
-        if [[ -n "$keypair_output" ]]; then
+        if [[ $exit_code -eq 0 ]] && [[ -n "$keypair_output" ]] && [[ "$keypair_output" == *"PrivateKey:"* ]] && [[ "$keypair_output" == *"PublicKey:"* ]]; then
+            log_debug "密钥生成成功，输出: $keypair_output"
             break
         fi
         
         ((retry_count++))
         if [[ $retry_count -lt $max_retries ]]; then
             show_status "warning" "生成失败，正在重试 ($retry_count/$max_retries)..."
+            log_debug "重试原因 - 退出码: $exit_code, 输出: $keypair_output"
             sleep 1
         fi
     done
     
-    if [[ -z "$keypair_output" ]]; then
+    if [[ $retry_count -eq $max_retries ]]; then
         show_status "error" "生成Reality密钥对失败（已重试$max_retries次）"
+        log_debug "最终失败输出: $keypair_output"
         return 1
     fi
     
@@ -1184,9 +1252,17 @@ generate_reality_keypair() {
         return 1
     fi
     
-    # 验证密钥格式
-    if [[ ${#VLESS_REALITY_PRIVATE_KEY} -ne 44 ]] || [[ ${#VLESS_REALITY_PUBLIC_KEY} -ne 44 ]]; then
+    # 验证密钥格式（检查是否为有效的base64格式）
+    if [[ ! "$VLESS_REALITY_PRIVATE_KEY" =~ ^[A-Za-z0-9+/]+=*$ ]] || [[ ! "$VLESS_REALITY_PUBLIC_KEY" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
         show_status "error" "生成的密钥格式不正确"
+        log_debug "私钥: $VLESS_REALITY_PRIVATE_KEY"
+        log_debug "公钥: $VLESS_REALITY_PUBLIC_KEY"
+        return 1
+    fi
+    
+    # 检查密钥长度是否合理（至少20字符）
+    if [[ ${#VLESS_REALITY_PRIVATE_KEY} -lt 20 ]] || [[ ${#VLESS_REALITY_PUBLIC_KEY} -lt 20 ]]; then
+        show_status "error" "生成的密钥长度过短"
         log_debug "私钥长度: ${#VLESS_REALITY_PRIVATE_KEY}, 公钥长度: ${#VLESS_REALITY_PUBLIC_KEY}"
         return 1
     fi
