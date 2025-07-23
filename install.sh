@@ -1362,7 +1362,8 @@ generate_vless_reality_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ]
+          ],
+          "max_time_difference": "1m"
         }
       },
       "multiplex": {
@@ -1931,7 +1932,8 @@ generate_triple_protocol_config() {
           "private_key": "$VLESS_REALITY_PRIVATE_KEY",
           "short_id": [
             "$VLESS_REALITY_SHORT_ID"
-          ]
+          ],
+          "max_time_difference": "1m"
         }
       },
       "multiplex": {
@@ -2398,6 +2400,17 @@ install_vmess_ws() {
   ],
   "outbounds": [
     {
+      "type": "vmess",
+      "tag": "proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $vmess_port,
+      "uuid": "$VMESS_UUID",
+      "transport": {
+        "type": "ws",
+        "path": "$ws_path"
+      }$tls_config
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -2420,9 +2433,16 @@ install_vmess_ws() {
           ".chinatelcom.cn"
         ],
         "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
       }
     ],
-    "final": "direct",
+    "final": "proxy",
     "auto_detect_interface": true
   },
   "experimental": {
@@ -2595,7 +2615,6 @@ install_hysteria2() {
       "down_mbps": 100,
       "users": [
         {
-          "name": "user",
           "password": "$HY2_PASSWORD"
         }
       ],
@@ -2612,6 +2631,24 @@ install_hysteria2() {
   ],
   "outbounds": [
     {
+      "type": "hysteria2",
+      "tag": "proxy",
+      "server": "$IP_ADDRESS",
+      "server_port": $hy2_port,
+      "password": "$HY2_PASSWORD",
+      "tls": {
+        "enabled": true,
+        "server_name": "hysteria.local",
+        "alpn": [
+          "h3"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
       "type": "direct",
       "tag": "direct"
     },
@@ -2623,33 +2660,27 @@ install_hysteria2() {
   "route": {
     "rules": [
       {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          ".chinanet.cn",
+          ".chinaunicom.cn",
+          ".chinatelcom.cn"
+        ],
+        "outbound": "direct"
+      },
+      {
         "ip_cidr": [
           "224.0.0.0/3",
           "ff00::/8"
         ],
         "outbound": "block"
-      },
-      {
-        "ip_cidr": [
-          "10.0.0.0/8",
-          "127.0.0.0/8",
-          "169.254.0.0/16",
-          "172.16.0.0/12",
-          "192.168.0.0/16",
-          "fc00::/7",
-          "fe80::/10",
-          "::1/128"
-        ],
-        "outbound": "direct"
-      },
-      {
-        "domain_suffix": [
-          ".cn"
-        ],
-        "outbound": "direct"
       }
     ],
-    "final": "direct",
+    "final": "proxy",
     "auto_detect_interface": true
   },
   "experimental": {
