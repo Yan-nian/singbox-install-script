@@ -1,7 +1,7 @@
 ## 1. Product Overview
-Sing-box VPS一键安装脚本，支持快速部署vless reality、vmess ws、hy2三种主流代理协议的自动化安装工具。
-- 解决VPS代理服务器搭建复杂、配置繁琐的问题，为技术用户提供简单易用的一键部署方案。
-- 目标是成为最受欢迎的sing-box部署脚本，简化代理服务器搭建流程。
+Sing-box VPS一键安装脚本优化版，基于fscarmen/sing-box项目的最佳实践进行改造，支持快速部署vless reality、vmess ws、hy2三种主流代理协议的自动化安装工具。
+- 解决VPS代理服务器搭建复杂、配置繁琐的问题，通过代码优化和配置标准化提供更稳定可靠的一键部署方案。
+- 目标是打造高质量、高稳定性的sing-box部署脚本，提升用户体验和系统可靠性。
 
 ## 2. Core Features
 
@@ -11,12 +11,12 @@ Sing-box VPS一键安装脚本，支持快速部署vless reality、vmess ws、hy
 | VPS管理员 | 直接运行脚本 | 完整的安装、配置、管理权限 |
 
 ### 2.2 Feature Module
-我们的sing-box安装脚本包含以下主要功能模块：
-1. **主菜单页面**：协议选择、系统检测、安装状态显示
-2. **安装配置页面**：自动安装sing-box、生成配置文件、启动服务
-3. **协议管理页面**：vless reality配置、vmess ws配置、hy2配置
-4. **系统管理页面**：服务状态查看、日志查看、端口更改、配置分享、卸载功能
-5. **VLESS Reality专用页面**：Reality密钥生成、目标网站配置、单独安装选项
+基于fscarmen/sing-box项目的优化方案，我们的sing-box安装脚本包含以下主要功能模块：
+1. **主菜单页面**：协议选择、系统检测、安装状态显示、优化的用户界面
+2. **安装配置页面**：自动安装sing-box、生成标准化配置文件、启动服务、错误处理增强
+3. **协议管理页面**：vless reality配置、vmess ws配置、hy2配置、配置验证优化
+4. **系统管理页面**：服务状态查看、日志查看、端口更改、配置分享、卸载功能、性能监控
+5. **代码优化模块**：函数重构、错误处理标准化、配置生成优化、兼容性增强
 
 ### 2.3 Page Details
 | Page Name | Module Name | Feature description |
@@ -117,9 +117,45 @@ graph TD
 ### 4.3 Responsiveness
 该脚本主要面向服务器终端环境，采用文本界面设计，自适应不同终端窗口大小，支持SSH远程操作。
 
-## 5. 技术实现要求
+## 5. 基于fscarmen/sing-box的优化要求
 
-### 5.1 VLESS Reality协议实现细节
+### 5.1 代码质量优化
+
+**代码结构优化：**
+- 函数模块化重构，提高代码可读性和可维护性
+- 统一错误处理机制，标准化错误信息输出
+- 优化变量命名和代码注释，提升代码质量
+- 移除冗余代码，简化复杂逻辑
+
+**配置生成优化：**
+- 标准化所有协议的配置文件格式
+- 优化DNS配置，支持多DNS服务器和智能分流
+- 完善路由规则，提升网络性能
+- 统一TLS和证书处理逻辑
+
+**兼容性增强：**
+- 适配最新版本的sing-box
+- 修复已知的配置兼容性问题
+- 增强系统环境检测和适配
+- 优化不同操作系统的支持
+
+### 5.2 用户体验优化
+
+**界面优化：**
+- 改进菜单显示和交互逻辑
+- 优化进度显示和状态反馈
+- 增强错误提示和帮助信息
+- 统一颜色方案和视觉效果
+
+**安装流程优化：**
+- 简化安装步骤，减少用户输入
+- 优化默认配置选择
+- 增强安装过程的稳定性
+- 改进安装失败的恢复机制
+
+### 5.3 技术实现细节
+
+**VLESS Reality协议优化：**
 
 **必需函数：**
 - `install_vless_reality()` - VLESS Reality单独安装函数
@@ -137,25 +173,69 @@ graph TD
 - **目标网站**: 预设microsoft.com、cloudflare.com，支持自定义
 - **服务器名称**: 与目标网站一致
 
-**配置文件结构示例：**
+**标准化配置结构：**
 ```json
 {
-  "type": "vless",
-  "listen_port": 443,
-  "users": [{
-    "uuid": "生成的UUID",
-    "flow": "xtls-rprx-vision"
-  }],
-  "tls": {
-    "enabled": true,
-    "reality": {
-      "enabled": true,
-      "handshake": {
-        "server": "microsoft.com",
-        "server_port": 443
+  "log": {
+    "level": "info",
+    "output": "/var/log/sing-box/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "direct"
       },
-      "private_key": "生成的私钥",
-      "short_id": ["生成的短ID"]
+      {
+        "tag": "google", 
+        "address": "https://8.8.8.8/dns-query",
+        "detour": "direct"
+      }
+    ],
+    "final": "cloudflare",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [{
+    "type": "vless",
+    "listen_port": 443,
+    "sniff": true,
+    "sniff_override_destination": true,
+    "domain_strategy": "ipv4_only",
+    "users": [{
+      "uuid": "生成的UUID",
+      "flow": "xtls-rprx-vision"
+    }],
+    "tls": {
+      "enabled": true,
+      "reality": {
+        "enabled": true,
+        "handshake": {
+          "server": "microsoft.com",
+          "server_port": 443
+        },
+        "private_key": "生成的私钥",
+        "short_id": ["生成的短ID"]
+      }
+    }
+  }],
+  "route": {
+    "rules": [
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090"
     }
   }
 }
@@ -176,9 +256,54 @@ graph TD
 - 生成三套完整的配置参数
 - 显示所有协议的连接信息
 
-### 5.3 兼容性要求
+### 5.4 优化实施计划
 
+**阶段1：代码质量提升**
+- 重构核心配置生成函数
+- 统一错误处理和日志记录
+- 优化变量命名和代码结构
+- 移除冗余和过时的代码
+
+**阶段2：配置标准化**
+- 更新所有协议配置模板
+- 统一DNS和路由配置
+- 优化TLS和证书处理
+- 增强配置验证机制
+
+**阶段3：用户体验改进**
+- 优化菜单界面和交互流程
+- 改进错误提示和帮助信息
+- 增强安装过程的稳定性
+- 完善状态显示和进度反馈
+
+**阶段4：兼容性和稳定性**
+- 适配最新版本sing-box
+- 修复已知兼容性问题
+- 增强系统环境适配
+- 完善测试和验证机制
+
+### 5.5 验收标准
+
+**功能完整性：**
 - 保持现有VMess WebSocket和Hysteria2功能不变
 - 新增功能不影响现有配置和服务
 - 支持单协议和多协议配置的无缝切换
-- 配置分享功能需支持VLESS Reality链接生成
+- 配置分享功能需支持所有协议链接生成
+
+**代码质量：**
+- 代码通过语法检查和静态分析
+- 函数模块化程度显著提升
+- 错误处理机制统一且完善
+- 代码注释和文档完整
+
+**用户体验：**
+- 安装成功率达到95%以上
+- 错误信息清晰易懂
+- 界面交互流畅自然
+- 配置生成准确无误
+
+**兼容性：**
+- 支持主流Linux发行版
+- 适配最新版本sing-box
+- 配置文件格式标准化
+- 向后兼容现有配置

@@ -6,8 +6,30 @@
 # 版本: v2.0.0
 # 更新时间: 2024-12-19
 
-# 移除严格的错误处理，改为手动处理关键错误
-# set -e
+# 严格错误处理和调试模式
+set -euo pipefail
+IFS=$'\n\t'
+
+# 错误处理函数
+error_exit() {
+    local line_number=$1
+    local error_code=$2
+    log_error "脚本在第 $line_number 行发生错误 (退出码: $error_code)"
+    log_error "请检查网络连接、系统权限和依赖项"
+    cleanup_on_error
+    exit $error_code
+}
+
+# 清理函数
+cleanup_on_error() {
+    log_warn "正在清理临时文件..."
+    [[ -d "/tmp/sing-box-install" ]] && rm -rf "/tmp/sing-box-install"
+    [[ -f "/tmp/sing-box-backup.tar.gz" ]] && rm -f "/tmp/sing-box-backup.tar.gz"
+}
+
+# 设置错误陷阱
+trap 'error_exit ${LINENO} $?' ERR
+trap 'echo "脚本被中断"; cleanup_on_error; exit 130' INT TERM
 
 # 颜色定义
 RED='\033[0;31m'
@@ -18,16 +40,35 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# 全局常量
+readonly SCRIPT_VERSION="v2.0.0"
+readonly SCRIPT_NAME="Sing-box VPS一键安装脚本"
+readonly SCRIPT_AUTHOR="Solo Coding"
+readonly SCRIPT_DATE="2024-12-19"
+
+# Sing-box 相关路径
+readonly SINGBOX_CONFIG_DIR="/etc/sing-box"
+readonly SINGBOX_LOG_DIR="/var/log/sing-box"
+readonly SINGBOX_SERVICE_FILE="/etc/systemd/system/sing-box.service"
+readonly SINGBOX_BINARY="/usr/local/bin/sing-box"
+readonly SINGBOX_BACKUP_DIR="/etc/sing-box/backup"
+readonly SINGBOX_CERT_DIR="/etc/sing-box/certs"
+
+# 网络配置
+readonly DEFAULT_DNS_SERVERS=("1.1.1.1" "8.8.8.8" "223.5.5.5")
+readonly GITHUB_API_URL="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
+readonly GITHUB_MIRROR="https://mirror.ghproxy.com"
+
+# 端口范围
+readonly MIN_PORT=10000
+readonly MAX_PORT=65535
+
 # 全局变量
-SCRIPT_VERSION="v2.0.0"
 SINGBOX_VERSION=""
-SINGBOX_CONFIG_DIR="/etc/sing-box"
-SINGBOX_LOG_DIR="/var/log/sing-box"
-SINGBOX_SERVICE_FILE="/etc/systemd/system/sing-box.service"
-SINGBOX_BINARY="/usr/local/bin/sing-box"
 CURRENT_PROTOCOL=""
 CURRENT_PORT=""
 INSTALL_PATH="$(pwd)"
+DEBUG_MODE=false
 
 # 系统信息
 OS_TYPE=""
@@ -68,36 +109,101 @@ show_logo() {
     echo
 }
 
-# 日志函数
+# 增强的日志函数
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "${GREEN}[INFO]${NC} [$timestamp] $1"
+    [[ "$DEBUG_MODE" == "true" ]] && echo "[INFO] [$timestamp] $1" >> "/tmp/sing-box-install.log"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "${YELLOW}[WARN]${NC} [$timestamp] $1"
+    [[ "$DEBUG_MODE" == "true" ]] && echo "[WARN] [$timestamp] $1" >> "/tmp/sing-box-install.log"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "${RED}[ERROR]${NC} [$timestamp] $1" >&2
+    echo "[ERROR] [$timestamp] $1" >> "/tmp/sing-box-install.log"
 }
 
 log_debug() {
-    echo -e "${PURPLE}[DEBUG]${NC} $1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    if [[ "$DEBUG_MODE" == "true" ]]; then
+        echo -e "${PURPLE}[DEBUG]${NC} [$timestamp] $1"
+        echo "[DEBUG] [$timestamp] $1" >> "/tmp/sing-box-install.log"
+    fi
 }
 
-# 进度显示函数
+log_success() {
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "${GREEN}[SUCCESS]${NC} [$timestamp] $1"
+    [[ "$DEBUG_MODE" == "true" ]] && echo "[SUCCESS] [$timestamp] $1" >> "/tmp/sing-box-install.log"
+}
+
+# 增强的进度显示函数
 show_progress() {
     local current=$1
     local total=$2
     local desc=$3
     local percent=$((current * 100 / total))
-    local bar_length=30
+    local bar_length=40
     local filled_length=$((percent * bar_length / 100))
     
-    printf "\r${CYAN}[%3d%%]${NC} [" "$percent"
-    for ((i=0; i<filled_length; i++)); do printf "█"; done
-    for ((i=filled_length; i<bar_length; i++)); do printf "░"; done
-    printf "] %s" "$desc"
+    # 清除当前行
+    printf "\r\033[K"
+    
+    # 显示进度条
+    printf "${CYAN}[%3d%%]${NC} [" "$percent"
+    for ((i=0; i<filled_length; i++)); do printf "${GREEN}█${NC}"; done
+    for ((i=filled_length; i<bar_length; i++)); do printf "${BLUE}░${NC}"; done
+    printf "] ${YELLOW}%s${NC}" "$desc"
+    
+    # 如果完成，换行
+    [[ $current -eq $total ]] && echo
+}
+
+# 旋转进度指示器
+show_spinner() {
+    local pid=$1
+    local desc=$2
+    local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    
+    while kill -0 $pid 2>/dev/null; do
+        printf "\r${CYAN}%s${NC} ${YELLOW}%s${NC}" "${spin:$i:1}" "$desc"
+        i=$(( (i+1) % ${#spin} ))
+        sleep 0.1
+    done
+    printf "\r\033[K"
+}
+
+# 状态指示器
+show_status() {
+    local status=$1
+    local message=$2
+    
+    case $status in
+        "success")
+            echo -e "${GREEN}✓${NC} $message"
+            ;;
+        "error")
+            echo -e "${RED}✗${NC} $message"
+            ;;
+        "warning")
+            echo -e "${YELLOW}⚠${NC} $message"
+            ;;
+        "info")
+            echo -e "${BLUE}ℹ${NC} $message"
+            ;;
+        "loading")
+            echo -e "${CYAN}⟳${NC} $message"
+            ;;
+        *)
+            echo -e "${NC}$message"
+            ;;
+    esac
 }
 
 # 错误处理函数
@@ -120,26 +226,29 @@ check_root() {
     fi
 }
 
-# 系统检测模块
+# 增强的系统检测模块
 check_system() {
-    log_info "正在检测系统环境..."
+    show_status "loading" "正在检测系统环境..."
     
     # 检测操作系统
     if [[ -f /etc/os-release ]]; then
         source /etc/os-release
         OS_TYPE=$ID
         OS_VERSION=$VERSION_ID
+        OS_PRETTY_NAME="$PRETTY_NAME"
     elif [[ -f /etc/redhat-release ]]; then
         OS_TYPE="centos"
         OS_VERSION=$(cat /etc/redhat-release | grep -oE '[0-9]+\.[0-9]+')
+        OS_PRETTY_NAME="CentOS $OS_VERSION"
     else
-        log_error "不支持的操作系统"
+        show_status "error" "不支持的操作系统"
+        log_error "当前系统不在支持列表中"
         exit 1
     fi
     
     # 检测系统架构
-    ARCH=$(uname -m)
-    case $ARCH in
+    local raw_arch=$(uname -m)
+    case $raw_arch in
         x86_64)
             ARCH="amd64"
             ;;
@@ -150,92 +259,193 @@ check_system() {
             ARCH="armv7"
             ;;
         *)
-            log_error "不支持的系统架构: $ARCH"
+            show_status "error" "不支持的系统架构: $raw_arch"
+            log_error "当前架构不在支持列表中"
             exit 1
             ;;
     esac
     
-    # 获取公网IP
-    log_info "正在获取服务器IP地址..."
-    IP_ADDRESS=$(curl -s --max-time 10 ipv4.icanhazip.com || curl -s --max-time 10 ifconfig.me || curl -s --max-time 10 ip.sb)
+    # 检测系统资源
+    local total_mem=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+    local available_space=$(df / | awk 'NR==2{printf "%.0f", $4/1024}')
     
-    if [[ -z "$IP_ADDRESS" ]]; then
-        log_warn "无法获取公网IP，请手动确认网络连接"
-        read -p "请输入服务器IP地址: " IP_ADDRESS
+    # 检查最低系统要求
+    if [[ $total_mem -lt 512 ]]; then
+        show_status "warning" "内存不足512MB，可能影响性能"
     fi
     
-    log_info "系统信息检测完成:"
-    echo -e "  操作系统: ${GREEN}$OS_TYPE $OS_VERSION${NC}"
-    echo -e "  系统架构: ${GREEN}$ARCH${NC}"
-    echo -e "  服务器IP: ${GREEN}$IP_ADDRESS${NC}"
-    echo
-}
-
-# 检查系统依赖
-check_dependencies() {
-    log_info "正在检查系统依赖..."
+    if [[ $available_space -lt 1024 ]]; then
+        show_status "warning" "可用磁盘空间不足1GB，可能影响安装"
+    fi
     
-    local deps=("curl" "wget" "unzip" "systemctl")
-    local missing_deps=()
+    # 获取公网IP
+    show_status "loading" "正在获取服务器IP地址..."
+    local ip_services=(
+        "ipv4.icanhazip.com"
+        "ifconfig.me"
+        "ip.sb"
+        "ipinfo.io/ip"
+        "api.ipify.org"
+    )
     
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" >/dev/null 2>&1; then
-            missing_deps+=("$dep")
+    for service in "${ip_services[@]}"; do
+        IP_ADDRESS=$(curl -s --connect-timeout 5 --max-time 10 "$service" 2>/dev/null | grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$')
+        if [[ -n "$IP_ADDRESS" ]]; then
+            break
         fi
     done
     
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        log_warn "缺少以下依赖: ${missing_deps[*]}"
-        log_info "正在自动安装依赖..."
+    if [[ -z "$IP_ADDRESS" ]]; then
+        show_status "warning" "无法自动获取公网IP"
+        while true; do
+            read -p "请手动输入服务器IP地址: " IP_ADDRESS
+            if [[ $IP_ADDRESS =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+                break
+            else
+                show_status "error" "IP地址格式不正确，请重新输入"
+            fi
+        done
+    fi
+    
+    # 显示系统信息
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                    系统信息${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  操作系统: ${GREEN}$OS_PRETTY_NAME${NC}"
+    echo -e "  系统架构: ${GREEN}$raw_arch ($ARCH)${NC}"
+    echo -e "  内存大小: ${GREEN}${total_mem}MB${NC}"
+    echo -e "  可用空间: ${GREEN}${available_space}MB${NC}"
+    echo -e "  服务器IP: ${GREEN}$IP_ADDRESS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    
+    show_status "success" "系统环境检测完成"
+    log_debug "系统检测结果: OS=$OS_TYPE/$OS_VERSION, ARCH=$ARCH, IP=$IP_ADDRESS"
+}
+
+# 增强的依赖检查函数
+check_dependencies() {
+    show_status "loading" "正在检查系统依赖..."
+    
+    # 必需依赖
+    local required_deps=("curl" "wget" "unzip" "systemctl" "openssl")
+    # 可选依赖
+    local optional_deps=("jq" "ss" "netstat" "lsof")
+    
+    local missing_required=()
+    local missing_optional=()
+    
+    # 检查必需依赖
+    for dep in "${required_deps[@]}"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            missing_required+=("$dep")
+        else
+            show_status "success" "$dep 已安装"
+        fi
+    done
+    
+    # 检查可选依赖
+    for dep in "${optional_deps[@]}"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            missing_optional+=("$dep")
+        else
+            show_status "success" "$dep 已安装"
+        fi
+    done
+    
+    # 安装缺失的必需依赖
+    if [[ ${#missing_required[@]} -gt 0 ]]; then
+        show_status "warning" "缺少必需依赖: ${missing_required[*]}"
+        show_status "loading" "正在自动安装依赖..."
         
         case $OS_TYPE in
             ubuntu|debian)
-                if apt update >/dev/null 2>&1 && apt install -y "${missing_deps[@]}" >/dev/null 2>&1; then
-                    log_info "依赖安装成功"
+                show_progress 1 3 "更新软件包列表..."
+                if apt update >/dev/null 2>&1; then
+                    show_progress 2 3 "安装依赖包..."
+                    if apt install -y "${missing_required[@]}" >/dev/null 2>&1; then
+                        show_progress 3 3 "依赖安装完成"
+                        show_status "success" "依赖安装成功"
+                    else
+                        show_status "error" "依赖安装失败，请手动安装: ${missing_required[*]}"
+                        return 1
+                    fi
                 else
-                    log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                    show_status "error" "无法更新软件包列表"
                     return 1
                 fi
                 ;;
             centos|rhel|fedora)
+                show_progress 1 3 "检查包管理器..."
                 if command -v dnf >/dev/null 2>&1; then
-                    if dnf install -y "${missing_deps[@]}" >/dev/null 2>&1; then
-                        log_info "依赖安装成功"
+                    show_progress 2 3 "使用DNF安装依赖..."
+                    if dnf install -y "${missing_required[@]}" >/dev/null 2>&1; then
+                        show_progress 3 3 "依赖安装完成"
+                        show_status "success" "依赖安装成功"
                     else
-                        log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                        show_status "error" "依赖安装失败，请手动安装: ${missing_required[*]}"
                         return 1
                     fi
                 else
-                    if yum install -y "${missing_deps[@]}" >/dev/null 2>&1; then
-                        log_info "依赖安装成功"
+                    show_progress 2 3 "使用YUM安装依赖..."
+                    if yum install -y "${missing_required[@]}" >/dev/null 2>&1; then
+                        show_progress 3 3 "依赖安装完成"
+                        show_status "success" "依赖安装成功"
                     else
-                        log_error "依赖安装失败，请手动安装: ${missing_deps[*]}"
+                        show_status "error" "依赖安装失败，请手动安装: ${missing_required[*]}"
                         return 1
                     fi
                 fi
                 ;;
             *)
-                log_error "不支持的包管理器，请手动安装: ${missing_deps[*]}"
+                show_status "error" "不支持的包管理器，请手动安装: ${missing_required[*]}"
                 return 1
                 ;;
         esac
     fi
     
-    log_info "系统依赖检查完成"
+    # 提示可选依赖
+    if [[ ${#missing_optional[@]} -gt 0 ]]; then
+        show_status "info" "可选依赖未安装: ${missing_optional[*]}"
+        show_status "info" "这些依赖不影响基本功能，但可能影响某些高级特性"
+    fi
+    
+    show_status "success" "系统依赖检查完成"
+    log_debug "依赖检查结果: 必需=${#missing_required[@]}个缺失, 可选=${#missing_optional[@]}个缺失"
 }
 
 # 优化的自签证书生成函数
 generate_self_signed_cert() {
     local cert_file="$1"
     local key_file="$2"
-    local common_name="$3"
+    local common_name="${3:-localhost}"
+    local validity_days="${4:-730}"
+    
+    # 参数验证
+    if [[ -z "$cert_file" ]] || [[ -z "$key_file" ]]; then
+        show_status "error" "证书文件路径不能为空"
+        return 1
+    fi
+    
     local cert_dir=$(dirname "$cert_file")
     
+    show_status "loading" "正在生成自签名证书: $common_name"
+    
     # 确保证书目录存在
-    mkdir -p "$cert_dir"
+    if ! mkdir -p "$cert_dir"; then
+        show_status "error" "无法创建证书目录: $cert_dir"
+        return 1
+    fi
+    
+    # 检查OpenSSL可用性
+    if ! command -v openssl >/dev/null 2>&1; then
+        show_status "error" "OpenSSL未安装，无法生成证书"
+        return 1
+    fi
     
     # 创建临时配置文件用于证书扩展
-    local config_file="$cert_dir/cert_config.conf"
+    local config_file="$cert_dir/cert_config_$$.conf"
     cat > "$config_file" << EOF
 [req]
 distinguished_name = req_distinguished_name
@@ -255,6 +465,7 @@ basicConstraints = critical, CA:FALSE
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = critical, serverAuth
 subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
 subjectAltName = @alt_names
 
 [alt_names]
@@ -265,28 +476,49 @@ IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
     
-    # 使用椭圆曲线算法生成更安全的证书（ECC P-256）
-    if command -v openssl >/dev/null 2>&1; then
-        # 生成ECC私钥
-        openssl ecparam -genkey -name prime256v1 -out "$key_file" 2>/dev/null
-        
-        # 生成自签名证书（有效期2年，使用SHA256）
-        openssl req -new -x509 -key "$key_file" -out "$cert_file" \
-            -days 730 -sha256 -config "$config_file" \
-            -extensions v3_req 2>/dev/null
-        
-        # 设置适当的文件权限
-        chmod 600 "$key_file"
-        chmod 644 "$cert_file"
-        
-        # 清理临时配置文件
+    # 生成ECC私钥（P-256曲线）
+    if ! openssl ecparam -genkey -name prime256v1 -out "$key_file" 2>/dev/null; then
+        show_status "error" "生成ECC私钥失败"
         rm -f "$config_file"
-        
-        log_info "已生成ECC自签名证书: $cert_file"
-    else
-        log_error "OpenSSL未安装，无法生成证书"
         return 1
     fi
+    
+    # 生成自签名证书（使用SHA256）
+    if ! openssl req -new -x509 -key "$key_file" -out "$cert_file" \
+        -days "$validity_days" -sha256 -config "$config_file" \
+        -extensions v3_req 2>/dev/null; then
+        show_status "error" "生成自签名证书失败"
+        rm -f "$config_file" "$key_file"
+        return 1
+    fi
+    
+    # 验证生成的证书
+    if ! openssl x509 -in "$cert_file" -noout -text >/dev/null 2>&1; then
+        show_status "error" "生成的证书格式无效"
+        rm -f "$config_file" "$cert_file" "$key_file"
+        return 1
+    fi
+    
+    # 设置适当的文件权限
+    chmod 600 "$key_file"  # 私钥只有所有者可读写
+    chmod 644 "$cert_file" # 证书所有者可读写，其他人只读
+    
+    # 清理临时配置文件
+    rm -f "$config_file"
+    
+    # 获取证书信息用于验证
+    local cert_subject
+    cert_subject=$(openssl x509 -in "$cert_file" -noout -subject 2>/dev/null | sed 's/subject=//')
+    local cert_validity
+    cert_validity=$(openssl x509 -in "$cert_file" -noout -dates 2>/dev/null | grep 'notAfter' | cut -d'=' -f2)
+    
+    show_status "success" "ECC自签名证书生成成功"
+    log_debug "证书文件: $cert_file"
+    log_debug "私钥文件: $key_file"
+    log_debug "证书主题: $cert_subject"
+    log_debug "有效期至: $cert_validity"
+    
+    return 0
 }
 
 # 检查网络连接
@@ -310,39 +542,130 @@ check_network() {
     fi
 }
 
-# 检查端口占用
+# 增强的端口检查函数
 check_port() {
     local port=$1
+    local protocol=${2:-"tcp"}
+    
+    log_debug "检查端口 $port ($protocol) 是否被占用"
+    
     # 使用多种方法检查端口占用
     if command -v ss >/dev/null 2>&1; then
-        if ss -tuln | grep -q ":$port "; then
+        if ss -${protocol}ln | grep -q ":$port "; then
+            log_debug "端口 $port 已被占用 (通过ss检测)"
             return 1
         fi
     elif command -v netstat >/dev/null 2>&1; then
-        if netstat -tuln | grep -q ":$port "; then
+        if netstat -${protocol}ln | grep -q ":$port "; then
+            log_debug "端口 $port 已被占用 (通过netstat检测)"
             return 1
         fi
     elif command -v lsof >/dev/null 2>&1; then
-        if lsof -i ":$port" >/dev/null 2>&1; then
+        if lsof -i "$protocol:$port" >/dev/null 2>&1; then
+            log_debug "端口 $port 已被占用 (通过lsof检测)"
+            return 1
+        fi
+    else
+        # 如果没有检测工具，尝试绑定端口
+        if ! timeout 1 bash -c "</dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+            log_debug "端口 $port 可能可用 (通过连接测试)"
+            return 0
+        else
+            log_debug "端口 $port 已被占用 (通过连接测试)"
             return 1
         fi
     fi
+    
+    log_debug "端口 $port 可用"
     return 0
 }
 
-# 生成随机端口
+# 智能端口生成函数
 generate_random_port() {
-    local min_port=10000
-    local max_port=65535
+    local protocol=${1:-"tcp"}
+    local exclude_ports=(${2:-})
+    local max_attempts=100
+    local attempt=0
     local port
     
-    while true; do
-        port=$((RANDOM % (max_port - min_port + 1) + min_port))
-        if check_port "$port"; then
+    # 常用端口范围避免列表
+    local avoid_ranges=(
+        "22 22"      # SSH
+        "53 53"      # DNS
+        "80 80"      # HTTP
+        "443 443"    # HTTPS
+        "3306 3306"  # MySQL
+        "5432 5432"  # PostgreSQL
+        "6379 6379"  # Redis
+        "27017 27017" # MongoDB
+    )
+    
+    while [[ $attempt -lt $max_attempts ]]; do
+        port=$((RANDOM % (MAX_PORT - MIN_PORT + 1) + MIN_PORT))
+        
+        # 检查是否在排除列表中
+        local excluded=false
+        for exclude_port in "${exclude_ports[@]}"; do
+            if [[ "$port" == "$exclude_port" ]]; then
+                excluded=true
+                break
+            fi
+        done
+        
+        if [[ "$excluded" == "true" ]]; then
+            ((attempt++))
+            continue
+        fi
+        
+        # 检查是否在避免范围内
+        local in_avoid_range=false
+        for range in "${avoid_ranges[@]}"; do
+            local start_port=$(echo "$range" | cut -d' ' -f1)
+            local end_port=$(echo "$range" | cut -d' ' -f2)
+            if [[ $port -ge $start_port && $port -le $end_port ]]; then
+                in_avoid_range=true
+                break
+            fi
+        done
+        
+        if [[ "$in_avoid_range" == "true" ]]; then
+            ((attempt++))
+            continue
+        fi
+        
+        # 检查端口是否可用
+        if check_port "$port" "$protocol"; then
+            log_debug "生成可用端口: $port (协议: $protocol, 尝试次数: $((attempt + 1)))"
             echo "$port"
-            break
+            return 0
+        fi
+        
+        ((attempt++))
+    done
+    
+    log_error "无法生成可用端口，已尝试 $max_attempts 次"
+    return 1
+}
+
+# 批量生成不冲突的端口
+generate_multiple_ports() {
+    local count=$1
+    local protocol=${2:-"tcp"}
+    local ports=()
+    local i=0
+    
+    while [[ $i -lt $count ]]; do
+        local new_port
+        if new_port=$(generate_random_port "$protocol" "${ports[@]}"); then
+            ports+=("$new_port")
+            ((i++))
+        else
+            log_error "无法生成足够的可用端口"
+            return 1
         fi
     done
+    
+    echo "${ports[@]}"
 }
 
 # 检查sing-box安装状态
@@ -510,104 +833,176 @@ show_main_menu() {
     done
 }
 
-# 获取最新sing-box版本
+# 增强的版本获取函数
 get_latest_version() {
-    log_info "正在获取最新版本信息..."
-    local api_url="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
+    show_status "loading" "正在获取最新版本信息..."
     
-    # 尝试多种方法获取版本信息
-    if command -v curl >/dev/null 2>&1; then
-        SINGBOX_VERSION=$(curl -s --connect-timeout 10 "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null)
-    elif command -v wget >/dev/null 2>&1; then
-        SINGBOX_VERSION=$(wget -qO- --timeout=10 "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null)
-    fi
+    local api_urls=(
+        "$GITHUB_API_URL"
+        "$GITHUB_MIRROR/$GITHUB_API_URL"
+    )
     
-    if [[ -z "$SINGBOX_VERSION" ]]; then
-        log_warn "无法获取最新版本信息，使用默认版本"
-        SINGBOX_VERSION="v1.8.0"
-    fi
+    for api_url in "${api_urls[@]}"; do
+        log_debug "尝试从 $api_url 获取版本信息"
+        
+        local version_info
+        if command -v curl >/dev/null 2>&1; then
+            version_info=$(curl -s --connect-timeout 10 --max-time 30 "$api_url" 2>/dev/null)
+        elif command -v wget >/dev/null 2>&1; then
+            version_info=$(wget -qO- --timeout=30 "$api_url" 2>/dev/null)
+        fi
+        
+        if [[ -n "$version_info" ]]; then
+            # 尝试使用jq解析JSON（如果可用）
+            if command -v jq >/dev/null 2>&1; then
+                SINGBOX_VERSION=$(echo "$version_info" | jq -r '.tag_name' 2>/dev/null)
+            else
+                # 使用grep和cut解析
+                SINGBOX_VERSION=$(echo "$version_info" | grep '"tag_name":' | head -1 | cut -d'"' -f4 2>/dev/null)
+            fi
+            
+            # 验证版本格式
+            if [[ "$SINGBOX_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+                show_status "success" "获取到最新版本: $SINGBOX_VERSION"
+                log_debug "版本获取成功，来源: $api_url"
+                return 0
+            fi
+        fi
+        
+        log_debug "从 $api_url 获取版本信息失败"
+    done
     
-    log_info "使用版本: $SINGBOX_VERSION"
+    # 如果所有方法都失败，使用默认版本
+    show_status "warning" "无法获取最新版本信息，使用默认版本"
+    SINGBOX_VERSION="v1.8.0"
+    log_debug "使用默认版本: $SINGBOX_VERSION"
 }
 
-# 下载sing-box
+# 增强的下载函数
 download_singbox() {
-    log_info "正在下载 sing-box $SINGBOX_VERSION..."
+    show_status "loading" "正在下载 sing-box $SINGBOX_VERSION..."
     
-    local download_url="https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION#v}-linux-${ARCH}.tar.gz"
+    local filename="sing-box-${SINGBOX_VERSION#v}-linux-${ARCH}.tar.gz"
+    local download_urls=(
+        "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/${filename}"
+        "${GITHUB_MIRROR}/https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/${filename}"
+    )
+    
     local temp_dir="/tmp/sing-box-install"
     local temp_file="$temp_dir/sing-box.tar.gz"
     
     # 创建临时目录
-    mkdir -p "$temp_dir" || {
-        log_error "无法创建临时目录"
+    if ! mkdir -p "$temp_dir"; then
+        show_status "error" "无法创建临时目录"
         return 1
-    }
+    fi
     
-    # 下载文件
-    log_info "下载地址: $download_url"
-    if command -v wget >/dev/null 2>&1; then
-        if ! wget -q --show-progress --timeout=30 -O "$temp_file" "$download_url"; then
-            log_error "wget下载失败，尝试使用curl"
-            if command -v curl >/dev/null 2>&1; then
-                if ! curl -L --connect-timeout 30 -o "$temp_file" "$download_url"; then
-                    log_error "下载失败，请检查网络连接"
-                    rm -rf "$temp_dir"
-                    return 1
-                fi
-            else
-                rm -rf "$temp_dir"
-                return 1
+    log_debug "临时目录: $temp_dir"
+    
+    # 尝试从多个源下载
+    local download_success=false
+    for download_url in "${download_urls[@]}"; do
+        show_status "loading" "尝试从源下载: $(echo "$download_url" | cut -d'/' -f3)"
+        log_debug "下载地址: $download_url"
+        
+        # 使用wget下载（带进度条）
+        if command -v wget >/dev/null 2>&1; then
+            if wget --progress=bar:force --timeout=60 --tries=3 -O "$temp_file" "$download_url" 2>&1; then
+                download_success=true
+                break
+            fi
+        # 使用curl下载（带进度条）
+        elif command -v curl >/dev/null 2>&1; then
+            if curl -L --connect-timeout 30 --max-time 300 --retry 3 \
+                   --progress-bar -o "$temp_file" "$download_url"; then
+                download_success=true
+                break
             fi
         fi
-    elif command -v curl >/dev/null 2>&1; then
-        if ! curl -L --connect-timeout 30 -o "$temp_file" "$download_url"; then
-            log_error "下载失败，请检查网络连接"
-            rm -rf "$temp_dir"
-            return 1
-        fi
-    else
-        log_error "系统缺少下载工具(wget或curl)"
+        
+        show_status "warning" "从当前源下载失败，尝试下一个源..."
+        [[ -f "$temp_file" ]] && rm -f "$temp_file"
+    done
+    
+    if [[ "$download_success" != "true" ]]; then
+        show_status "error" "所有下载源均失败，请检查网络连接"
         rm -rf "$temp_dir"
         return 1
     fi
     
-    # 检查下载的文件
+    # 验证下载的文件
     if [[ ! -f "$temp_file" ]] || [[ ! -s "$temp_file" ]]; then
-        log_error "下载的文件无效"
+        show_status "error" "下载的文件无效或为空"
         rm -rf "$temp_dir"
         return 1
     fi
+    
+    local file_size=$(stat -f%z "$temp_file" 2>/dev/null || stat -c%s "$temp_file" 2>/dev/null)
+    if [[ $file_size -lt 1048576 ]]; then  # 小于1MB可能是错误页面
+        show_status "error" "下载的文件大小异常 (${file_size} bytes)"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    show_status "success" "文件下载完成 (${file_size} bytes)"
     
     # 解压文件
-    log_info "正在解压文件..."
+    show_status "loading" "正在解压文件..."
     if ! tar -xzf "$temp_file" -C "$temp_dir" 2>/dev/null; then
-        log_error "解压失败，文件可能损坏"
+        show_status "error" "解压失败，文件可能损坏"
+        log_debug "尝试查看文件内容: $(file "$temp_file" 2>/dev/null || echo '无法识别文件类型')"
         rm -rf "$temp_dir"
         return 1
     fi
     
     # 查找二进制文件
-    local binary_path=$(find "$temp_dir" -name "sing-box" -type f 2>/dev/null | head -1)
+    local binary_path=$(find "$temp_dir" -name "sing-box" -type f -executable 2>/dev/null | head -1)
     if [[ -z "$binary_path" ]] || [[ ! -f "$binary_path" ]]; then
-        log_error "未找到 sing-box 二进制文件"
+        show_status "error" "未找到 sing-box 二进制文件"
+        log_debug "临时目录内容: $(ls -la "$temp_dir" 2>/dev/null)"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    log_debug "找到二进制文件: $binary_path"
+    
+    # 验证二进制文件
+    if ! "$binary_path" version >/dev/null 2>&1; then
+        show_status "error" "二进制文件无法执行或损坏"
         rm -rf "$temp_dir"
         return 1
     fi
     
     # 复制到系统目录
+    show_status "loading" "正在安装二进制文件..."
     if ! cp "$binary_path" "$SINGBOX_BINARY"; then
-        log_error "无法复制二进制文件到系统目录"
+        show_status "error" "无法复制二进制文件到系统目录"
         rm -rf "$temp_dir"
         return 1
     fi
     
-    chmod +x "$SINGBOX_BINARY"
+    # 设置执行权限
+    if ! chmod +x "$SINGBOX_BINARY"; then
+        show_status "error" "无法设置执行权限"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # 验证安装
+    local installed_version
+    if installed_version=$("$SINGBOX_BINARY" version 2>/dev/null | head -1); then
+        show_status "success" "sing-box 安装完成: $installed_version"
+        log_debug "安装路径: $SINGBOX_BINARY"
+    else
+        show_status "error" "安装验证失败"
+        rm -rf "$temp_dir"
+        return 1
+    fi
     
     # 清理临时文件
     rm -rf "$temp_dir"
+    log_debug "临时文件清理完成"
     
-    log_info "sing-box 下载安装完成"
     return 0
 }
 
@@ -644,16 +1039,31 @@ EOF
 
 # 创建配置目录
 create_config_dirs() {
-    log_info "正在创建配置目录..."
+    show_status "loading" "正在创建配置目录..."
     
-    mkdir -p "$SINGBOX_CONFIG_DIR"
-    mkdir -p "$SINGBOX_LOG_DIR"
-    mkdir -p "$SINGBOX_CONFIG_DIR/certs"
+    local dirs=(
+        "$SINGBOX_CONFIG_DIR"
+        "$SINGBOX_LOG_DIR"
+        "$SINGBOX_CONFIG_DIR/certs"
+        "/var/cache/sing-box"
+    )
     
-    # 创建缓存目录
-    mkdir -p "/var/cache/sing-box"
+    for dir in "${dirs[@]}"; do
+        if ! mkdir -p "$dir"; then
+            show_status "error" "无法创建目录: $dir"
+            return 1
+        fi
+        log_debug "创建目录: $dir"
+    done
     
-    log_info "配置目录创建完成"
+    # 设置适当的权限
+    chmod 755 "$SINGBOX_CONFIG_DIR"
+    chmod 755 "$SINGBOX_LOG_DIR"
+    chmod 700 "$SINGBOX_CONFIG_DIR/certs"  # 证书目录需要更严格的权限
+    chmod 755 "/var/cache/sing-box"
+    
+    show_status "success" "配置目录创建完成"
+    return 0
 }
 
 # 验证配置文件
@@ -661,18 +1071,34 @@ validate_config() {
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
     
     if [[ ! -f "$config_file" ]]; then
-        log_error "配置文件不存在: $config_file"
+        show_status "error" "配置文件不存在: $config_file"
         return 1
     fi
     
-    log_info "正在验证配置文件..."
-    if "$SINGBOX_BINARY" check -c "$config_file" &>/dev/null; then
-        log_info "✓ 配置文件验证通过"
+    show_status "loading" "正在验证配置文件..."
+    
+    # 检查配置文件是否为有效的JSON
+    if command -v jq >/dev/null 2>&1; then
+        if ! jq empty "$config_file" 2>/dev/null; then
+            show_status "error" "配置文件不是有效的JSON格式"
+            return 1
+        fi
+    fi
+    
+    # 使用sing-box验证配置
+    local check_output
+    if check_output=$("$SINGBOX_BINARY" check -c "$config_file" 2>&1); then
+        show_status "success" "配置文件验证通过"
+        log_debug "配置验证输出: $check_output"
         return 0
     else
-        log_error "✗ 配置文件验证失败"
-        log_info "配置文件内容:"
-        cat "$config_file"
+        show_status "error" "配置文件验证失败"
+        log_error "验证错误信息: $check_output"
+        
+        if [[ "$DEBUG_MODE" == "true" ]]; then
+            echo "配置文件内容:"
+            cat "$config_file"
+        fi
         return 1
     fi
 }
@@ -730,75 +1156,151 @@ generate_hex_string() {
 
 # 生成Reality密钥对
 generate_reality_keypair() {
-    log_info "正在生成Reality密钥对..."
+    show_status "loading" "正在生成Reality密钥对..."
     
     if ! command -v "$SINGBOX_BINARY" >/dev/null 2>&1; then
-        log_error "sing-box二进制文件不存在，无法生成密钥对"
+        show_status "error" "sing-box二进制文件不存在，无法生成密钥对"
         return 1
     fi
     
     local keypair_output
-    keypair_output=$("$SINGBOX_BINARY" generate reality-keypair 2>/dev/null)
+    local max_retries=3
+    local retry_count=0
+    
+    while [[ $retry_count -lt $max_retries ]]; do
+        keypair_output=$("$SINGBOX_BINARY" generate reality-keypair 2>/dev/null)
+        
+        if [[ -n "$keypair_output" ]]; then
+            break
+        fi
+        
+        ((retry_count++))
+        if [[ $retry_count -lt $max_retries ]]; then
+            show_status "warning" "生成失败，正在重试 ($retry_count/$max_retries)..."
+            sleep 1
+        fi
+    done
     
     if [[ -z "$keypair_output" ]]; then
-        log_error "生成Reality密钥对失败"
+        show_status "error" "生成Reality密钥对失败（已重试$max_retries次）"
         return 1
     fi
     
-    VLESS_REALITY_PRIVATE_KEY=$(echo "$keypair_output" | grep "PrivateKey:" | awk '{print $2}')
-    VLESS_REALITY_PUBLIC_KEY=$(echo "$keypair_output" | grep "PublicKey:" | awk '{print $2}')
+    # 解析密钥对
+    VLESS_REALITY_PRIVATE_KEY=$(echo "$keypair_output" | grep "PrivateKey:" | awk '{print $2}' | tr -d '\r\n')
+    VLESS_REALITY_PUBLIC_KEY=$(echo "$keypair_output" | grep "PublicKey:" | awk '{print $2}' | tr -d '\r\n')
     
     if [[ -z "$VLESS_REALITY_PRIVATE_KEY" ]] || [[ -z "$VLESS_REALITY_PUBLIC_KEY" ]]; then
-        log_error "解析Reality密钥对失败"
+        show_status "error" "解析Reality密钥对失败"
+        log_debug "原始输出: $keypair_output"
         return 1
     fi
     
-    log_info "✓ Reality密钥对生成成功"
+    # 验证密钥格式
+    if [[ ${#VLESS_REALITY_PRIVATE_KEY} -ne 44 ]] || [[ ${#VLESS_REALITY_PUBLIC_KEY} -ne 44 ]]; then
+        show_status "error" "生成的密钥格式不正确"
+        log_debug "私钥长度: ${#VLESS_REALITY_PRIVATE_KEY}, 公钥长度: ${#VLESS_REALITY_PUBLIC_KEY}"
+        return 1
+    fi
+    
+    show_status "success" "Reality密钥对生成成功"
+    log_debug "私钥: ${VLESS_REALITY_PRIVATE_KEY:0:8}..."
+    log_debug "公钥: ${VLESS_REALITY_PUBLIC_KEY:0:8}..."
     return 0
+}
+
+# 验证目标网站连通性
+verify_target_website() {
+    local website="$1"
+    local timeout=5
+    
+    show_status "loading" "正在验证网站连通性: $website"
+    
+    # 尝试连接443端口
+    if command -v nc >/dev/null 2>&1; then
+        if timeout $timeout nc -z "$website" 443 2>/dev/null; then
+            return 0
+        fi
+    elif command -v telnet >/dev/null 2>&1; then
+        if timeout $timeout bash -c "echo '' | telnet $website 443" 2>/dev/null | grep -q "Connected"; then
+            return 0
+        fi
+    elif command -v curl >/dev/null 2>&1; then
+        if curl -s --connect-timeout $timeout "https://$website" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    
+    return 1
 }
 
 # 选择目标网站
 select_target_website() {
     echo
-    log_info "请选择Reality伪装目标网站:"
+    show_status "info" "请选择Reality伪装目标网站:"
     echo "  1. microsoft.com (推荐)"
     echo "  2. cloudflare.com"
     echo "  3. www.bing.com"
     echo "  4. 自定义网站"
     echo
     
+    local websites=("microsoft.com" "cloudflare.com" "www.bing.com")
+    
     while true; do
         read -p "请选择 [1-4]: " website_choice
         
         case $website_choice in
-            1)
-                VLESS_TARGET_WEBSITE="microsoft.com"
-                break
-                ;;
-            2)
-                VLESS_TARGET_WEBSITE="cloudflare.com"
-                break
-                ;;
-            3)
-                VLESS_TARGET_WEBSITE="www.bing.com"
-                break
-                ;;
-            4)
-                read -p "请输入目标网站域名 (如: example.com): " custom_website
-                if [[ -n "$custom_website" ]]; then
-                    VLESS_TARGET_WEBSITE="$custom_website"
+            1|2|3)
+                local selected_website="${websites[$((website_choice-1))]}"
+                if verify_target_website "$selected_website"; then
+                    VLESS_TARGET_WEBSITE="$selected_website"
+                    show_status "success" "网站连通性验证通过"
                     break
                 else
-                    log_error "域名不能为空"
+                    show_status "warning" "网站连通性验证失败，但仍可使用"
+                    read -p "是否继续使用此网站? [y/N]: " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        VLESS_TARGET_WEBSITE="$selected_website"
+                        break
+                    fi
                 fi
                 ;;
+            4)
+                while true; do
+                    read -p "请输入目标网站域名 (如: example.com): " custom_website
+                    if [[ -z "$custom_website" ]]; then
+                        show_status "error" "域名不能为空"
+                        continue
+                    fi
+                    
+                    # 简单的域名格式验证
+                    if [[ ! "$custom_website" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+                        show_status "error" "域名格式不正确"
+                        continue
+                    fi
+                    
+                    if verify_target_website "$custom_website"; then
+                        VLESS_TARGET_WEBSITE="$custom_website"
+                        show_status "success" "网站连通性验证通过"
+                        break 2
+                    else
+                        show_status "warning" "网站连通性验证失败"
+                        read -p "是否继续使用此网站? [y/N]: " confirm
+                        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                            VLESS_TARGET_WEBSITE="$custom_website"
+                            break 2
+                        fi
+                    fi
+                done
+                ;;
             *)
-                log_error "无效选择，请重新输入"
+                show_status "error" "无效选择，请重新输入"
                 ;;
         esac
     done
     
-    log_info "已选择目标网站: $VLESS_TARGET_WEBSITE"
+    show_status "success" "已选择目标网站: $VLESS_TARGET_WEBSITE"
+    log_debug "目标网站: $VLESS_TARGET_WEBSITE"
 }
 
 # 生成VLESS Reality配置文件
