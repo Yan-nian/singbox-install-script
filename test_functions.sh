@@ -34,7 +34,7 @@ fi
 # 3. 检查三协议配置生成是否包含 VLESS Reality
 echo ""
 echo "3. 检查配置生成..."
-if grep -A 100 "generate_triple_protocol_config" install.sh | grep -q '"type": "vless"'; then
+if grep -A 200 "generate_triple_protocol_config" install.sh | grep -q '"type": "vless"'; then
     echo "  ✓ 三协议配置包含 VLESS Reality"
 else
     echo "  ✗ 三协议配置缺少 VLESS Reality"

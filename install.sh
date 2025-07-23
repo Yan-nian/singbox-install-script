@@ -1347,7 +1347,7 @@ generate_vless_reality_config() {
       "users": [
         {
           "uuid": "$VLESS_UUID",
-          "flow": "xtls-rprx-vision"
+          "flow": ""
         }
       ],
       "tls": {
@@ -1384,7 +1384,7 @@ generate_vless_reality_config() {
       "server": "$IP_ADDRESS",
       "server_port": $vless_port,
       "uuid": "$VLESS_UUID",
-      "flow": "xtls-rprx-vision",
+      "flow": "",
       "tls": {
         "enabled": true,
         "server_name": "$VLESS_TARGET_WEBSITE",
@@ -1664,6 +1664,8 @@ generate_enhanced_config() {
       "sniff": true,
       "sniff_override_destination": true,
       "domain_strategy": "ipv4_only",
+      "tcp_fast_open": false,
+      "proxy_protocol": false,
       "users": [
         {
           "uuid": "$VMESS_UUID"
@@ -1679,6 +1681,15 @@ generate_enhanced_config() {
         "enabled": true,
         "certificate_path": "$vmess_cert_file",
         "key_path": "$vmess_key_file"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true,
+        "brutal": {
+          "enabled": true,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
       }
     },
     {
@@ -1917,7 +1928,7 @@ generate_triple_protocol_config() {
       "users": [
         {
           "uuid": "$VLESS_UUID",
-          "flow": "xtls-rprx-vision"
+          "flow": ""
         }
       ],
       "tls": {
@@ -1954,7 +1965,7 @@ generate_triple_protocol_config() {
       "server": "$IP_ADDRESS",
       "server_port": $vless_port,
       "uuid": "$VLESS_UUID",
-      "flow": "xtls-rprx-vision",
+      "flow": "",
       "tls": {
         "enabled": true,
         "server_name": "$VLESS_TARGET_WEBSITE",
@@ -3016,16 +3027,24 @@ generate_share_links() {
     # 检测配置文件中的所有协议
     local has_vmess=$(grep -q '"type": "vmess"' "$config_file" && echo "true" || echo "false")
     local has_hysteria2=$(grep -q '"type": "hysteria2"' "$config_file" && echo "true" || echo "false")
+    local has_vless=$(grep -q '"type": "vless"' "$config_file" && echo "true" || echo "false")
     
     # 如果是多协议配置且没有指定协议，显示所有协议
     local protocol_count=0
     [[ "$has_vmess" == "true" ]] && ((protocol_count++))
     [[ "$has_hysteria2" == "true" ]] && ((protocol_count++))
+    [[ "$has_vless" == "true" ]] && ((protocol_count++))
     
     if [[ $protocol_count -gt 1 && -z "$protocol_choice" ]]; then
         # 多协议配置，显示所有协议的链接
         echo "# 多协议配置 - 所有协议分享链接"
         echo
+        
+        if [[ "$has_vless" == "true" ]]; then
+            echo "【VLESS Reality】"
+            generate_single_protocol_link "vless"
+            echo
+        fi
         
         if [[ "$has_vmess" == "true" ]]; then
             echo "【VMess WebSocket】"
@@ -3056,6 +3075,20 @@ generate_single_protocol_link() {
     local config_file="$SINGBOX_CONFIG_DIR/config.json"
     
     case $protocol_type in
+        "vless")
+            # 获取VLESS Reality相关配置
+            local vless_inbound=$(grep -A 30 '"type": "vless"' "$config_file")
+            local listen_port=$(echo "$vless_inbound" | grep -o '"listen_port": [0-9]*' | cut -d':' -f2 | tr -d ' ')
+            local uuid=$(echo "$vless_inbound" | grep -o '"uuid": "[^"]*"' | cut -d'"' -f4)
+            local flow=$(echo "$vless_inbound" | grep -o '"flow": "[^"]*"' | cut -d'"' -f4)
+            local server_name=$(grep -A 30 '"reality"' "$config_file" | grep -o '"server_name": "[^"]*"' | head -1 | cut -d'"' -f4)
+            local public_key=$(grep -A 30 '"reality"' "$config_file" | grep -o '"public_key": "[^"]*"' | head -1 | cut -d'"' -f4)
+            local short_id=$(grep -A 30 '"reality"' "$config_file" | grep -o '"short_id": \["[^"]*"\]' | head -1 | cut -d'"' -f2)
+            
+            # 构建VLESS Reality链接
+            local vless_link="vless://${uuid}@${IP_ADDRESS}:${listen_port}?encryption=none&flow=${flow}&security=reality&sni=${server_name}&fp=chrome&pbk=${public_key}&sid=${short_id}&type=tcp&headerType=none#VLESS-Reality-${IP_ADDRESS}"
+            echo "$vless_link"
+            ;;
         "vmess")
             # 获取VMess相关配置
             local vmess_inbound=$(grep -A 20 '"type": "vmess"' "$config_file")
@@ -3117,12 +3150,15 @@ share_config() {
     # 检测配置文件中的所有协议
     local has_vmess=$(grep -q '"type": "vmess"' "$config_file" && echo "true" || echo "false")
     local has_hysteria2=$(grep -q '"type": "hysteria2"' "$config_file" && echo "true" || echo "false")
+    local has_vless=$(grep -q '"type": "vless"' "$config_file" && echo "true" || echo "false")
     
     local protocol_count=0
     [[ "$has_vmess" == "true" ]] && ((protocol_count++))
     [[ "$has_hysteria2" == "true" ]] && ((protocol_count++))
+    [[ "$has_vless" == "true" ]] && ((protocol_count++))
     
     local current_protocols=""
+    [[ "$has_vless" == "true" ]] && current_protocols="${current_protocols}VLESS Reality "
     [[ "$has_vmess" == "true" ]] && current_protocols="${current_protocols}VMess WebSocket "
     [[ "$has_hysteria2" == "true" ]] && current_protocols="${current_protocols}Hysteria2 "
     
@@ -3173,6 +3209,7 @@ share_config() {
                     echo
                     echo "请选择要生成二维码的协议:"
                     local menu_num=1
+                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
                     [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
                     [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
                     echo "  0. 返回"
@@ -3181,6 +3218,10 @@ share_config() {
                     
                     local selected_protocol=""
                     local current_num=1
+                    if [[ "$has_vless" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
+                        ((current_num++))
+                    fi
                     if [[ "$has_vmess" == "true" ]]; then
                         [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
                         ((current_num++))
@@ -3234,6 +3275,7 @@ share_config() {
                     echo
                     echo "请选择要分享的协议:"
                     local menu_num=1
+                    [[ "$has_vless" == "true" ]] && echo "  ${menu_num}. VLESS Reality" && ((menu_num++))
                     [[ "$has_vmess" == "true" ]] && echo "  ${menu_num}. VMess WebSocket" && ((menu_num++))
                     [[ "$has_hysteria2" == "true" ]] && echo "  ${menu_num}. Hysteria2" && ((menu_num++))
                     echo "  0. 返回"
@@ -3242,6 +3284,10 @@ share_config() {
                     
                     local selected_protocol=""
                     local current_num=1
+                    if [[ "$has_vless" == "true" ]]; then
+                        [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vless"
+                        ((current_num++))
+                    fi
                     if [[ "$has_vmess" == "true" ]]; then
                         [[ "$protocol_choice" == "$current_num" ]] && selected_protocol="vmess"
                         ((current_num++))
