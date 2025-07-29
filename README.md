@@ -58,8 +58,7 @@
 ## 快速开始
 
 ### 一键安装命令
-wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh && chmod +x singbox-install.sh && sudo ./singbox-install.sh
-```
+wget -O singbox-install.sh https://raw.githubusercontent.com/Yan-nian/singbox-install-script/master/singbox-install.sh && chmod +x singbox-install.sh && sudo ./singbox-install.sh
 
 ## 使用说明
 
