@@ -18,6 +18,49 @@ WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # 全局变量定义
+SCRIPT_VERSION="1.1.0"
+SCRIPT_NAME="sing-box一键部署脚本"
+SCRIPT_BUILD_DATE="2024-01-15"
+SCRIPT_AUTHOR="CodeBuddy"
+#!/bin/bash
+
+#================================================================
+# sing-box 服务器端一键部署脚本
+# 支持协议: Reality, Hysteria2, VMess WebSocket TLS
+# 作者: CodeBuddy
+# 版本: 1.0.0
+#================================================================
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+#!/bin/bash
+
+#================================================================
+# sing-box 服务器端一键部署脚本
+# 支持协议: Reality, Hysteria2, VMess WebSocket TLS
+# 作者: CodeBuddy
+# 版本: 1.0.0
+#================================================================
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# 全局变量定义
 SCRIPT_VERSION="1.0.0"
 SCRIPT_NAME="sing-box一键部署脚本"
 WORK_DIR="/etc/sing-box"
@@ -191,6 +234,8 @@ log_message() {
 show_script_info() {
     clear
     print_title "$SCRIPT_NAME v$SCRIPT_VERSION"
+    print_info "脚本版本: $SCRIPT_VERSION (构建日期: $SCRIPT_BUILD_DATE)"
+    print_info "脚本作者: $SCRIPT_AUTHOR"
     print_info "系统信息: $SYSTEM_INFO"
     print_info "系统架构: $(uname -m) ($ARCH)"
     print_info "服务器IP: ${IP_ADDRESS:-未获取到}"
@@ -216,6 +261,7 @@ show_main_menu() {
     print_message $WHITE "11. 备份配置"
     print_message $WHITE "12. 恢复配置"
     print_message $WHITE "13. 生成分享二维码"
+    print_message $WHITE "14. 查看版本信息"
     print_message $WHITE "0. 退出脚本"
     echo
     print_separator
@@ -955,6 +1001,62 @@ generate_share_qrcode() {
     read -p "按回车键继续..."
 }
 
+# 查看版本信息
+show_version_info() {
+    print_title "版本信息"
+    
+    print_message $CYAN "脚本信息:"
+    print_separator
+    print_message $WHITE "脚本名称: $SCRIPT_NAME"
+    print_message $WHITE "当前版本: $SCRIPT_VERSION"
+    print_message $WHITE "构建日期: $SCRIPT_BUILD_DATE"
+    print_message $WHITE "脚本作者: $SCRIPT_AUTHOR"
+    print_separator
+    
+    # 显示sing-box版本信息
+    if [[ -f "$SINGBOX_BINARY" ]]; then
+        local singbox_version=$("$SINGBOX_BINARY" version 2>/dev/null | head -1)
+        print_message $CYAN "sing-box信息:"
+        print_separator
+        print_message $WHITE "安装状态: 已安装"
+        print_message $WHITE "当前版本: $singbox_version"
+        print_message $WHITE "程序路径: $SINGBOX_BINARY"
+        print_separator
+    else
+        print_message $CYAN "sing-box信息:"
+        print_separator
+        print_message $WHITE "安装状态: 未安装"
+        print_separator
+    fi
+    
+    # 显示系统信息
+    print_message $CYAN "系统信息:"
+    print_separator
+    print_message $WHITE "操作系统: $SYSTEM_INFO"
+    print_message $WHITE "系统架构: $(uname -m) ($ARCH)"
+    print_message $WHITE "内核版本: $(uname -r)"
+    print_message $WHITE "服务器IP: ${IP_ADDRESS:-未获取到}"
+    [[ -n "$IPV6_ADDRESS" ]] && print_message $WHITE "IPv6地址: $IPV6_ADDRESS"
+    print_separator
+    
+    # 显示版本历史
+    print_message $CYAN "版本历史:"
+    print_separator
+    print_message $WHITE "v1.1.0 (2024-01-15)"
+    print_message $WHITE "  - 添加版本管理功能"
+    print_message $WHITE "  - 完善脚本信息显示"
+    print_message $WHITE "  - 优化用户界面"
+    print_message $WHITE ""
+    print_message $WHITE "v1.0.0 (2024-01-14)"
+    print_message $WHITE "  - 初始版本发布"
+    print_message $WHITE "  - 支持Reality、Hysteria2、VMess协议"
+    print_message $WHITE "  - 完整的服务管理功能"
+    print_message $WHITE "  - QR码分享功能"
+    print_separator
+    
+    read -p "按回车键继续..."
+}
+
 # 主函数
 main() {
     initialize
@@ -963,7 +1065,7 @@ main() {
         show_script_info
         show_main_menu
         
-        read -p "请输入选项 [0-13]: " choice
+        read -p "请输入选项 [0-14]: " choice
         
         case $choice in
             1)
@@ -1004,6 +1106,9 @@ main() {
                 ;;
             13)
                 generate_share_qrcode
+                ;;
+            14)
+                show_version_info
                 ;;
             0)
                 print_info "感谢使用 $SCRIPT_NAME"
