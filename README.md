@@ -57,21 +57,8 @@
 
 ## 快速开始
 
-### 1. 下载脚本
-```bash
-wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh
-# 或者使用 curl
-curl -O https://raw.githubusercontent.com/your-repo/singbox-install-script/main/singbox-install.sh
-```
-
-### 2. 添加执行权限
-```bash
-chmod +x singbox-install.sh
-```
-
-### 3. 运行脚本
-```bash
-sudo ./singbox-install.sh
+### 一键安装命令
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh && chmod +x singbox-install.sh && sudo ./singbox-install.sh
 ```
 
 ## 使用说明

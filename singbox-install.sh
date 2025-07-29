@@ -2789,7 +2789,6 @@ main() {
                 backup_config
                 ;;
             12)
-            12)
                 restore_config
                 ;;
             13)
@@ -2863,17 +2862,6 @@ upgrade_kernel() {
 
 backup_config() {
     print_warning "备份配置功能正在开发中..."
-    sleep 2
-}
-
-restore_config() {
-restore_config() {
-    print_warning "恢复配置功能正在开发中..."
-    sleep 2
-}
-
-generate_share_qrcode() {
-    print_warning "生成分享二维码功能正在开发中..."
     sleep 2
 }
 
