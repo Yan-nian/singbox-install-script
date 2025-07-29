@@ -11,6 +11,7 @@
 - **服务管理**: 完整的服务生命周期管理（安装、卸载、启动、停止、重启）
 - **状态监控**: 实时查看服务运行状态、配置信息和连接日志
 - **配置管理**: 自动生成客户端连接配置，支持配置文件的查看和备份
+- **分享功能**: 自动生成分享链接和二维码，支持多种客户端导入
 
 ### 🛡️ 安全特性
 - 自动生成密钥对和证书
@@ -24,6 +25,12 @@
 - 日志查看和监控
 - 内核版本管理
 - 完整的卸载清理
+
+### 📱 分享功能
+- **二维码生成**: 自动生成配置二维码，支持手机客户端扫码导入
+- **分享链接**: 生成标准格式的分享链接，兼容主流客户端
+- **多种方式**: 支持终端显示、PNG文件保存、在线二维码生成
+- **客户端兼容**: 支持 v2rayN、Clash、sing-box 等主流客户端
 
 ## 系统要求
 
@@ -46,12 +53,13 @@
 - `openssl` - 用于生成证书和密钥
 - `jq` - 用于处理 JSON 配置文件
 - `systemd` - 用于服务管理
+- `qrencode` - 用于生成二维码（可选，自动安装）
 
 ## 快速开始
 
 ### 1. 下载脚本
 ```bash
-wget https://raw.githubusercontent.com/your-repo/singbox-install-script/main/singbox-install.sh
+wget https://raw.githubusercontent.com/Yan-nian/singbox-install-script/main/singbox-install.sh
 # 或者使用 curl
 curl -O https://raw.githubusercontent.com/your-repo/singbox-install-script/main/singbox-install.sh
 ```
@@ -91,6 +99,7 @@ sing-box一键部署脚本 v1.0.0
 10. 升级内核
 11. 备份配置
 12. 恢复配置
+13. 生成分享二维码
 0. 退出脚本
 ```
 
@@ -113,6 +122,27 @@ sing-box一键部署脚本 v1.0.0
 - **端口**: 默认 443，可自定义
 - **传输**: WebSocket + TLS
 - **路径**: 随机生成，可自定义
+
+### 分享二维码功能
+脚本提供了便捷的节点分享功能：
+
+#### 生成方式
+1. **终端二维码**: 直接在终端显示二维码（需要安装 qrencode）
+2. **PNG文件**: 保存二维码图片到配置目录
+3. **在线二维码**: 提供在线二维码生成链接
+4. **分享链接**: 显示标准格式的分享链接
+
+#### 支持的客户端
+- **Windows**: v2rayN, Clash for Windows, sing-box
+- **Android**: v2rayNG, Clash for Android, sing-box
+- **iOS**: Shadowrocket, Quantumult X, sing-box
+- **macOS**: ClashX, V2rayU, sing-box
+
+#### 使用方法
+```bash
+sudo ./singbox-install.sh
+# 选择菜单项 "13. 生成分享二维码"
+```
 
 ## 配置文件位置
 

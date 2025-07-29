@@ -214,6 +214,7 @@ show_main_menu() {
     print_message $WHITE "10. 升级内核"
     print_message $WHITE "11. 备份配置"
     print_message $WHITE "12. 恢复配置"
+    print_message $WHITE "13. 生成分享二维码"
     print_message $WHITE "0. 退出脚本"
     echo
     print_separator
@@ -251,7 +252,7 @@ main() {
         show_script_info
         show_main_menu
         
-        read -p "请输入选项 [0-12]: " choice
+        read -p "请输入选项 [0-13]: " choice
         
         case $choice in
             1)
@@ -289,6 +290,9 @@ main() {
                 ;;
             12)
                 restore_config
+                ;;
+            13)
+                generate_share_qrcode
                 ;;
             0)
                 print_info "感谢使用 $SCRIPT_NAME"
@@ -2262,6 +2266,240 @@ restore_config() {
 uninstall_singbox() {
     uninstall_singbox_complete
 }
+
+#================================================================
+# QR码生成和分享功能
+#================================================================
+
+# 安装qrencode工具
+install_qrencode() {
+    if command_exists "qrencode"; then
+        return 0
+    fi
+    
+    print_info "安装二维码生成工具..."
+    
+    case "$OS_TYPE" in
+        "debian")
+            apt update -y >/dev/null 2>&1
+            apt install -y qrencode >/dev/null 2>&1
+            ;;
+        "centos")
+            if command_exists "dnf"; then
+                dnf install -y qrencode >/dev/null 2>&1
+            else
+                yum install -y qrencode >/dev/null 2>&1
+            fi
+            ;;
+        "arch")
+            pacman -Sy --noconfirm qrencode >/dev/null 2>&1
+            ;;
+    esac
+    
+    if command_exists "qrencode"; then
+        print_success "二维码生成工具安装完成"
+        return 0
+    else
+        print_warning "二维码生成工具安装失败，将使用在线API生成"
+        return 1
+    fi
+}
+
+# 生成在线QR码
+generate_online_qrcode() {
+    local share_link="$1"
+    local protocol_name="$2"
+    
+    print_info "使用在线API生成二维码..."
+    
+    # 对链接进行URL编码
+    local encoded_link=$(echo -n "$share_link" | sed 's/ /%20/g' | sed 's/!/%21/g' | sed 's/"/%22/g' | sed 's/#/%23/g' | sed 's/\$/%24/g' | sed 's/&/%26/g' | sed "s/'/%27/g" | sed 's/(/%28/g' | sed 's/)/%29/g' | sed 's/\*/%2A/g' | sed 's/+/%2B/g' | sed 's/,/%2C/g' | sed 's/\//%2F/g' | sed 's/:/%3A/g' | sed 's/;/%3B/g' | sed 's/=/%3D/g' | sed 's/?/%3F/g' | sed 's/@/%40/g' | sed 's/\[/%5B/g' | sed 's/\]/%5D/g')
+    
+    # 尝试多个在线QR码API
+    local qr_apis=(
+        "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data="
+        "https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl="
+        "https://qr-code-generator.com/api/qr-code?size=300&data="
+    )
+    
+    echo
+    print_message $CYAN "在线二维码链接 ($protocol_name):"
+    print_separator
+    
+    for api in "${qr_apis[@]}"; do
+        local qr_url="${api}${encoded_link}"
+        print_message $WHITE "• $qr_url"
+    done
+    
+    print_separator
+    print_message $GREEN "请复制上述链接到浏览器中查看二维码"
+    print_message $YELLOW "或使用手机扫码软件直接扫描以下文本二维码："
+    echo
+    
+    # 生成简单的文本二维码（ASCII艺术风格）
+    generate_ascii_qrcode "$share_link"
+}
+
+# 生成ASCII风格的简单二维码提示
+generate_ascii_qrcode() {
+    local share_link="$1"
+    
+    # 显示分享链接的ASCII框
+    local link_length=${#share_link}
+    local box_width=$((link_length + 4))
+    
+    if [[ $box_width -gt 80 ]]; then
+        box_width=80
+    fi
+    
+    # 打印上边框
+    printf "┌"
+    for ((i=1; i<box_width-1; i++)); do
+        printf "─"
+    done
+    printf "┐\n"
+    
+    # 打印分享链接（可能需要换行）
+    local remaining_link="$share_link"
+    while [[ ${#remaining_link} -gt 0 ]]; do
+        local line_content=""
+        if [[ ${#remaining_link} -gt $((box_width-4)) ]]; then
+            line_content="${remaining_link:0:$((box_width-4))}"
+            remaining_link="${remaining_link:$((box_width-4))}"
+        else
+            line_content="$remaining_link"
+            remaining_link=""
+        fi
+        
+        printf "│ %-*s │\n" $((box_width-4)) "$line_content"
+    done
+    
+    # 打印下边框
+    printf "└"
+    for ((i=1; i<box_width-1; i++)); do
+        printf "─"
+    done
+    printf "┘\n"
+}
+
+# 生成分享二维码主函数
+generate_share_qrcode() {
+    print_title "生成分享二维码"
+    
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        print_error "配置文件不存在，请先安装sing-box"
+        read -p "按回车键继续..."
+        return 1
+    fi
+    
+    # 检测协议类型
+    local protocol_type
+    protocol_type=$(jq -r '.inbounds[0].type' "$CONFIG_FILE" 2>/dev/null)
+    
+    if [[ -z "$protocol_type" || "$protocol_type" == "null" ]]; then
+        print_error "无法检测协议类型"
+        read -p "按回车键继续..."
+        return 1
+    fi
+    
+    local share_link=""
+    local protocol_name=""
+    local client_config_file=""
+    
+    # 根据协议类型获取分享链接
+    case "$protocol_type" in
+        "vless")
+            protocol_name="Reality"
+            client_config_file="$WORK_DIR/reality-client.json"
+            if [[ -f "$client_config_file" ]]; then
+                share_link=$(jq -r '.分享链接' "$client_config_file" 2>/dev/null)
+            fi
+            ;;
+        "hysteria2")
+            protocol_name="Hysteria2"
+            client_config_file="$WORK_DIR/hysteria2-client.json"
+            if [[ -f "$client_config_file" ]]; then
+                share_link=$(jq -r '.分享链接' "$client_config_file" 2>/dev/null)
+            fi
+            ;;
+        "vmess")
+            protocol_name="VMess WebSocket TLS"
+            client_config_file="$WORK_DIR/vmess-ws-tls-client.json"
+            if [[ -f "$client_config_file" ]]; then
+                share_link=$(jq -r '.分享链接' "$client_config_file" 2>/dev/null)
+            fi
+            ;;
+        *)
+            print_error "不支持的协议类型: $protocol_type"
+            read -p "按回车键继续..."
+            return 1
+            ;;
+    esac
+    
+    if [[ -z "$share_link" || "$share_link" == "null" ]]; then
+        print_error "无法获取分享链接，请检查客户端配置文件"
+        read -p "按回车键继续..."
+        return 1
+    fi
+    
+    print_info "协议类型: $protocol_name"
+    print_info "配置文件: $client_config_file"
+    echo
+    
+    # 显示分享链接
+    print_message $CYAN "分享链接:"
+    print_separator
+    echo "$share_link"
+    print_separator
+    echo
+    
+    # 尝试安装qrencode
+    if install_qrencode; then
+        # 使用本地qrencode生成二维码
+        print_info "生成终端二维码..."
+        echo
+        
+        if qrencode -t ANSIUTF8 "$share_link" 2>/dev/null; then
+            echo
+            print_success "二维码生成完成"
+        else
+            print_warning "终端二维码生成失败，使用在线方式"
+            generate_online_qrcode "$share_link" "$protocol_name"
+        fi
+        
+        # 同时生成PNG文件
+        local qr_file="$WORK_DIR/${protocol_name,,}-qrcode.png"
+        if qrencode -o "$qr_file" "$share_link" 2>/dev/null; then
+            print_success "二维码图片已保存: $qr_file"
+        fi
+        
+    else
+        # 使用在线API生成二维码
+        generate_online_qrcode "$share_link" "$protocol_name"
+    fi
+    
+    echo
+    print_separator
+    print_message $YELLOW "使用说明:"
+    print_message $WHITE "1. 复制上方分享链接到客户端"
+    print_message $WHITE "2. 或使用手机客户端扫描二维码"
+    print_message $WHITE "3. 支持的客户端: v2rayN, Clash, sing-box等"
+    print_separator
+    
+    # 显示客户端配置信息
+    echo
+    read -p "是否显示详细客户端配置信息? [y/N]: " show_detail
+    if [[ "$show_detail" =~ ^[Yy]$ ]]; then
+        echo
+        print_message $CYAN "详细客户端配置:"
+        if [[ -f "$client_config_file" ]]; then
+            cat "$client_config_file" | jq '.'
+        fi
+    fi
+    
+    echo
+    read -p "按回车键继续..."
+}
 #!/bin/bash
 
 #================================================================
@@ -2476,6 +2714,7 @@ show_main_menu() {
     print_message $WHITE "10. 升级内核"
     print_message $WHITE "11. 备份配置"
     print_message $WHITE "12. 恢复配置"
+    print_message $WHITE "13. 生成分享二维码"
     print_message $WHITE "0. 退出脚本"
     echo
     print_separator
@@ -2550,7 +2789,11 @@ main() {
                 backup_config
                 ;;
             12)
+            12)
                 restore_config
+                ;;
+            13)
+                generate_share_qrcode
                 ;;
             0)
                 print_info "感谢使用 $SCRIPT_NAME"
@@ -2624,7 +2867,13 @@ backup_config() {
 }
 
 restore_config() {
+restore_config() {
     print_warning "恢复配置功能正在开发中..."
+    sleep 2
+}
+
+generate_share_qrcode() {
+    print_warning "生成分享二维码功能正在开发中..."
     sleep 2
 }
 
